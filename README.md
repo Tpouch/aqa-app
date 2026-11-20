@@ -13,7 +13,7 @@ Ce serveur l'implémente à la lettre.
 |---|---|
 | `server/` | Fastify 5 + TypeScript, SQLite intégré à Node (`node:sqlite`), zod |
 | `web/` | React 19 + Vite, graphes [uPlot](https://github.com/leeoniya/uPlot) |
-| Déploiement | Docker Compose, une seule image (l'API sert aussi le front), Cloudflare Tunnel en option |
+| Déploiement | Docker Compose, une seule image (l'API sert aussi le front) |
 
 ## Développement
 
@@ -45,20 +45,18 @@ docker compose logs -f app
 L'app écoute sur `127.0.0.1:3090` du VPS. Les données (SQLite et firmwares)
 sont dans `./data` : c'est ce dossier qu'il faut sauvegarder.
 
-Pour exposer `sensor.devgoblin.fr`, il y a deux options.
+La configuration passe uniquement par des variables d'environnement (tableau
+ci-dessous) : Coolify les demande dans son interface, et en local
+`docker compose` les lit dans `.env`. `ADMIN_PASSWORD` et `SESSION_SECRET`
+sont obligatoires, le déploiement s'arrête s'ils sont vides.
 
-**A. Cloudflare Tunnel (recommandé).** Aucun port ouvert et aucun certificat à
-gérer sur le VPS, ce qui règle aussi l'erreur 525 actuelle.
+Pour exposer `sensor.devgoblin.fr`, mets un reverse proxy (Nginx Proxy Manager,
+Caddy…) devant l'app, avec un certificat (Let's Encrypt ou certificat d'origine
+Cloudflare) et le mode SSL Cloudflare **Full (strict)**. Si le proxy tourne
+lui-même dans Docker, `127.0.0.1` désigne son propre conteneur : branche-le
+sur le même réseau Docker et vise `app:3000`.
 
-1. Cloudflare Zero Trust → Networks → Tunnels → créer un tunnel, copier le token.
-2. Dans le tunnel, ajouter un « Public hostname » : `sensor.devgoblin.fr` → `http://app:3000`.
-3. Dans `.env` : `TUNNEL_TOKEN=...`
-4. `COMPOSE_PROFILES=tunnel docker compose up -d --build`
-
-**B. Reverse proxy (Caddy ou Nginx)** sur le VPS, vers `127.0.0.1:3090`, avec
-un certificat d'origine Cloudflare et le mode SSL **Full (strict)**.
-
-**Dans les deux cas, côté Cloudflare :** ajoute une règle WAF *Skip* (Bot
+**Côté Cloudflare :** ajoute une règle WAF *Skip* (Bot
 Fight Mode, Browser Integrity Check, challenges) pour
 `starts_with(http.request.uri.path, "/api/v1/devices/") or starts_with(http.request.uri.path, "/firmware/")`.
 Sans elle, l'ESP32 reçoit des 403 en HTML au lieu de l'API.
@@ -99,7 +97,6 @@ l'activer.
 | `PORT`, `HOST` | `3000`, `0.0.0.0` | |
 | `TRUST_PROXY` | `true` | IP client prise dans `X-Forwarded-For` (Cloudflare) |
 | `LOG_LEVEL` | `info` | |
-| `TUNNEL_TOKEN` | — | Uniquement avec le profil `tunnel` |
 
 ## Routes
 
