@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DEVICE_ID_RE, newDeviceToken, requireAdmin, sha256Hex } from "../auth.js";
 import type { Config } from "../config.js";
 import { all, get, now, run, type Db } from "../db.js";
+import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
 import type {
@@ -19,6 +20,14 @@ const rangeQuery = z.object({
   from: z.coerce.number().int().nonnegative().default(0),
   to: z.coerce.number().int().nonnegative().default(2 ** 31),
 });
+
+const patchBody = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  sound_calibration: z.object({
+    snd_ref: z.number().int().min(1).max(4095),
+    db_ref: z.number().min(20).max(130),
+  }).strict().nullable().optional(),
+}).strict().refine((b) => b.name !== undefined || b.sound_calibration !== undefined, "name or sound_calibration required");
 
 const commandBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("status"), params: z.object({}).optional() }),
@@ -56,6 +65,7 @@ const commandBody = z.discriminatedUnion("type", [
 interface DeviceDbRow {
   id: string; name: string; created_at: number; last_seen: number | null;
   status_json: string | null; status_at: number | null;
+  snd_ref: number | null; db_ref: number | null;
 }
 
 interface FrameDbRow extends Omit<FrameRow, "ts_estimated" | "stale"> {
@@ -84,12 +94,14 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       status: d.status_json ? JSON.parse(d.status_json) : null,
       status_at: d.status_at,
       latest: latest ? toFrame(latest) : null,
+      sound_calibration: d.snd_ref !== null && d.db_ref !== null
+        ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
     };
   }
 
   function findDevice(id: string) {
     return get<DeviceDbRow>(db,
-      "SELECT id, name, created_at, last_seen, status_json, status_at FROM devices WHERE id = ?", id);
+      "SELECT id, name, created_at, last_seen, status_json, status_at, snd_ref, db_ref FROM devices WHERE id = ?", id);
   }
 
   app.register(async (scope) => {
@@ -99,7 +111,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     scope.get("/api/v1/devices", async () => ({
       devices: all<DeviceDbRow>(db,
-        "SELECT id, name, created_at, last_seen, status_json, status_at FROM devices ORDER BY name")
+        "SELECT id, name, created_at, last_seen, status_json, status_at, snd_ref, db_ref FROM devices ORDER BY name")
         .map(summary),
       unknown: all<UnknownDevice>(db,
         "SELECT * FROM unknown_devices ORDER BY last_seen DESC LIMIT 20"),
@@ -127,9 +139,20 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
     });
 
     scope.patch<{ Params: { id: string } }>("/api/v1/devices/:id", async (request, reply) => {
-      const body = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(request.body);
+      const body = patchBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
-      const res = run(db, "UPDATE devices SET name = ? WHERE id = ?", body.data.name, request.params.id);
+      const sets: string[] = [];
+      const args: SQLInputValue[] = [];
+      if (body.data.name !== undefined) {
+        sets.push("name = ?");
+        args.push(body.data.name);
+      }
+      if (body.data.sound_calibration !== undefined) {
+        const cal = body.data.sound_calibration;
+        sets.push("snd_ref = ?", "db_ref = ?");
+        args.push(cal?.snd_ref ?? null, cal?.db_ref ?? null);
+      }
+      const res = run(db, `UPDATE devices SET ${sets.join(", ")} WHERE id = ?`, ...args, request.params.id);
       if (res.changes === 0) return reply.code(404).send({ error: "unknown device" });
       return summary(findDevice(request.params.id)!);
     });

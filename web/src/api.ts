@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
+  AggregateRow, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -41,7 +41,8 @@ export const api = {
   device: (id: string) => request<DeviceSummary>("GET", `/api/v1/devices/${id}`),
   addDevice: (id: string, name: string) =>
     request<{ device: DeviceSummary; token: string }>("POST", "/api/v1/devices", { id, name }),
-  renameDevice: (id: string, name: string) => request<DeviceSummary>("PATCH", `/api/v1/devices/${id}`, { name }),
+  updateDevice: (id: string, patch: { name?: string; sound_calibration?: SoundCalibration | null }) =>
+    request<DeviceSummary>("PATCH", `/api/v1/devices/${id}`, patch),
   rotateToken: (id: string) => request<{ token: string }>("POST", `/api/v1/devices/${id}/token`),
   deleteDevice: (id: string) => request<void>("DELETE", `/api/v1/devices/${id}`),
   forgetUnknown: (id: string) => request<void>("DELETE", `/api/v1/unknown-devices/${id}`),

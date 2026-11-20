@@ -57,7 +57,7 @@ function NameSection({ device, reload }: { device: DeviceSummary; reload: () => 
     e.preventDefault();
     setBusy(true);
     try {
-      await api.renameDevice(device.id, name.trim());
+      await api.updateDevice(device.id, { name: name.trim() });
       toast("good", "Nom enregistré.");
       reload();
     } catch (err) {
