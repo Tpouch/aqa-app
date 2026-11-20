@@ -7,6 +7,7 @@ import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
 import { parseRoute, TAB_LABEL, type Tab } from "./routes";
 import { useSelection } from "./selection";
+import { storageGet, storageRemove, storageSet } from "./storage";
 import { useNow, usePoll } from "./util";
 
 export function App() {
@@ -56,7 +57,7 @@ function useRoute(onLegacyDevice: (id: string) => void): Tab {
 function Shell({ onLogout }: { onLogout: () => void }) {
   const devices = usePoll(api.devices, 15000, []);
   const [pending, setPending] = useState(0);
-  const [chosen, setChosen] = useState(() => localStorage.getItem("aqa-device") ?? "");
+  const [chosen, setChosen] = useState(() => storageGet("aqa-device") ?? "");
   const tab = useRoute(setChosen);
   const [selection, setSelection] = useSelection();
   const now = useNow();
@@ -65,7 +66,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const device = list.find((d) => d.id === chosen) ?? list[0];
 
   useEffect(() => {
-    if (device) localStorage.setItem("aqa-device", device.id);
+    if (device) storageSet("aqa-device", device.id);
   }, [device]);
   useEffect(() => {
     document.title = device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
@@ -103,7 +104,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         ) : !device ? null : (
           <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
-                      onDeleted={() => { localStorage.removeItem("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
+                      onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
         )}
       </main>
     </div>
