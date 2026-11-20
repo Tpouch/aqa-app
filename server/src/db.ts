@@ -71,7 +71,18 @@ export type Db = DatabaseSync;
 export function openDb(dataDir: string): Db {
   const file = dataDir === ":memory:" ? ":memory:" : path.join(dataDir, "aqa.sqlite3");
   if (file !== ":memory:") fs.mkdirSync(dataDir, { recursive: true });
-  const db = new DatabaseSync(file);
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(file);
+  } catch (err) {
+    // Usually a mounted folder owned by root while the app runs as another user.
+    const uid = typeof process.getuid === "function" ? process.getuid() : "?";
+    throw new Error(
+      `Cannot open ${file}: make sure ${dataDir} is writable by uid ${uid} ` +
+      `(in Docker, use a named volume or chown the mounted folder). ${(err as Error).message}`,
+      { cause: err },
+    );
+  }
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   migrate(db);
   return db;
