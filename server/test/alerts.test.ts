@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { decideMetric, decideOffline, type Sample } from "../src/alerts.js";
+import { CATALOG, checkAlerts, decideMetric, decideOffline, type Sample } from "../src/alerts.js";
+import { all, get, openDb, run, type Db } from "../src/db.js";
+import { ALERT_KINDS } from "../src/types.js";
 
 const now = 10_000;
 const rule = { enabled: true, threshold: 1200, duration_s: 300 };
@@ -76,5 +78,86 @@ describe("decideOffline", () => {
   });
   it("ferme au retour", () => {
     expect(decideOffline(r, true, now - 10, 0, now)).toEqual({ action: "close", end_value: null });
+  });
+});
+
+describe("migration", () => {
+  it("les défauts de la migration correspondent au catalogue", () => {
+    const db = openDb(":memory:");
+    for (const kind of ALERT_KINDS) {
+      const r = get<{ enabled: number; threshold: number | null; duration_s: number }>(
+        db, "SELECT enabled, threshold, duration_s FROM alert_rules WHERE kind = ?", kind)!;
+      expect({ enabled: r.enabled === 1, threshold: r.threshold, duration_s: r.duration_s })
+        .toEqual(CATALOG[kind].defaults);
+    }
+  });
+});
+
+describe("checkAlerts", () => {
+  const T = 100_000;
+  const setup = (cal = false): Db => {
+    const db = openDb(":memory:");
+    run(db, "INSERT INTO devices (id, name, token_hash, created_at, last_seen, snd_ref, db_ref) VALUES ('d1','Salon','x',0,?,?,?)",
+      T + 1000, cal ? 100 : null, cal ? 50 : null);
+    return db;
+  };
+  const frames = (db: Db, from: number, to: number, f: Record<string, number | null>) => {
+    for (let ts = from; ts <= to; ts += 15) {
+      run(db, "INSERT INTO frames (device_id, ts, ts_estimated, snd, co2, pm25, hum, temp, received_at) VALUES ('d1',?,0,?,?,?,?,?,?)",
+        ts, f.snd ?? null, f.co2 ?? null, f.pm25 ?? null, f.hum ?? null, f.temp ?? null, ts);
+    }
+  };
+  const alerts = (db: Db) => all<any>(db, "SELECT * FROM alerts ORDER BY id");
+
+  it("ouvre puis ferme une alerte CO₂", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(1);
+    expect(alerts(db)[0]).toMatchObject({ kind: "co2_high", threshold: 1200, ended_at: null });
+    frames(db, T + 15, T + 150, { co2: 600 });
+    checkAlerts(db, T + 150, 0);
+    expect(alerts(db)[0]).toMatchObject({ ended_at: T + 150, end_value: 600, end_reason: "normal" });
+  });
+  it("ignore les null", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: null });
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(0);
+  });
+  it("ignore snd_high sans calibration", () => {
+    const db = setup();
+    run(db, "UPDATE alert_rules SET enabled = 1 WHERE kind = 'snd_high'");
+    frames(db, T - 120, T, { snd: 4000 });
+    expect(() => checkAlerts(db, T, 0)).not.toThrow();
+    expect(alerts(db)).toHaveLength(0);
+  });
+  it("convertit le son avec la calibration", () => {
+    const db = setup(true);
+    run(db, "UPDATE alert_rules SET enabled = 1 WHERE kind = 'snd_high'");
+    frames(db, T - 120, T, { snd: 1000 });
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(0);
+    const db2 = setup(true);
+    run(db2, "UPDATE alert_rules SET enabled = 1 WHERE kind = 'snd_high'");
+    frames(db2, T - 120, T, { snd: 2000 });
+    checkAlerts(db2, T, 0);
+    expect(alerts(db2)).toHaveLength(1);
+    expect(alerts(db2)[0].kind).toBe("snd_high");
+  });
+  it("ferme quand la règle est désactivée", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    checkAlerts(db, T, 0);
+    run(db, "UPDATE alert_rules SET enabled = 0 WHERE kind = 'co2_high'");
+    checkAlerts(db, T + 30, 0);
+    expect(alerts(db)[0]).toMatchObject({ ended_at: T + 30, end_reason: "disabled" });
+  });
+  it("ne duplique pas", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    checkAlerts(db, T, 0);
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(1);
   });
 });
