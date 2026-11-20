@@ -14,7 +14,7 @@ export function InfosPage({ device }: { device: DeviceSummary | null }) {
         rouge = mauvais). Ce sont les mêmes zones que sur les graphiques et dans la colonne de gauche. Elles indiquent
         le confort ; le paragraphe « Quand ça devient dangereux » donne, lui, les repères de santé.
       </p>
-      {METRICS.map((m) => <MetricSection key={m} metric={m} uncalibrated={m === "snd" && !device?.sound_calibration} />)}
+      {METRICS.map((m) => <MetricSection key={m} metric={m} uncalibrated={m === "snd" && device !== null && !device.sound_calibration} />)}
       <p className="muted small inf-sources">
         Sources : OMS, lignes directrices sur la qualité de l'air (2021) et sur le logement et la santé (2018) ; INRS,
         valeurs limites d'exposition professionnelle ; directive européenne 2003/10/CE sur le bruit au travail.
@@ -37,8 +37,8 @@ function MetricSection({ metric, uncalibrated }: { metric: Metric; uncalibrated:
       {uncalibrated && (
         <p className="callout warn">
           <span aria-hidden>▲</span>
-          <span>Le son de cette carte n'est pas calibré : il s'affiche en amplitude brute, sans zones.{" "}
-            <a href="#/reglages">Calibrer dans Réglages</a></span>
+          <span>Le son de cette carte n'est pas encore calibré : il s'affiche en amplitude brute. Les zones ci-dessous
+            s'appliqueront une fois le son <a href="#/reglages">calibré dans Réglages</a>.</span>
         </p>
       )}
       <table className="st-table inf-zones">
