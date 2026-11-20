@@ -36,7 +36,7 @@ export function CardPage({ id, device, commands, reload, send, now }: Props) {
             {id}
             {device && <> · {device.online
               ? <span className="tone-good"><span aria-hidden>●</span> en ligne</span>
-              : <span><span aria-hidden>●</span> hors ligne</span>}
+              : <span><span aria-hidden>○</span> hors ligne</span>}
               {device.last_seen !== null && <>, contact {ago(device.last_seen, now)}</>}</>}
           </p>
         </div>

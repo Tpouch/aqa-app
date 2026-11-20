@@ -1,4 +1,3 @@
-import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
 import { Sidebar } from "./components/Sidebar";
@@ -74,6 +73,20 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 
   const onPendingChange = useCallback((n: number) => setPending(n), []);
 
+  // No board registered yet: full screen, no column (there is nothing to read).
+  if (devices.data && !device) {
+    return (
+      <>
+        <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
+          Aller au contenu
+        </a>
+        <main id="main" tabIndex={-1} className="setup">
+          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
+        </main>
+      </>
+    );
+  }
+
   return (
     <div className="shell">
       <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
@@ -83,12 +96,10 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                pending={pending} now={now} onLogout={() => api.logout().finally(onLogout)} />
       <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
-          <p className="callout warn" role="alert"><WarningIcon size={18} aria-hidden />{devices.error}</p>
+          <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>
         ) : !devices.data ? (
           <Skeleton height={400} />
-        ) : !device ? (
-          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
-        ) : (
+        ) : !device ? null : (
           <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
                       onDeleted={() => { localStorage.removeItem("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />

@@ -1,4 +1,3 @@
-import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../api";
 import { useToast } from "../../components/ui";
@@ -59,7 +58,7 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
   }, [commands.data, toast, onPendingChange]);
 
   if (device.error && !device.data) {
-    return <p className="callout warn" role="alert"><WarningIcon size={18} aria-hidden />{device.error}</p>;
+    return <p className="callout warn" role="alert"><span aria-hidden>▲</span> {device.error}</p>;
   }
   const d = device.data;
 

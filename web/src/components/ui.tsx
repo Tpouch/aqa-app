@@ -8,28 +8,26 @@ import {
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "danger" | "ghost" | "default";
   size?: "sm" | "md";
-  icon?: ReactNode;
-  iconOnly?: boolean;
   loading?: boolean;
 };
 
 // "ghost" is the legacy name of the quiet variant.
 const VARIANT_CLASS = { default: null, primary: "primary", danger: "danger", ghost: "quiet" } as const;
 
-export function Button({ variant = "default", size = "md", icon, iconOnly, loading, children, className, disabled, ...rest }: ButtonProps) {
-  const cls = ["btn", VARIANT_CLASS[variant], size === "sm" && "sm", iconOnly && "icon", className]
+export function Button({ variant = "default", size = "md", loading, children, className, disabled, ...rest }: ButtonProps) {
+  const cls = ["btn", VARIANT_CLASS[variant], size === "sm" && "sm", className]
     .filter(Boolean).join(" ");
   return (
     <button className={cls} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
-      {loading ? <span className="busy" aria-hidden>…</span> : icon}
-      {iconOnly ? <span className="sr-only">{children}</span> : children}
+      {loading && <span className="busy" aria-hidden>…</span>}
+      {children}
     </button>
   );
 }
 
 // ---------------------------------------------------------------- Field
 
-export function Field({ label, hint, error, children }: { label: string; hint?: ReactNode; error?: string | null; children: ReactNode }) {
+export function Field({ label, hint, error, children }: { label: ReactNode; hint?: ReactNode; error?: string | null; children: ReactNode }) {
   return (
     <label className="field">
       <span className="label-caps">{label}</span>
@@ -37,21 +35,6 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
       {error ? <small className="field-error" role="alert">{error}</small> : hint ? <small className="hint">{hint}</small> : null}
     </label>
   );
-}
-
-// ---------------------------------------------------------------- Badge
-
-export function Badge({ tone, dot, live, children, title }: { tone?: "good" | "warn" | "bad" | "info"; dot?: boolean; live?: boolean; children: ReactNode; title?: string }) {
-  return (
-    <span className={["badge", tone, live && "live"].filter(Boolean).join(" ")} title={title}>
-      {dot && <span className="dot" aria-hidden>●</span>}
-      {children}
-    </span>
-  );
-}
-
-export function OnlineBadge({ online }: { online: boolean }) {
-  return <Badge tone={online ? "good" : "bad"} dot live={online}>{online ? "En ligne" : "Hors ligne"}</Badge>;
 }
 
 export const Skeleton = ({ height, width = "100%" }: { height: number | string; width?: number | string }) =>
@@ -77,7 +60,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
+      <div className="toasts" role="status">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.tone}`}>
             <span className="toast-mark" aria-hidden>{t.tone === "good" ? "✓" : "✗"}</span>

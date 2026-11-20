@@ -118,7 +118,7 @@ function CalibrationRow({ device, reload }: { device: DeviceSummary; reload: () 
         {cal ? <strong>{fmt(cal.db_ref, 1)} dB pour une amplitude de {fmt(cal.snd_ref)}</strong> : <span className="muted">non calibré</span>}
       </p>
       <form className="st-row" onSubmit={save}>
-        <Field label="Niveau mesuré (dB)" error={error}>
+        <Field label={<>Niveau mesuré (<span className="unit">dB</span>)</>} error={error}>
           <input className="input mono" inputMode="decimal" value={db} autoComplete="off" aria-invalid={error ? true : undefined}
                  onChange={(e) => { setDb(e.target.value); setError(null); }} />
         </Field>

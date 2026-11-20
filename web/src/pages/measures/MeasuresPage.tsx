@@ -1,4 +1,3 @@
-import { WarningIcon } from "@phosphor-icons/react";
 import { useMemo, useRef } from "react";
 import { Skeleton } from "../../components/ui";
 import { ZoneChart } from "../../components/ZoneChart";
@@ -78,7 +77,7 @@ export function MeasuresPage({ id, device, selection, onSelection }: {
               onCsv={exportCsv} csvDisabled={!rows.length || !shown.length} />
 
       {series.error && !series.data && (
-        <p className="callout warn" role="alert"><WarningIcon size={18} aria-hidden />{series.error}</p>
+        <p className="callout warn" role="alert"><span aria-hidden>▲</span> {series.error}</p>
       )}
 
       {!grid && (
