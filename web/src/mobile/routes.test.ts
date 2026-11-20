@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMobileRoute, PHONE_QUERY } from "./routes";
+import { isPhoneScreen, parseMobileRoute } from "./routes";
 
 describe("parseMobileRoute", () => {
   it.each([
@@ -18,8 +18,13 @@ describe("parseMobileRoute", () => {
     expect(parseMobileRoute(h)).toEqual({ tab, metric, redirect }));
 });
 
-it("PHONE_QUERY : tactile et petit côté ≤ 720", () => {
-  expect(PHONE_QUERY).toContain("pointer: coarse");
-  expect(PHONE_QUERY).toContain("max-width: 720px");
-  expect(PHONE_QUERY).toContain("max-height: 720px");
+describe("isPhoneScreen : tactile et petit côté de l'écran ≤ 720", () => {
+  it.each([
+    [true, 390, 844, true],    // iPhone portrait
+    [true, 844, 390, true],    // iPhone paysage
+    [true, 744, 1133, false],  // iPad mini, quelle que soit l'orientation
+    [true, 1133, 744, false],
+    [true, 1280, 800, false],  // tablette Android paysage
+    [false, 600, 900, false],  // ordinateur, fenêtre étroite
+  ])("coarse=%s %sx%s → %s", (coarse, w, h, want) => expect(isPhoneScreen(coarse, w, h)).toBe(want));
 });

@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
-import { PHONE_QUERY } from "./routes";
+import { COARSE_QUERY, isPhoneScreen } from "./routes";
 
 function query(): MediaQueryList | null {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(PHONE_QUERY) : null;
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(COARSE_QUERY) : null;
 }
 
 function subscribe(onChange: () => void) {
@@ -11,7 +11,9 @@ function subscribe(onChange: () => void) {
   return () => q?.removeEventListener("change", onChange);
 }
 
-/** True on a phone (see PHONE_QUERY); follows rotation and emulation changes. */
+const snapshot = () => isPhoneScreen(query()?.matches ?? false, screen.width, screen.height);
+
+/** True on a phone (see isPhoneScreen); follows pointer changes such as DevTools emulation. */
 export function usePhone(): boolean {
-  return useSyncExternalStore(subscribe, () => query()?.matches ?? false, () => false);
+  return useSyncExternalStore(subscribe, snapshot, () => false);
 }

@@ -11,8 +11,13 @@ export const MOBILE_LABEL: Record<MobileTab, string> = {
 };
 
 // A touch screen whose short side is at most 720 px: a phone, in either
-// orientation. A desktop window, however narrow, stays on the web view.
-export const PHONE_QUERY = "(pointer: coarse) and (max-width: 720px), (pointer: coarse) and (max-height: 720px)";
+// orientation. Judged on the screen, not the viewport, so a tablet never flips
+// between views when rotated. A desktop window, however narrow, stays on the web view.
+export const COARSE_QUERY = "(pointer: coarse)";
+
+export function isPhoneScreen(coarse: boolean, screenWidth: number, screenHeight: number): boolean {
+  return coarse && Math.min(screenWidth, screenHeight) <= 720;
+}
 
 export interface MobileRoute { tab: MobileTab; metric: Metric | null; redirect: string | null }
 
