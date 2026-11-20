@@ -1,45 +1,4 @@
-import {
-  CloudIcon, DropIcon, SpeakerHighIcon, ThermometerIcon, WindIcon, type Icon,
-} from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import type { Metric } from "../../server/src/types";
-
-export interface MetricInfo {
-  label: string;
-  unit: string;
-  decimals: number;
-  color: string;
-  icon: Icon;
-  // [warn, bad] thresholds, drawn on charts and turned into a text level.
-  thresholds?: [number, number];
-  thresholdSource?: string;
-}
-
-// Series colours checked for >= 3:1 against both the light and dark surfaces.
-export const METRIC_INFO: Record<Metric, MetricInfo> = {
-  co2: {
-    label: "CO₂", unit: "ppm", decimals: 0, color: "#0d9488", icon: WindIcon,
-    thresholds: [800, 1200], thresholdSource: "aération recommandée au-delà de 800 ppm",
-  },
-  pm25: {
-    label: "PM2.5", unit: "µg/m³", decimals: 0, color: "#a21caf", icon: CloudIcon,
-    thresholds: [15, 35], thresholdSource: "OMS 24 h : 15 µg/m³",
-  },
-  snd: { label: "Son", unit: "p2p", decimals: 0, color: "#2563eb", icon: SpeakerHighIcon },
-  temp: { label: "Température", unit: "°C", decimals: 1, color: "#ea580c", icon: ThermometerIcon },
-  hum: { label: "Humidité", unit: "%", decimals: 1, color: "#16a34a", icon: DropIcon },
-};
-
-export type Level = { tone: "good" | "warn" | "bad"; label: string };
-
-// Colour is never the only signal: every level has a word.
-export function level(metric: Metric, value: number | null | undefined): Level | null {
-  const t = METRIC_INFO[metric].thresholds;
-  if (!t || value === null || value === undefined) return null;
-  if (value < t[0]) return { tone: "good", label: "Bon" };
-  if (value < t[1]) return { tone: "warn", label: "Moyen" };
-  return { tone: "bad", label: "Mauvais" };
-}
 
 export function fmt(value: number | null | undefined, decimals = 0): string {
   return value === null || value === undefined ? "—" : value.toLocaleString("fr-FR", {

@@ -1,4 +1,5 @@
-// Fills a running server with demo data: one board "démo", 7 days of frames.
+// Fills a running server with demo data: one board "démo", 7 days of frames
+// (every 5 min, then every minute over the last day, every 15 s over the last 8 h).
 // Usage: npx tsx --env-file=.env server/scripts/seed-demo.ts [baseUrl]
 import { loadConfig } from "../src/config.js";
 
@@ -45,6 +46,7 @@ await call(`/api/v1/devices/${DEVICE}/status`, {
 const end = Math.floor(Date.now() / 1000);
 const start = end - 7 * DAY;
 const recent = end - DAY;
+const live = end - 8 * 3600; // like a real board: one frame every 15 s
 const noPm25From = end - 3 * DAY; // one whole day without PM2.5
 const noPm25To = noPm25From + DAY;
 const holes = [end - 5.5 * DAY, end - 4.2 * DAY, end - 2.1 * DAY, end - 0.6 * DAY].map(Math.floor);
@@ -73,7 +75,7 @@ function frameAt(t: number): Frame {
 }
 
 const frames: Frame[] = [];
-for (let t = start; t <= end; t += t < recent ? 300 : 60) {
+for (let t = start; t <= end; t += t < recent ? 300 : t < live ? 60 : 15) {
   if (holes.some((h) => t >= h && t < h + 3600)) continue;
   frames.push(frameAt(t));
 }

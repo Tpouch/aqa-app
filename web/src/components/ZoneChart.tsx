@@ -69,6 +69,8 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
 
   const last = useMemo(() => lastIndex(ys), [ys]);
   const empty = last < 0;
+  // Bands change with the sound calibration while metric and unit may not.
+  const bandsKey = JSON.stringify(def.bands);
 
   useEffect(() => {
     const el = box.current!;
@@ -218,9 +220,9 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       plot.current?.destroy();
       plot.current = null;
     };
-    // Re-create only when the metric, window, size, mode or theme changes; data goes through setData.
+    // Re-create only when the metric, its bands, window, size, mode or theme changes; data goes through setData.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, range[0], range[1], height, compact, theme]);
+  }, [def.metric, def.unit, bandsKey, range[0], range[1], height, compact, theme]);
 
   useEffect(() => {
     plot.current?.setData([xs, ys], false);
@@ -234,13 +236,15 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
   const tone = bandOf(def, value)?.tone;
   const valueText = `${fmt(value, def.decimals)} ${def.unit}`;
 
+  // The hover tooltip is visual only (no live region): it would chatter on every mouse move.
+  const currentText = empty ? "aucune mesure sur cette période" : `valeur actuelle ${fmt(ys[last], def.decimals)} ${def.unit}`;
   const canvas = (
     <span className="zc-plot">
       <span ref={box} className="zc-canvas" role="img"
-            aria-label={empty ? `${def.label} : aucune mesure sur cette période` : `${def.label}, valeur actuelle ${fmt(ys[last], def.decimals)} ${def.unit}`} />
+            aria-label={`${def.label}, ${currentText}`} />
       {empty && <span className="zc-empty">Aucune mesure sur cette période</span>}
       {!compact && hovering && (
-        <span className={`zc-tip${hover!.flip ? " flip" : ""}`} style={{ left: hover!.left }} aria-live="polite">
+        <span className={`zc-tip${hover!.flip ? " flip" : ""}`} style={{ left: hover!.left }}>
           <span className="zc-tip-time">{stamp(xs[hover!.idx]!, range[1] - range[0])}</span>
           <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>
         </span>
@@ -251,7 +255,7 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
   if (!compact) return <div className="zc">{canvas}</div>;
 
   return (
-    <button type="button" className="zc compact" onClick={onOpen} aria-label={`Ouvrir ${def.label} en grand`}>
+    <button type="button" className="zc compact" onClick={onOpen} aria-label={`Ouvrir ${def.label} en grand, ${currentText}`}>
       <span className="zc-head">
         <span className="zc-label">{def.label} <span className="muted">{def.unit}</span></span>
         <span className="zc-read" aria-hidden>

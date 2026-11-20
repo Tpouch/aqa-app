@@ -321,6 +321,19 @@ select.input, .field select { background: var(--bg); }
 .sb-name-unit { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-value { font-size: 24px; line-height: 1.1; }
 .sb-reading.selected:not([role="checkbox"]) .sb-value { font-size: 30px; }
+.sb-offline { flex: none; color: var(--muted); font-size: 11px; }
+.sb-item { position: relative; }
+/* Sits where the zone word would be; outside the reading button (no link in a button). */
+.sb-cal {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sb-cal:hover { color: var(--text); }
+.sb-item.has-cal .sb-label { padding-right: 64px; }
 
 .sb-nav {
   display: grid;
@@ -371,7 +384,10 @@ select.input, .field select { background: var(--bg); }
   .sb-readings > li { flex: 0 0 auto; min-width: 128px; }
   .sb-readings > li + li { border-top: 0; border-left: 1px solid var(--rule); }
   .sb-reading { padding: 8px 12px 8px 9px; }
-  .sb-reading.selected .sb-value, .sb-value { font-size: 20px; }
+  .sb-cal { top: 8px; right: 12px; }
+  /* Same weight as the desktop "selected" rule, so every value is 20 px here. */
+  .sb-value,
+  .sb-reading.selected:not([role="checkbox"]) .sb-value { font-size: 20px; }
   .sb-nav {
     display: flex;
     flex-wrap: wrap;
@@ -431,6 +447,71 @@ select.input, .field select { background: var(--bg); }
 .zc-label { font-size: 13px; }
 .zc-label .muted, .zc-read { font-size: 11px; }
 .zc-read b { font-weight: 500; font-size: 13px; }
+
+/* ---------------------------------------------------------------- mesures page */
+
+.ms { display: grid; gap: 14px; }
+.ms-head { border-bottom: 1px solid var(--rule-strong); padding-bottom: 14px; }
+.ms-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; }
+.ms-title { min-width: 0; }
+.ms-title h2 { font-size: 22px; line-height: 1.1; font-weight: 400; }
+.ms-title .ms-unit { font-size: 14px; }
+.ms-title p { margin-top: 2px; font-size: 12px; }
+.ms-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-left: auto; }
+.ms-tools .seg > button { min-height: 34px; padding: 6px 11px; font-size: 13px; }
+.ms-tools .seg > button:disabled { color: var(--rule-strong); cursor: not-allowed; }
+
+.ms-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.ms-range-actions { display: flex; gap: 8px; }
+.ms-range-error { flex-basis: 100%; color: var(--bad); }
+
+.ms-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+.ms-stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ms-stats > div { min-width: 0; padding: 0 14px; border-left: 1px solid var(--rule); }
+.ms-stats > div:first-child { padding-left: 0; border-left: 0; }
+.ms-stats dd { margin: 0; }
+.ms-stat-value { font-size: 22px; line-height: 1.25; }
+.ms-stat-sub { font-size: 11px; color: var(--muted); }
+.ms-stat-sub.tone-good { color: var(--good); }
+.ms-stat-sub.tone-warn { color: var(--warn); }
+.ms-stat-sub.tone-bad { color: var(--bad); }
+
+.ms-grid { display: grid; gap: 10px; }
+.ms-grid .zc.compact { padding: 6px 10px 2px; }
+.ms-grid .zc-head { height: 16px; line-height: 16px; margin-bottom: 2px; }
+.ms-summary {
+  padding: 12px;
+  border: 1px dashed var(--rule);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.ms-summary-title { margin-bottom: 4px; color: var(--text); font-size: 12px; }
+.ms-summary b { color: var(--text); font-weight: 500; }
+.ms-empty { padding: 24px 0; }
+
+@media (max-width: 720px) {
+  .ms-tools { margin-left: 0; }
+  .ms-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
+  .ms-stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ms-stats > div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .ms-stats.three > div:nth-child(3) { padding-left: 14px; border-left: 1px solid var(--rule); }
+  .ms-stat-value { font-size: 18px; }
+}
 
 /* ---------------------------------------------------------------- motion */
 

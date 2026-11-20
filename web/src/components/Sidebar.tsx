@@ -45,8 +45,9 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
         {device && (
           <>
             <div className="sb-device">
-              <span className={device.online ? "tone-good" : "muted"} aria-hidden>●</span>
-              <span className="sr-only">{device.online ? "En ligne" : "Hors ligne"}</span>
+              {/* Shape and word, not only colour: ● online, ○ + "hors ligne" offline. */}
+              <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
+              {device.online && <span className="sr-only">En ligne</span>}
               {devices.length > 1 ? (
                 <select className="sb-switch" value={device.id} aria-label="Carte affichée"
                         onChange={(e) => onDevice(e.target.value)}>
@@ -55,6 +56,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
               ) : (
                 <span className="sb-name" title={device.name}>{device.name}</span>
               )}
+              {!device.online && <span className="sb-offline">hors ligne</span>}
             </div>
             <div className="sb-ago">{device.latest ? `mesuré ${ago(device.latest.ts, now)}` : "aucune mesure reçue"}</div>
           </>
@@ -71,7 +73,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
             const selected = on && (checkboxes || tab === "mesures");
             const toneClass = band && band.tone !== "good" ? `tone-${band.tone}` : "";
             return (
-              <li key={m}>
+              <li key={m} className={`sb-item${m === "snd" && !device.sound_calibration ? " has-cal" : ""}`}>
                 <button type="button"
                         className={`sb-reading${selected ? " selected" : ""}`}
                         data-tone={selected ? band?.tone ?? "none" : undefined}
@@ -86,6 +88,8 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
                   </span>
                   <span className={`sb-value ${toneClass}`}>{fmt(v, def.decimals)}</span>
                 </button>
+                {/* Raw sound has no zones until the board is calibrated (Réglages). */}
+                {m === "snd" && !device.sound_calibration && <a className="sb-cal" href="#/reglages">Calibrer</a>}
               </li>
             );
           })}
