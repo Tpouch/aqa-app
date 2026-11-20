@@ -39,7 +39,7 @@ Maquettes validées dans le compagnon visuel : `.superpowers/brainstorm/174572-1
 2. Passer à Tailwind/shadcn : écarté, c'est précisément le look qu'on quitte et ça ajoute des dépendances.
 3. Changer de lib de graphiques (Recharts, ECharts) : écarté, uPlot fait déjà le curseur partagé et le dessin libre, en bien plus léger.
 
-L'auteur a laissé le choix technique ; l'approche 1 est le choix de Claude.
+L'auteur a laissé le choix technique ; l'approche 1 a été retenue par défaut.
 
 ## Décisions de l'auteur
 
@@ -93,7 +93,7 @@ L'axe s'ajuste aux données, mais inclut toujours **la limite de la zone suivant
 - **Réglages → ligne « Calibrer le son »** : aide « Mesure le niveau de la pièce avec une appli sonomètre, puis saisis-le » ; champ dB + bouton « Calibrer maintenant » qui prend comme `snd_ref` la dernière valeur `snd` reçue (refusé si la dernière mesure date de plus de 2 min ou si `snd` est nul) ; affiche la calibration actuelle et un bouton « Effacer ».
 - Libellé partout : « Son · dB (estimé) ».
 
-### Bandeau en mode grille (choix de Claude)
+### Bandeau en mode grille (choix par défaut)
 Le bandeau reste identique en grille (périodes, ‹ jour ›, plage…, csv). La ligne de stats MIN/MOY/MAX n'apparaît qu'en vue 1 graphe ; en grille, chaque graphique affiche seulement la valeur sous le curseur. « csv ↓ » exporte les mesures affichées (la mesure choisie en vue 1 graphe, les mesures cochées en grille).
 
 ### Page Carte
@@ -110,7 +110,7 @@ Le bandeau reste identique en grille (périodes, ‹ jour ›, plage…, csv). L
 ### Connexion et ajout de carte
 - Même style, sans maquette dédiée (validé par l'auteur).
 
-## Choix de Claude (à vérifier en relisant)
+## Choix par défaut (à vérifier en relisant)
 
 - **Typo** : IBM Plex Mono partout (`@fontsource/ibm-plex-mono`, graisses 400/500/600), remplace Fira Sans/Fira Code. Chiffres tabulaires.
 - **Palette sombre (défaut)** : fond `#121311`, surface sélectionnée `#1d1e1b`, texte `#e9e5dc`, texte secondaire `#8d887d`, filets `#2a2a26` / `#3a3934` ; zones : bon `#7fbf8a`, aérer `#e3b341`, mauvais/alerte `#ff6a3d` (bandes de fond à 7–14 % d'opacité).
