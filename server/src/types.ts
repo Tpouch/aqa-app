@@ -4,7 +4,7 @@
 export const METRICS = ["co2", "pm25", "snd", "temp", "hum"] as const;
 export type Metric = (typeof METRICS)[number];
 
-export const COMMAND_TYPES = ["status", "config", "geohash", "restart", "ota", "rollback"] as const;
+export const COMMAND_TYPES = ["status", "config", "geohash", "restart", "ota", "rollback", "wifi"] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 export type CommandState = "pending" | "sent" | "in_progress" | "completed" | "failed";
 
@@ -81,4 +81,17 @@ export interface FirmwareRow {
   version: string;
   size: number;
   uploaded_at: number;
+}
+
+// Device journal, derived server-side from what the board reports.
+export type EventKind =
+  | "first_contact" | "boot" | "reconnect" | "firmware" | "sensor_lost" | "sensor_found"
+  | "frames_dropped" | "weak_signal" | "command";
+
+export interface EventRow {
+  id: number;
+  ts: number;
+  kind: EventKind;
+  level: "info" | "warn" | "error";
+  message: string;
 }

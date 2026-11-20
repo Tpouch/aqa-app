@@ -5,9 +5,10 @@ import { z } from "zod";
 import { DEVICE_ID_RE, newDeviceToken, requireAdmin, sha256Hex } from "../auth.js";
 import type { Config } from "../config.js";
 import { all, get, now, run, type Db } from "../db.js";
+import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
 import type {
-  AggregateRow, CommandRow, DeviceSummary, FrameRow, UnknownDevice,
+  AggregateRow, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
 } from "../types.js";
 
 export const ONLINE_WINDOW_S = 180;
@@ -33,6 +34,23 @@ const commandBody = z.discriminatedUnion("type", [
     params: z.object({ geohash: z.string().regex(/^[0-9b-hjkmnp-z]{1,12}$/, "invalid geohash") }),
   }),
   z.object({ type: z.literal("ota"), params: z.object({ version: z.string().regex(VERSION_RE) }) }),
+  z.object({
+    type: z.literal("wifi"),
+    params: z.union([
+      z.object({ reset: z.literal(true) }).strict(),
+      z.object({
+        ssid: z.string().min(1).max(32),
+        eap_username: z.string().min(1).max(64),
+        eap_password: z.string().min(1).max(64),
+        eap_identity: z.string().max(64).optional(),
+      }).strict(),
+      z.object({
+        ssid: z.string().min(1).max(32),
+        password: z.string().max(63)
+          .refine((p) => p.length === 0 || p.length >= 8, "WPA2 password: 8 to 63 characters, or empty for an open network"),
+      }).strict(),
+    ]),
+  }),
 ]);
 
 interface DeviceDbRow {
@@ -46,9 +64,10 @@ interface FrameDbRow extends Omit<FrameRow, "ts_estimated" | "stale"> {
 
 const toFrame = (r: FrameDbRow): FrameRow => ({ ...r, ts_estimated: !!r.ts_estimated, stale: !!r.stale });
 
+// Params go back to the browser redacted: Wi-Fi passwords never leave the server.
 function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): CommandRow {
   const { params_json, ...rest } = r;
-  return { ...rest, params: JSON.parse(params_json) };
+  return { ...rest, params: redactParams(JSON.parse(params_json)) };
 }
 
 export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore) {
@@ -167,6 +186,21 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       return { step, buckets };
     });
 
+    // ---- journal
+
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/events", async (request, reply) => {
+      const q = z.object({
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+        before: z.coerce.number().int().optional(),
+      }).safeParse(request.query);
+      if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message });
+      const rows = all<EventRow>(db,
+        `SELECT id, ts, kind, level, message FROM events
+         WHERE device_id = ? AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT ?`,
+        request.params.id, q.data.before ?? null, q.data.before ?? null, q.data.limit);
+      return { events: rows };
+    });
+
     // ---- commands
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/commands", async (request) => ({
@@ -195,6 +229,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       run(db, `INSERT INTO commands (id, device_id, type, params_json, state, created_at, updated_at)
                VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
           id, p.data.id, body.data.type, JSON.stringify(params), t, t);
+      logEvent(db, p.data.id, t, "command", "info", `Commande ${body.data.type} envoyée`);
       const row = get<Omit<CommandRow, "params"> & { params_json: string }>(db,
         `SELECT id, type, params_json, state, progress, detail, created_at, sent_at, updated_at
          FROM commands WHERE id = ?`, id)!;

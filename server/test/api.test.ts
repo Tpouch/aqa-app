@@ -233,6 +233,55 @@ describe("firmware and OTA", () => {
   });
 });
 
+describe("journal", () => {
+  it("records first contact, boot, reconnect, lost sensors and dropped frames", async () => {
+    const events = async () => (await admin("GET", `/api/v1/devices/${DEVICE}/events`)).json().events as { kind: string; message: string }[];
+    const kinds = (await events()).map((e) => e.kind);
+    expect(kinds).toContain("first_contact");
+    expect(kinds).toContain("boot");
+
+    run(built.db, "UPDATE devices SET last_seen = last_seen - 3600 WHERE id = ?", DEVICE);
+    await device("/status", { ...status, boot_count: 4, uptime_s: 5,
+      sensors: { ...status.sensors, co2: null }, queue: { pending: 3, dropped: 12 } });
+    const latest = await events();
+    expect(latest[0]?.kind).toBe("frames_dropped");
+    expect(latest.map((e) => e.kind)).toEqual(expect.arrayContaining(["reconnect", "boot", "sensor_lost"]));
+    expect(latest.find((e) => e.kind === "reconnect")?.message).toMatch(/1 h/);
+    expect(latest.find((e) => e.kind === "sensor_lost")?.message).toContain("CO₂");
+  });
+});
+
+describe("wifi command", () => {
+  const cmd = (params: unknown) => admin("POST", `/api/v1/devices/${DEVICE}/commands`, { type: "wifi", params });
+
+  it("validates WPA2 and enterprise credentials", async () => {
+    expect((await cmd({ ssid: "lab", password: "short" })).statusCode).toBe(422);
+    expect((await cmd({ ssid: "", password: "longenough" })).statusCode).toBe(422);
+    expect((await cmd({ ssid: "lab", password: "x", extra: 1 })).statusCode).toBe(422);
+    expect((await cmd({ reset: true })).statusCode).toBe(201);
+    expect((await cmd({ ssid: "ASK4 WiFi", eap_username: "me", eap_password: "secret-eap" })).statusCode).toBe(201);
+  });
+
+  it("delivers the password to the board but never to the browser, and wipes it once done", async () => {
+    // Drain anything pending so only the next command is delivered.
+    await device("/status", status);
+    const res = await cmd({ ssid: "home", password: "hunter22-secret" });
+    expect(res.statusCode).toBe(201);
+    expect(JSON.stringify(res.json())).not.toContain("hunter22");
+    const cid = res.json().id;
+
+    const delivered = (await device("/status", status)).json().commands;
+    expect(delivered).toEqual([{ id: cid, type: "wifi", params: { ssid: "home", password: "hunter22-secret" } }]);
+    expect((await admin("GET", `/api/v1/devices/${DEVICE}/commands`)).body).not.toContain("hunter22");
+
+    await device(`/commands/${cid}/ack`, { status: "completed", progress: 100, detail: "joined" });
+    const stored = built.db.prepare("SELECT params_json FROM commands WHERE id = ?").get(cid) as { params_json: string };
+    expect(stored.params_json).not.toContain("hunter22");
+    const journal = (await admin("GET", `/api/v1/devices/${DEVICE}/events`)).json().events;
+    expect(journal[0].message).toMatch(/wifi terminée/);
+  });
+});
+
 describe("web app serving", () => {
   it("serves the SPA shell for page paths and 404 for missing files", async () => {
     const fs = await import("node:fs");

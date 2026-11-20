@@ -49,6 +49,17 @@ const MIGRATIONS: string[] = [
     ip         TEXT
   );
   `,
+  `
+  CREATE TABLE events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id  TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    ts         INTEGER NOT NULL,
+    kind       TEXT NOT NULL,
+    level      TEXT NOT NULL,
+    message    TEXT NOT NULL
+  );
+  CREATE INDEX events_device ON events(device_id, ts);
+  `,
 ];
 
 export type Db = DatabaseSync;

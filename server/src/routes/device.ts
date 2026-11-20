@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { bearerToken, DEVICE_ID_RE, safeEqual, sha256Hex } from "../auth.js";
 import { all, get, now, run, tx, type Db } from "../db.js";
+import { logEvent, onContact, onStatus, redactParams } from "../events.js";
 
 const RESEND_AFTER_S = 600; // re-deliver a "sent" command never acked
 const MAX_COMMANDS_PER_RESPONSE = 5;
@@ -47,7 +48,8 @@ export function deviceRoutes(app: FastifyInstance, db: Db) {
       return reply.code(404).send({ error: "unknown device id format" });
     }
     const token = bearerToken(request);
-    const device = get<{ token_hash: string }>(db, "SELECT token_hash FROM devices WHERE id = ?", id);
+    const device = get<{ token_hash: string; last_seen: number | null }>(db,
+      "SELECT token_hash, last_seen FROM devices WHERE id = ?", id);
     if (!device) {
       const t = now();
       run(db, `INSERT INTO unknown_devices (id, first_seen, last_seen, ip) VALUES (?, ?, ?, ?)
@@ -58,7 +60,9 @@ export function deviceRoutes(app: FastifyInstance, db: Db) {
     if (!token || !safeEqual(sha256Hex(token), device.token_hash)) {
       return reply.code(401).send({ error: "invalid token" });
     }
-    run(db, "UPDATE devices SET last_seen = ? WHERE id = ?", now(), id);
+    const t = now();
+    onContact(db, id, device.last_seen, t);
+    run(db, "UPDATE devices SET last_seen = ? WHERE id = ?", t, id);
   }
 
   function deliverableCommands(deviceId: string) {
@@ -88,6 +92,8 @@ export function deviceRoutes(app: FastifyInstance, db: Db) {
       const body = statusBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
       const { id } = request.params;
+      const prev = get<{ status_json: string | null }>(db, "SELECT status_json FROM devices WHERE id = ?", id);
+      onStatus(db, id, prev?.status_json ? JSON.parse(prev.status_json) : null, body.data, now());
       run(db, "UPDATE devices SET status_json = ?, status_at = ? WHERE id = ?",
           JSON.stringify(body.data), now(), id);
       return { commands: deliverableCommands(id) };
@@ -128,11 +134,20 @@ export function deviceRoutes(app: FastifyInstance, db: Db) {
       const body = ackBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
       const { id, cid } = request.params;
-      const res = run(db,
-        `UPDATE commands SET state = ?, progress = ?, detail = ?, updated_at = ?
-         WHERE id = ? AND device_id = ?`,
-        body.data.status, body.data.progress, body.data.detail ?? null, now(), cid, id);
-      if (res.changes === 0) return reply.code(404).send({ error: "unknown command" });
+      const cmd = get<{ type: string; params_json: string; state: string }>(db,
+        "SELECT type, params_json, state FROM commands WHERE id = ? AND device_id = ?", cid, id);
+      if (!cmd) return reply.code(404).send({ error: "unknown command" });
+      const final = body.data.status !== "in_progress";
+      // Wipe secrets (Wi-Fi passwords) once the board no longer needs them.
+      const params = final ? JSON.stringify(redactParams(JSON.parse(cmd.params_json))) : cmd.params_json;
+      const t = now();
+      run(db, `UPDATE commands SET state = ?, progress = ?, detail = ?, params_json = ?, updated_at = ? WHERE id = ?`,
+          body.data.status, body.data.progress, body.data.detail ?? null, params, t, cid);
+      if (final && cmd.state !== body.data.status) {
+        const ok = body.data.status === "completed";
+        logEvent(db, id, t, "command", ok ? "info" : "error",
+          `Commande ${cmd.type} ${ok ? "terminée" : "en échec"}${body.data.detail ? ` : ${body.data.detail}` : ""}`);
+      }
       return reply.code(204).send();
     });
 }

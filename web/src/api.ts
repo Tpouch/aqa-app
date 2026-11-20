@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, CommandRow, CommandType, DeviceSummary, FirmwareRow, FrameRow, UnknownDevice,
+  AggregateRow, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -51,6 +51,8 @@ export const api = {
   aggregate: (id: string, from: number, to: number, step: number) =>
     request<{ step: number; buckets: AggregateRow[] }>(
       "GET", `/api/v1/devices/${id}/frames/aggregate?from=${from}&to=${to}&step=${step}`),
+
+  events: (id: string, limit = 200) => request<{ events: EventRow[] }>("GET", `/api/v1/devices/${id}/events?limit=${limit}`),
 
   commands: (id: string) => request<{ commands: CommandRow[] }>("GET", `/api/v1/devices/${id}/commands`),
   sendCommand: (id: string, type: CommandType, params?: Record<string, unknown>) =>

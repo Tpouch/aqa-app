@@ -31,6 +31,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const cfg = parsed.data;
   return {
     ...cfg,
+    // Absolute paths: @fastify/static refuses a relative root, and the
+    // working directory differs between `npm run dev`, `npm start` and Docker.
+    DATA_DIR: cfg.DATA_DIR === ":memory:" ? cfg.DATA_DIR : path.resolve(cfg.DATA_DIR),
+    WEB_DIR: cfg.WEB_DIR ? path.resolve(cfg.WEB_DIR) : "",
     PUBLIC_URL: cfg.PUBLIC_URL.replace(/\/+$/, ""),
     secureCookies: cfg.PUBLIC_URL.startsWith("https://"),
   };
