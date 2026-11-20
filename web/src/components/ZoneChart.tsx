@@ -162,7 +162,8 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       stroke: c.muted,
       grid: { stroke: c.rule, width: 1 },
       ticks: { show: false },
-      font: font(compact ? 10 : 11),
+      // uPlot scales axis fonts by pxRatio itself: give it CSS pixels.
+      font: `400 ${compact ? 10 : 11}px ${c.mono}`,
     };
     const opts: uPlot.Options = {
       width: el.clientWidth,
