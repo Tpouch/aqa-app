@@ -72,7 +72,7 @@ function QuickActions({ id, name, send }: { id: string; name: string; send: Send
                     }
                   })}>Redémarrer</Button>
         </div>
-        <a className="btn ghost" href="#/commands" style={{ marginTop: "0.6rem", width: "100%" }}>
+        <a className="btn ghost" href="#/carte" style={{ marginTop: "0.6rem", width: "100%" }}>
           Toutes les commandes et le journal<ArrowRightIcon size={16} aria-hidden />
         </a>
       </div>

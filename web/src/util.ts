@@ -112,19 +112,6 @@ export function usePoll<T>(fn: () => Promise<T>, intervalMs: number, deps: unkno
   return { data, error, updatedAt, reload: () => setTick((t) => t + 1) };
 }
 
-export function useHashRoute(): string {
-  const [hash, setHash] = useState(() => window.location.hash.slice(1) || "/");
-  useEffect(() => {
-    const on = () => {
-      setHash(window.location.hash.slice(1) || "/");
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
-  return hash;
-}
-
 export function downloadCsv(filename: string, header: string[], rows: (string | number | null)[][]) {
   const esc = (v: string | number | null) => v === null ? "" : /[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
   const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\n");

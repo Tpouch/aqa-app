@@ -88,7 +88,7 @@ export function CommandsTab({ id, device, commands, reload, send, now }: Props) 
             </form>
             <p className="muted small" style={{ marginTop: "0.75rem" }}>
               Les commandes partent avec la prochaine réponse du serveur (≤ 15 s si la carte est en ligne).
-              Wi-Fi, position et paramètres sont dans <a href="#/options">Options</a>.
+              Wi-Fi, position et paramètres sont dans <a href="#/reglages">Réglages</a>.
             </p>
           </div>
         </section>

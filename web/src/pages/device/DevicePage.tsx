@@ -1,29 +1,20 @@
-import { ChartLineIcon, GearSixIcon, SquaresFourIcon, TerminalWindowIcon, WarningIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../api";
-import { OnlineBadge, Skeleton, useToast } from "../../components/ui";
-import type { CommandRow, CommandType } from "../../../../server/src/types";
-import { ago, useNow, usePoll } from "../../util";
+import { Skeleton, useToast } from "../../components/ui";
+import type { CommandRow, CommandType, DeviceSummary } from "../../../../server/src/types";
+import { TAB_LABEL, type Tab } from "../../routes";
+import { useNow, usePoll } from "../../util";
 import { CommandsTab } from "./CommandsTab";
 import { OptionsTab } from "./OptionsTab";
 import { Overview } from "./Overview";
-import { SensorTab } from "./SensorTab";
 import { COMMAND_LABEL, useCommands } from "./shared";
-
-// The app follows one board; these are its sections, shown in the top bar.
-export const TABS = [
-  { key: "overview", label: "Tableau de bord", icon: SquaresFourIcon },
-  { key: "sensor", label: "Capteur", icon: ChartLineIcon },
-  { key: "commands", label: "Commandes", icon: TerminalWindowIcon },
-  { key: "options", label: "Options", icon: GearSixIcon },
-] as const;
-export type TabKey = (typeof TABS)[number]["key"];
 
 export type Send = (type: CommandType, params?: Record<string, unknown>) => Promise<boolean>;
 
 export function DevicePage({ id, tab, onPendingChange, onDeleted }: {
   id: string;
-  tab: TabKey;
+  tab: Tab;
   onPendingChange: (n: number) => void;
   onDeleted: () => void;
 }) {
@@ -67,29 +58,29 @@ export function DevicePage({ id, tab, onPendingChange, onDeleted }: {
     return <p className="callout warn" role="alert"><WarningIcon size={18} aria-hidden />{device.error}</p>;
   }
   const d = device.data;
-  const label = TABS.find((t) => t.key === tab)!.label;
 
+  // Temporary pages: they show the former content until the redesigned
+  // Mesures, Carte and Réglages pages replace them.
   return (
-    <>
-      <div className="page-head">
-        <div className="title">
-          {d ? (
-            <>
-              <h1>{tab === "overview" ? d.name : label} <OnlineBadge online={d.online} /></h1>
-              <span className="muted small">
-                {tab !== "overview" && <>{d.name} · </>}<code>{d.id}</code> · {d.latest ? `dernière mesure ${ago(d.latest.ts, now)}` : "aucune mesure reçue"}
-              </span>
-            </>
-          ) : <Skeleton height={56} width={280} />}
-        </div>
-      </div>
-
-      <div id={`panel-${tab}`} className="tab-panel">
-        {tab === "overview" && <Overview id={id} device={d} now={now} send={send} />}
-        {tab === "sensor" && <SensorTab id={id} device={d} now={now} />}
-        {tab === "commands" && <CommandsTab id={id} device={d} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />}
-        {tab === "options" && (d ? <OptionsTab device={d} send={send} reloadDevice={device.reload} onDeleted={onDeleted} /> : <Skeleton height={400} />)}
-      </div>
-    </>
+    <div id={`panel-${tab}`} className="tab-panel">
+      <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
+      {tab === "mesures" && <MesuresPage id={id} device={d} now={now} send={send} />}
+      {tab === "carte" && <CartePage id={id} device={d} commands={commands} send={send} now={now} />}
+      {tab === "reglages" && <ReglagesPage device={d} send={send} reloadDevice={device.reload} onDeleted={onDeleted} />}
+    </div>
   );
+}
+
+function MesuresPage(props: Parameters<typeof Overview>[0]) {
+  return <Overview {...props} />;
+}
+
+function CartePage({ id, device, commands, send, now }: {
+  id: string; device: DeviceSummary | null; commands: ReturnType<typeof useCommands>; send: Send; now: number;
+}) {
+  return <CommandsTab id={id} device={device} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />;
+}
+
+function ReglagesPage({ device, ...rest }: Omit<Parameters<typeof OptionsTab>[0], "device"> & { device: DeviceSummary | null }) {
+  return device ? <OptionsTab device={device} {...rest} /> : <Skeleton height={400} />;
 }
