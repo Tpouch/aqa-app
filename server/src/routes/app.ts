@@ -42,6 +42,7 @@ const ruleBody = z.object({
 const alertsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   before: z.coerce.number().int().default(2 ** 31),
+  before_id: z.coerce.number().int().optional(),
 });
 
 const commandBody = z.discriminatedUnion("type", [
@@ -178,9 +179,11 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
           `SELECT ${cols} FROM alerts WHERE device_id = ? AND ended_at IS NULL ORDER BY started_at DESC`,
           request.params.id).map(toAlertRow),
         history: all<AlertDbRow>(db,
-          `SELECT ${cols} FROM alerts WHERE device_id = ? AND ended_at IS NOT NULL AND started_at < ?
-           ORDER BY started_at DESC LIMIT ?`,
-          request.params.id, q.data.before, q.data.limit).map(toAlertRow),
+          `SELECT ${cols} FROM alerts WHERE device_id = ? AND ended_at IS NOT NULL
+             AND (started_at < ? OR (? IS NOT NULL AND started_at = ? AND id < ?))
+           ORDER BY started_at DESC, id DESC LIMIT ?`,
+          request.params.id, q.data.before, q.data.before_id ?? null, q.data.before, q.data.before_id ?? null,
+          q.data.limit).map(toAlertRow),
       };
     });
 

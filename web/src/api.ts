@@ -64,9 +64,9 @@ export const api = {
   updateAlertRule: (kind: AlertKind, patch: Partial<AlertRuleValues>) =>
     request<AlertRule>("PATCH", `/api/v1/alert-rules/${kind}`, patch),
   resetAlertRules: () => request<{ rules: AlertRule[] }>("POST", "/api/v1/alert-rules/reset"),
-  alerts: (id: string, before?: number) =>
+  alerts: (id: string, before?: number, beforeId?: number) =>
     request<{ open: AlertRow[]; history: AlertRow[] }>(
-      "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}`}`),
+      "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}${beforeId === undefined ? "" : `&before_id=${beforeId}`}`}`),
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),

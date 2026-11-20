@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { api } from "../../api";
 import { Button, Field, Skeleton, useConfirm, useToast } from "../../components/ui";
 import type { AlertRule } from "../../../../server/src/types";
@@ -16,6 +16,15 @@ export function RuleList({ rules, error, calibrated, onChange }: Props) {
   const toast = useToast();
   const [openKind, setOpenKind] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Closing the form unmounts the focused input: hand focus back to the row.
+  const closeForm = (kind: string) => {
+    setOpenKind(null);
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector<HTMLElement>(`[data-kind="${kind}"] .al-rule-name`)?.focus();
+    });
+  };
 
   // Functional update: two quick toggles must not overwrite each other.
   const replace = (r: AlertRule) => onChange((rs) => rs && rs.map((x) => (x.kind === r.kind ? r : x)));
@@ -53,14 +62,14 @@ export function RuleList({ rules, error, calibrated, onChange }: Props) {
         <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {error}</p>
       ) : !rules ? <Skeleton height={240} /> : (
         <>
-          <ul className="al-rule-list">
+          <ul className="al-rule-list" ref={listRef}>
             {rules.map((r) => (
-              <li key={r.kind} className={r.enabled ? "al-rule" : "al-rule off"}>
+              <li key={r.kind} data-kind={r.kind} className={r.enabled ? "al-rule" : "al-rule off"}>
                 <div className="al-rule-row">
                   <input type="checkbox" checked={r.enabled} onChange={() => toggle(r)}
                          aria-label={`Activer la règle « ${r.label} »`} />
                   <button type="button" className="al-rule-name" aria-expanded={openKind === r.kind}
-                          aria-controls={`al-edit-${r.kind}`} onClick={() => setOpenKind(openKind === r.kind ? null : r.kind)}>
+                          aria-controls={openKind === r.kind ? `al-edit-${r.kind}` : undefined} onClick={() => setOpenKind(openKind === r.kind ? null : r.kind)}>
                     {r.label}
                   </button>
                   <span className="al-rule-sum muted">{ruleSummary(r)}</span>
@@ -69,7 +78,7 @@ export function RuleList({ rules, error, calibrated, onChange }: Props) {
                   <p className="al-rule-note muted">calibre le son dans <a href="#/reglages">Réglages</a> pour activer cette règle</p>
                 )}
                 {openKind === r.kind && (
-                  <RuleForm rule={r} onSaved={(saved) => { replace(saved); setOpenKind(null); }} onCancel={() => setOpenKind(null)} />
+                  <RuleForm rule={r} onSaved={(saved) => { replace(saved); closeForm(r.kind); }} onCancel={() => closeForm(r.kind)} />
                 )}
               </li>
             ))}

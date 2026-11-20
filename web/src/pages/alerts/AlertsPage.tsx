@@ -31,7 +31,7 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
   const first = journal.data?.history;
   const seen = new Set(first?.map((a) => a.id));
   const history = first && [...first, ...older.filter((a) => !seen.has(a.id))]
-    .sort((a, b) => b.started_at - a.started_at);
+    .sort((a, b) => b.started_at - a.started_at || b.id - a.id);
   const hasMore = !!history && !olderDone && (older.length > 0 || first!.length >= PAGE);
 
   async function more() {
@@ -39,7 +39,7 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
     if (!last) return;
     setLoadingMore(true);
     try {
-      const page = (await api.alerts(id, last.started_at)).history;
+      const page = (await api.alerts(id, last.started_at, last.id)).history;
       setOlder([...(history ?? []), ...page]);
       if (page.length < PAGE) setOlderDone(true);
     } catch (e) {

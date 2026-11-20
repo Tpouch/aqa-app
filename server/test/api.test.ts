@@ -386,6 +386,21 @@ describe("alertes", () => {
     run(built.db, "DELETE FROM alerts");
   });
 
+  it("pagine sans perdre les alertes de même started_at", async () => {
+    const t = Math.floor(Date.now() / 1000) - 10_000;
+    for (let i = 0; i < 3; i++) {
+      run(built.db, "INSERT INTO alerts (device_id, kind, threshold, started_at, ended_at, start_value, peak_value, end_value, end_reason) VALUES (?, 'co2_high', 1200, ?, ?, 1300, 1400, 900, 'normal')",
+        DEVICE, t, t + 600);
+    }
+    const p1 = (await admin("GET", `/api/v1/devices/${DEVICE}/alerts?limit=2`)).json().history as { id: number; started_at: number }[];
+    expect(p1).toHaveLength(2);
+    const last = p1[1]!;
+    const p2 = (await admin("GET", `/api/v1/devices/${DEVICE}/alerts?limit=2&before=${last.started_at}&before_id=${last.id}`)).json().history as { id: number }[];
+    expect(p2).toHaveLength(1);
+    expect(new Set([...p1.map((a) => a.id), ...p2.map((a) => a.id)]).size).toBe(3);
+    run(built.db, "DELETE FROM alerts");
+  });
+
   it("refuse sans session", async () => {
     expect((await built.app.inject({ method: "GET", url: "/api/v1/alert-rules" })).statusCode).toBe(401);
   });

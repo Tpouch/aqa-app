@@ -1,4 +1,4 @@
-import { all, get, run, tx, type Db } from "./db.js";
+import { all, run, tx, type Db } from "./db.js";
 import { soundDb } from "./sound.js";
 import { ALERT_KINDS, type AlertKind, type AlertRow, type AlertRule, type AlertRuleValues, type Metric } from "./types.js";
 
@@ -181,7 +181,10 @@ export function checkAlerts(db: Db, now: number, serverStart: number): void {
           decision = decideOffline(rule, !!open, dev.last_seen, serverStart, now);
         } else {
           const cal = dev.snd_ref !== null && dev.db_ref !== null ? { snd_ref: dev.snd_ref, db_ref: dev.db_ref } : null;
-          if (rule.metric === "snd" && !cal) continue;
+          if (rule.metric === "snd" && !cal) {
+            if (open) closeAlert(db, open.id, now, null, "disabled");
+            continue;
+          }
           const samples: Sample[] = [];
           for (const f of frames) {
             const raw = f[rule.metric];

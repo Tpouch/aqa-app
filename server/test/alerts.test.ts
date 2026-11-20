@@ -160,4 +160,34 @@ describe("checkAlerts", () => {
     checkAlerts(db, T, 0);
     expect(alerts(db)).toHaveLength(1);
   });
+  it("ferme snd_high quand la calibration est retirée", () => {
+    const db = setup(true);
+    run(db, "UPDATE alert_rules SET enabled = 1 WHERE kind = 'snd_high'");
+    frames(db, T - 120, T, { snd: 2000 });
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(1);
+    run(db, "UPDATE devices SET snd_ref = NULL, db_ref = NULL WHERE id = 'd1'");
+    checkAlerts(db, T + 30, 0);
+    expect(alerts(db)[0]).toMatchObject({ ended_at: T + 30, end_reason: "disabled" });
+  });
+  it("ouvre offline après la durée et ferme au retour", () => {
+    const db = setup();
+    run(db, "UPDATE devices SET last_seen = ? WHERE id = 'd1'", T - 1000);
+    checkAlerts(db, T, 0);
+    expect(alerts(db)).toHaveLength(1);
+    expect(alerts(db)[0]).toMatchObject({ kind: "offline", started_at: T - 1000, ended_at: null });
+    run(db, "UPDATE devices SET last_seen = ? WHERE id = 'd1'", T + 20);
+    checkAlerts(db, T + 30, 0);
+    expect(alerts(db)[0]).toMatchObject({ ended_at: T + 30, end_reason: "normal" });
+  });
+  it("enregistre le nouveau pic", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    checkAlerts(db, T, 0);
+    expect(alerts(db)[0].peak_value).toBe(1300);
+    frames(db, T + 15, T + 30, { co2: 1500 });
+    checkAlerts(db, T + 30, 0);
+    expect(alerts(db)).toHaveLength(1);
+    expect(alerts(db)[0].peak_value).toBe(1500);
+  });
 });
