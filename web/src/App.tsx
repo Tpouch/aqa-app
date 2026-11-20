@@ -1,11 +1,14 @@
-import { SignOutIcon, WarningIcon, WindIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
-import { Button, ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
-import { DevicePage, TABS, type TabKey } from "./pages/device/DevicePage";
+import { Sidebar, SessionTools } from "./components/Sidebar";
+import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
+import { DevicePage } from "./pages/device/DevicePage";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
-import { useHashRoute, usePoll } from "./util";
+import { parseRoute, TAB_LABEL, type Tab } from "./routes";
+import { useSelection } from "./selection";
+import { storageGet, storageRemove, storageSet } from "./storage";
+import { useNow, usePoll } from "./util";
 
 export function App() {
   return (
@@ -28,77 +31,82 @@ function Gate() {
   return <Shell onLogout={() => setAuth(false)} />;
 }
 
+// Current tab from the hash. Older hashes are replaced by their canonical form;
+// a legacy #/device/<id>/<tab> also selects that board.
+function useRoute(onLegacyDevice: (id: string) => void): Tab {
+  const [hash, setHash] = useState(() => window.location.hash);
+  const route = parseRoute(hash);
+  useEffect(() => {
+    const on = () => {
+      setHash(window.location.hash);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
+  useEffect(() => {
+    if (route.device) onLegacyDevice(route.device);
+    if (route.redirect) {
+      window.location.replace(route.redirect);
+      setHash(route.redirect);
+    }
+  }, [route.device, route.redirect, onLegacyDevice]);
+  return route.tab;
+}
+
 function Shell({ onLogout }: { onLogout: () => void }) {
-  const route = useHashRoute();
   const devices = usePoll(api.devices, 15000, []);
   const [pending, setPending] = useState(0);
-  const [chosen, setChosen] = useState(() => localStorage.getItem("aqa-device") ?? "");
+  const [chosen, setChosen] = useState(() => storageGet("aqa-device") ?? "");
+  const tab = useRoute(setChosen);
+  const [selection, setSelection] = useSelection();
+  const now = useNow();
 
-  // Old links (#/device/<id>/<tab>) still work.
-  const legacy = route.match(/^\/device\/(aqa-[0-9A-F]{12})(?:\/(\w+))?$/);
-  useEffect(() => {
-    if (legacy) {
-      setChosen(legacy[1]!);
-      window.location.replace(`#/${legacy[2] ?? "overview"}`);
-    }
-  }, [legacy]);
-
-  const tab: TabKey = TABS.find((t) => `/${t.key}` === route)?.key ?? "overview";
   const list = devices.data?.devices ?? [];
   const device = list.find((d) => d.id === chosen) ?? list[0];
 
   useEffect(() => {
-    if (device) localStorage.setItem("aqa-device", device.id);
+    if (device) storageSet("aqa-device", device.id);
   }, [device]);
   useEffect(() => {
-    const label = TABS.find((t) => t.key === tab)?.label;
-    document.title = device ? `${label} · ${device.name} · AQA` : "AQA";
+    document.title = device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
   }, [tab, device]);
 
   const onPendingChange = useCallback((n: number) => setPending(n), []);
 
-  return (
-    <>
-      <a className="sr-only" href="#main">Aller au contenu</a>
-      <nav className="topbar" aria-label="Navigation principale">
-        <a href="#/overview" className="brand">
-          <span className="brand-mark"><WindIcon size={16} weight="bold" aria-hidden /></span>
-          <span className="hide-sm">AQA</span>
+  // No board registered yet: full screen, no column (there is nothing to read).
+  if (devices.data && !device) {
+    return (
+      <>
+        <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
+          Aller au contenu
         </a>
-        {device && TABS.map((t) => {
-          const Icon = t.icon;
-          const current = t.key === tab;
-          return (
-            <a key={t.key} href={`#/${t.key}`} className="nav-link" aria-current={current ? "page" : undefined} title={t.label}>
-              <Icon size={18} weight={current ? "fill" : "regular"} aria-hidden />
-              <span className="label">{t.label}</span>
-              {t.key === "commands" && pending > 0 && <span className="tab-count" aria-label={`${pending} en cours`}>{pending}</span>}
-            </a>
-          );
-        })}
-        <span className="spacer" />
-        {list.length > 1 && (
-          <select className="input device-switch" value={device?.id} aria-label="Carte affichée" onChange={(e) => setChosen(e.target.value)}>
-            {list.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        )}
-        <Button variant="ghost" icon={<SignOutIcon size={18} aria-hidden />} title="Déconnexion"
-                onClick={() => api.logout().finally(onLogout)}>
-          <span className="label hide-sm">Déconnexion</span>
-        </Button>
-      </nav>
-      <main id="main" className="content">
+        <div className="setup-tools"><SessionTools onLogout={() => api.logout().finally(onLogout)} /></div>
+        <main id="main" tabIndex={-1} className="setup">
+          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
+        </main>
+      </>
+    );
+  }
+
+  return (
+    <div className="shell">
+      <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
+        Aller au contenu
+      </a>
+      <Sidebar devices={list} device={device} onDevice={setChosen} tab={tab} selection={selection} onSelection={setSelection}
+               pending={pending} now={now} onLogout={() => api.logout().finally(onLogout)} />
+      <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
-          <p className="callout warn" role="alert"><WarningIcon size={18} aria-hidden />{devices.error}</p>
+          <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>
         ) : !devices.data ? (
           <Skeleton height={400} />
-        ) : !device ? (
-          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/overview"; }} />
-        ) : (
-          <DevicePage key={device.id} id={device.id} tab={tab} onPendingChange={onPendingChange}
-                      onDeleted={() => { localStorage.removeItem("aqa-device"); devices.reload(); window.location.hash = "/overview"; }} />
+        ) : !device ? null : (
+          <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
+                      onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
+                      onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
         )}
       </main>
-    </>
+    </div>
   );
 }

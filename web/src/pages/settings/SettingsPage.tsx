@@ -1,15 +1,13 @@
-import {
-  EyeIcon, EyeSlashIcon, IdentificationCardIcon, KeyIcon, MapPinIcon, ShieldWarningIcon,
-  SlidersHorizontalIcon, TrashIcon, WarningIcon, WifiHighIcon,
-} from "@phosphor-icons/react";
-import { Fragment, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { FirmwareSection } from "../../components/FirmwareSection";
+import { Setting } from "../../components/Setting";
 import { TokenReveal } from "../../components/TokenReveal";
-import { Button, Field, useConfirm, useToast } from "../../components/ui";
+import { Button, Field, Skeleton, useConfirm, useToast } from "../../components/ui";
 import type { DeviceSummary } from "../../../../server/src/types";
-import type { Send } from "./DevicePage";
-import { SignalBadge } from "./shared";
+import { fmt, nowS } from "../../util";
+import type { Send } from "../device/DevicePage";
+import { calibrationFrom } from "./calibration";
 
 const WIFI_MIN_FIRMWARE = "2.1.0";
 
@@ -21,35 +19,27 @@ function versionAtLeast(v: string | undefined, min: string): boolean {
   return true;
 }
 
-export function OptionsTab({ device, send, reloadDevice, onDeleted }: { device: DeviceSummary; send: Send; reloadDevice: () => void; onDeleted: () => void }) {
+export function SettingsPage({ device, send, reloadDevice, onDeleted }: {
+  device: DeviceSummary | null; send: Send; reloadDevice: () => void; onDeleted: () => void;
+}) {
+  if (!device) return <Skeleton height={400} />;
   return (
-    <div className="options">
-      <NameSection device={device} reload={reloadDevice} />
-      <WifiSection device={device} send={send} />
-      <GeohashSection device={device} send={send} />
-      <ParamsSection device={device} send={send} />
+    <div className="st">
+      <h2 className="st-title">Réglages · {device.name}</h2>
+      <NameRow device={device} reload={reloadDevice} />
+      <CalibrationRow device={device} reload={reloadDevice} />
+      <WifiRow device={device} send={send} />
+      <GeohashRow device={device} send={send} />
+      <ParamsRow device={device} send={send} />
       <FirmwareSection />
-      <DangerSection device={device} onDeleted={onDeleted} />
+      <DangerZone device={device} onDeleted={onDeleted} />
     </div>
-  );
-}
-
-function Section({ icon, title, description, children, tone }: { icon: ReactNode; title: string; description: ReactNode; children: ReactNode; tone?: "danger" }) {
-  const id = `opt-${title.replace(/\W+/g, "-").toLowerCase()}`;
-  return (
-    <section className={`card option-section ${tone ?? ""}`} aria-labelledby={id}>
-      <div className="option-intro">
-        <h2 id={id}>{icon}{title}</h2>
-        <p className="muted small">{description}</p>
-      </div>
-      <div className="option-body">{children}</div>
-    </section>
   );
 }
 
 // ---------------------------------------------------------------- name
 
-function NameSection({ device, reload }: { device: DeviceSummary; reload: () => void }) {
+function NameRow({ device, reload }: { device: DeviceSummary; reload: () => void }) {
   const [name, setName] = useState(device.name);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -57,7 +47,7 @@ function NameSection({ device, reload }: { device: DeviceSummary; reload: () => 
     e.preventDefault();
     setBusy(true);
     try {
-      await api.renameDevice(device.id, name.trim());
+      await api.updateDevice(device.id, { name: name.trim() });
       toast("good", "Nom enregistré.");
       reload();
     } catch (err) {
@@ -67,18 +57,81 @@ function NameSection({ device, reload }: { device: DeviceSummary; reload: () => 
     }
   }
   return (
-    <Section icon={<IdentificationCardIcon size={18} aria-hidden />} title="Nom" description="Affiché dans le tableau de bord. Ne change rien sur la carte.">
-      <form className="row" onSubmit={save}>
+    <Setting title="Nom" help="Affiché dans le tableau de bord. Ne change rien sur la carte.">
+      <form className="st-row" onSubmit={save}>
         <Field label="Nom de la carte"><input className="input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} /></Field>
         <Button type="submit" variant="primary" loading={busy} disabled={!name.trim() || name.trim() === device.name}>Enregistrer</Button>
       </form>
-    </Section>
+    </Setting>
+  );
+}
+
+// ---------------------------------------------------------------- sound calibration
+
+function CalibrationRow({ device, reload }: { device: DeviceSummary; reload: () => void }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [db, setDb] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const cal = device.sound_calibration;
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      // Fresh summary: the polled one can be up to 15 s old.
+      const fresh = await api.device(device.id);
+      const res = calibrationFrom(fresh.latest, nowS(), db);
+      if (!res.ok) return setError(res.error);
+      await api.updateDevice(device.id, { sound_calibration: res.value });
+      toast("good", `Son calibré : ${fmt(res.value.db_ref, 1)} dB pour une amplitude de ${fmt(res.value.snd_ref)}.`);
+      setDb("");
+      reload();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clear() {
+    if (!await confirm({
+      title: "Effacer la calibration du son ?",
+      body: "Le son repasse en amplitude brute dans les mesures et la colonne de gauche.",
+      confirmLabel: "Effacer", danger: true,
+    })) return;
+    try {
+      await api.updateDevice(device.id, { sound_calibration: null });
+      toast("good", "Calibration effacée.");
+      reload();
+    } catch (err) {
+      toast("bad", (err as Error).message);
+    }
+  }
+
+  return (
+    <Setting title="Calibrer le son" help="Mesure le niveau de la pièce avec une appli sonomètre, puis saisis-le.">
+      <p className="st-current">
+        Calibration actuelle :{" "}
+        {cal ? <strong>{fmt(cal.db_ref, 1)} dB pour une amplitude de {fmt(cal.snd_ref)}</strong> : <span className="muted">non calibré</span>}
+      </p>
+      <form className="st-row" onSubmit={save}>
+        <Field label={<>Niveau mesuré (<span className="unit">dB</span>)</>} error={error}>
+          <input className="input mono" inputMode="decimal" value={db} autoComplete="off" aria-invalid={error ? true : undefined}
+                 onChange={(e) => { setDb(e.target.value); setError(null); }} />
+        </Field>
+        <Button type="submit" variant="primary" loading={busy} disabled={!db.trim()}>Calibrer maintenant</Button>
+        {cal && <Button type="button" variant="ghost" onClick={clear}>Effacer</Button>}
+      </form>
+    </Setting>
   );
 }
 
 // ---------------------------------------------------------------- wifi
 
-function WifiSection({ device, send }: { device: DeviceSummary; send: Send }) {
+function WifiRow({ device, send }: { device: DeviceSummary; send: Send }) {
   const confirm = useConfirm();
   const [mode, setMode] = useState<"psk" | "eap">("psk");
   const [ssid, setSsid] = useState("");
@@ -90,6 +143,7 @@ function WifiSection({ device, send }: { device: DeviceSummary; send: Send }) {
   const [error, setError] = useState<string | null>(null);
   const s = device.status;
   const supported = versionAtLeast(s?.firmware_version, WIFI_MIN_FIRMWARE);
+  const signal = s ? (s.rssi < -80 ? ["faible", "tone-warn"] : s.rssi < -70 ? ["moyen", "muted"] : ["bon", "tone-good"]) : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -119,67 +173,64 @@ function WifiSection({ device, send }: { device: DeviceSummary; send: Send }) {
   }
 
   return (
-    <Section icon={<WifiHighIcon size={18} aria-hidden />} title="Wi-Fi"
-             description={<>Réseau actuel : {s ? <><strong>{s.ssid}</strong> · {s.rssi} dBm <SignalBadge rssi={s.rssi} /></> : "inconnu"}</>}>
+    <Setting title="Wi-Fi"
+             help={<>Réseau actuel : {s && signal ? <><strong>{s.ssid}</strong> · {s.rssi} dBm <span className={signal[1]}>{signal[0]}</span></> : "inconnu"}</>}>
       {!supported && (
-        <div className="callout warn" style={{ marginBottom: "1rem" }}>
-          <WarningIcon size={18} aria-hidden />
-          <span>Nécessite le firmware {WIFI_MIN_FIRMWARE} ou plus (la carte a {s ? `v${s.firmware_version}` : "une version inconnue"}). Sinon elle refusera la commande.</span>
-        </div>
+        <p className="st-warn tone-warn small" role="note">
+          <span aria-hidden>▲ </span>Nécessite le firmware {WIFI_MIN_FIRMWARE} ou plus (la carte a {s ? `v${s.firmware_version}` : "une version inconnue"}). Sinon elle refusera la commande.
+        </p>
       )}
-      <form className="stack" onSubmit={submit} style={{ paddingTop: 0 }}>
-        <div className="segmented" role="radiogroup" aria-label="Type de réseau">
-          <button type="button" role="radio" aria-checked={mode === "psk"} aria-pressed={mode === "psk"} onClick={() => setMode("psk")}>Maison (WPA2)</button>
-          <button type="button" role="radio" aria-checked={mode === "eap"} aria-pressed={mode === "eap"} onClick={() => setMode("eap")}>Entreprise (PEAP)</button>
+      <form className="st-stack" onSubmit={submit}>
+        <div className="seg" role="group" aria-label="Type de réseau">
+          <button type="button" aria-pressed={mode === "psk"} onClick={() => setMode("psk")}>Maison (WPA2)</button>
+          <button type="button" aria-pressed={mode === "eap"} onClick={() => setMode("eap")}>Entreprise (PEAP)</button>
         </div>
         <Field label="Nom du réseau (SSID)">
           <input className="input" value={ssid} onChange={(e) => setSsid(e.target.value)} maxLength={32} required autoComplete="off" />
         </Field>
         {mode === "eap" && (
-          <div className="range-fields">
+          <div className="st-pair">
             <Field label="Identifiant"><input className="input" value={username} onChange={(e) => setUsername(e.target.value)} maxLength={64} autoComplete="off" /></Field>
             <Field label="Identité anonyme" hint="Facultatif, vide = identifiant"><input className="input" value={identity} onChange={(e) => setIdentity(e.target.value)} maxLength={64} autoComplete="off" /></Field>
           </div>
         )}
         <Field label="Mot de passe" error={error} hint={mode === "psk" ? "Vide pour un réseau ouvert." : "Effacé du serveur dès que la carte a répondu."}>
-          <div className="password">
+          <div className="st-password">
             <input className="input" type={show ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }}
                    maxLength={mode === "psk" ? 63 : 64} autoComplete="new-password" aria-invalid={error ? true : undefined} />
-            <Button type="button" variant="ghost" size="sm" iconOnly aria-pressed={show}
-                    icon={show ? <EyeSlashIcon size={18} aria-hidden /> : <EyeIcon size={18} aria-hidden />}
-                    onClick={() => setShow((v) => !v)}>{show ? "Masquer" : "Afficher"}</Button>
+            <Button type="button" variant="ghost" size="sm" aria-pressed={show} onClick={() => setShow((v) => !v)}>{show ? "Masquer" : "Afficher"}</Button>
           </div>
         </Field>
-        <div className="toolbar">
+        <div className="st-actions">
           <Button type="submit" variant="primary" loading={busy} disabled={!ssid.trim()}>Changer de réseau</Button>
           <Button type="button" variant="ghost" onClick={reset}>Revenir au Wi-Fi du firmware</Button>
         </div>
       </form>
-    </Section>
+    </Setting>
   );
 }
 
 // ---------------------------------------------------------------- position
 
-function GeohashSection({ device, send }: { device: DeviceSummary; send: Send }) {
+function GeohashRow({ device, send }: { device: DeviceSummary; send: Send }) {
   const [geohash, setGeohash] = useState("");
   return (
-    <Section icon={<MapPinIcon size={18} aria-hidden />} title="Position"
-             description={<>Géohash associé aux mesures, actuellement <code>{device.status?.geohash ?? "?"}</code>. Trouve le tien sur geohash.softeng.co.</>}>
-      <form className="row" onSubmit={async (e) => { e.preventDefault(); if (await send("geohash", { geohash: geohash.trim().toLowerCase() })) setGeohash(""); }}>
+    <Setting title="Position"
+             help={<>Géohash associé aux mesures, actuellement <code>{device.status?.geohash ?? "?"}</code>. Trouve le tien sur geohash.softeng.co.</>}>
+      <form className="st-row" onSubmit={async (e) => { e.preventDefault(); if (await send("geohash", { geohash: geohash.trim().toLowerCase() })) setGeohash(""); }}>
         <Field label="Nouveau géohash" hint="1 à 12 caractères, ex. u09tv (Paris)">
           <input className="input mono" value={geohash} onChange={(e) => setGeohash(e.target.value)} maxLength={12} autoCapitalize="none" spellCheck={false}
                  pattern="[0-9b-hjkmnp-zB-HJKMNP-Z]{1,12}" />
         </Field>
         <Button type="submit" disabled={!geohash.trim()}>Appliquer</Button>
       </form>
-    </Section>
+    </Setting>
   );
 }
 
 // ---------------------------------------------------------------- parameters
 
-function ParamsSection({ device, send }: { device: DeviceSummary; send: Send }) {
+function ParamsRow({ device, send }: { device: DeviceSummary; send: Send }) {
   const current = device.status?.parameters ?? {};
   const [rows, setRows] = useState<{ key: string; value: string }[]>([{ key: "", value: "" }]);
   const [error, setError] = useState<string | null>(null);
@@ -200,35 +251,35 @@ function ParamsSection({ device, send }: { device: DeviceSummary; send: Send }) 
   }
 
   return (
-    <Section icon={<SlidersHorizontalIcon size={18} aria-hidden />} title="Paramètres"
-             description="Valeurs numériques stockées sur la carte (NVS), conservées au redémarrage. Le firmware actuel les garde sans encore les utiliser.">
+    <Setting title="Paramètres"
+             help="Valeurs numériques stockées sur la carte (NVS), conservées au redémarrage. Le firmware actuel les garde sans encore les utiliser.">
       {Object.keys(current).length > 0 && (
-        <dl className="kv" style={{ marginBottom: "1rem" }}>
+        <dl className="st-kv">
           {Object.entries(current).map(([k, v]) => <Fragment key={k}><dt><code>{k}</code></dt><dd>{v}</dd></Fragment>)}
         </dl>
       )}
-      <form className="stack" style={{ paddingTop: 0 }} onSubmit={submit}>
+      <form className="st-stack" onSubmit={submit}>
         {rows.map((r, i) => (
-          <div key={i} className="range-fields">
+          <div key={i} className="st-pair">
             <Field label={i === 0 ? "Nom" : ""}><input className="input mono" value={r.key} maxLength={15} aria-label={`Nom du paramètre ${i + 1}`}
               onChange={(e) => setRows(rows.map((x, j) => j === i ? { ...x, key: e.target.value } : x))} /></Field>
             <Field label={i === 0 ? "Valeur" : ""}><input className="input mono" value={r.value} inputMode="decimal" aria-label={`Valeur du paramètre ${i + 1}`}
               onChange={(e) => setRows(rows.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} /></Field>
           </div>
         ))}
-        {error && <p className="field-error small" role="alert">{error}</p>}
-        <div className="toolbar">
+        {error && <p className="field-error small tone-bad" role="alert">{error}</p>}
+        <div className="st-actions">
           <Button type="submit">Envoyer</Button>
           <Button type="button" variant="ghost" onClick={() => setRows([...rows, { key: "", value: "" }])}>+ Ajouter une ligne</Button>
         </div>
       </form>
-    </Section>
+    </Setting>
   );
 }
 
 // ---------------------------------------------------------------- danger zone
 
-function DangerSection({ device, onDeleted }: { device: DeviceSummary; onDeleted: () => void }) {
+function DangerZone({ device, onDeleted }: { device: DeviceSummary; onDeleted: () => void }) {
   const confirm = useConfirm();
   const toast = useToast();
   const [token, setToken] = useState<string | null>(null);
@@ -262,20 +313,18 @@ function DangerSection({ device, onDeleted }: { device: DeviceSummary; onDeleted
   }
 
   return (
-    <Section tone="danger" icon={<ShieldWarningIcon size={18} aria-hidden />} title="Zone sensible" description="Actions irréversibles.">
-      <div className="danger-list">
-        <div>
-          <strong><KeyIcon size={16} aria-hidden /> Nouveau jeton</strong>
-          <p className="muted small">Si le jeton a fuité ou est perdu. Il faudra reflasher la carte.</p>
-        </div>
-        <Button onClick={rotate}>Générer</Button>
-        <div>
-          <strong><TrashIcon size={16} aria-hidden /> Supprimer la carte</strong>
-          <p className="muted small">Efface la carte et tout son historique.</p>
-        </div>
-        <Button variant="danger" onClick={remove}>Supprimer</Button>
-      </div>
+    <Setting tone="bad" title="Zone sensible" help="Actions irréversibles.">
+      <ul className="st-danger">
+        <li>
+          <p className="small"><strong>Nouveau jeton</strong><span className="muted"> · Si le jeton a fuité ou est perdu. Il faudra reflasher la carte.</span></p>
+          <Button variant="danger" onClick={rotate}>Nouveau jeton</Button>
+        </li>
+        <li>
+          <p className="small"><strong>Supprimer la carte</strong><span className="muted"> · Efface la carte et tout son historique.</span></p>
+          <Button variant="danger" onClick={remove}>Supprimer la carte</Button>
+        </li>
+      </ul>
       <TokenReveal deviceId={device.id} token={token} onClose={() => setToken(null)} />
-    </Section>
+    </Setting>
   );
 }

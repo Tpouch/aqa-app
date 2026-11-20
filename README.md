@@ -42,7 +42,7 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-L'app écoute sur `127.0.0.1:3000` du VPS. Les données (SQLite et firmwares)
+L'app écoute sur `127.0.0.1:3090` du VPS. Les données (SQLite et firmwares)
 sont dans `./data` : c'est ce dossier qu'il faut sauvegarder.
 
 Pour exposer `sensor.devgoblin.fr`, il y a deux options.
@@ -55,7 +55,7 @@ gérer sur le VPS, ce qui règle aussi l'erreur 525 actuelle.
 3. Dans `.env` : `TUNNEL_TOKEN=...`
 4. `COMPOSE_PROFILES=tunnel docker compose up -d --build`
 
-**B. Reverse proxy (Caddy ou Nginx)** sur le VPS, vers `127.0.0.1:3000`, avec
+**B. Reverse proxy (Caddy ou Nginx)** sur le VPS, vers `127.0.0.1:3090`, avec
 un certificat d'origine Cloudflare et le mode SSL **Full (strict)**.
 
 **Dans les deux cas, côté Cloudflare :** ajoute une règle WAF *Skip* (Bot

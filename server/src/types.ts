@@ -47,6 +47,12 @@ export interface AggregateRow {
   temp: number | null;
 }
 
+// Maps the raw "snd" ADC reading of a board to dB: snd_ref reads as db_ref.
+export interface SoundCalibration {
+  snd_ref: number;
+  db_ref: number;
+}
+
 export interface DeviceSummary {
   id: string;
   name: string;
@@ -56,6 +62,7 @@ export interface DeviceSummary {
   status: DeviceStatus | null;
   status_at: number | null;
   latest: FrameRow | null;
+  sound_calibration: SoundCalibration | null;
 }
 
 export interface UnknownDevice {

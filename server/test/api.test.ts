@@ -152,6 +152,31 @@ describe("device API (docs/api.md)", () => {
   });
 });
 
+describe("sound calibration", () => {
+  it("starts uncalibrated", async () => {
+    expect((await admin("GET", `/api/v1/devices/${DEVICE}`)).json().sound_calibration).toBeNull();
+  });
+  it("stores a calibration and keeps the name", async () => {
+    const res = await admin("PATCH", `/api/v1/devices/${DEVICE}`, { sound_calibration: { snd_ref: 31, db_ref: 45 } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sound_calibration).toEqual({ snd_ref: 31, db_ref: 45 });
+    expect(res.json().name).toBe("Chambre");
+  });
+  it("rejects out-of-range values and an empty body", async () => {
+    for (const sound_calibration of [{ snd_ref: 0, db_ref: 45 }, { snd_ref: 31, db_ref: 10 }, { snd_ref: 5000, db_ref: 45 }]) {
+      expect((await admin("PATCH", `/api/v1/devices/${DEVICE}`, { sound_calibration })).statusCode).toBe(422);
+    }
+    expect((await admin("PATCH", `/api/v1/devices/${DEVICE}`, {})).statusCode).toBe(422);
+  });
+  it("clears the calibration with null", async () => {
+    const res = await admin("PATCH", `/api/v1/devices/${DEVICE}`, { sound_calibration: null });
+    expect(res.json().sound_calibration).toBeNull();
+  });
+  it("still renames with name only", async () => {
+    expect((await admin("PATCH", `/api/v1/devices/${DEVICE}`, { name: "Chambre" })).json().name).toBe("Chambre");
+  });
+});
+
 describe("commands", () => {
   let cid = "";
 

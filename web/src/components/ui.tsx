@@ -1,7 +1,4 @@
 import {
-  CheckCircleIcon, CircleNotchIcon, WarningIcon, XCircleIcon, XIcon,
-} from "@phosphor-icons/react";
-import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
   type ButtonHTMLAttributes, type ReactNode,
 } from "react";
@@ -11,47 +8,33 @@ import {
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "danger" | "ghost" | "default";
   size?: "sm" | "md";
-  icon?: ReactNode;
-  iconOnly?: boolean;
   loading?: boolean;
 };
 
-export function Button({ variant = "default", size = "md", icon, iconOnly, loading, children, className, disabled, ...rest }: ButtonProps) {
-  const cls = ["btn", variant !== "default" && variant, size === "sm" && "sm", iconOnly && "icon", className]
+// "ghost" is the legacy name of the quiet variant.
+const VARIANT_CLASS = { default: null, primary: "primary", danger: "danger", ghost: "quiet" } as const;
+
+export function Button({ variant = "default", size = "md", loading, children, className, disabled, ...rest }: ButtonProps) {
+  const cls = ["btn", VARIANT_CLASS[variant], size === "sm" && "sm", className]
     .filter(Boolean).join(" ");
   return (
     <button className={cls} disabled={disabled || loading} aria-busy={loading || undefined} {...rest}>
-      {loading ? <CircleNotchIcon className="spin" size={16} aria-hidden /> : icon}
-      {iconOnly ? <span className="sr-only">{children}</span> : children}
+      {loading && <span className="busy" aria-hidden>…</span>}
+      {children}
     </button>
   );
 }
 
 // ---------------------------------------------------------------- Field
 
-export function Field({ label, hint, error, children }: { label: string; hint?: ReactNode; error?: string | null; children: ReactNode }) {
+export function Field({ label, hint, error, children }: { label: ReactNode; hint?: ReactNode; error?: string | null; children: ReactNode }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span className="label-caps">{label}</span>
       {children}
       {error ? <small className="field-error" role="alert">{error}</small> : hint ? <small className="hint">{hint}</small> : null}
     </label>
   );
-}
-
-// ---------------------------------------------------------------- Badge
-
-export function Badge({ tone, dot, live, children, title }: { tone?: "good" | "warn" | "bad" | "info"; dot?: boolean; live?: boolean; children: ReactNode; title?: string }) {
-  return (
-    <span className={["badge", tone, live && "live"].filter(Boolean).join(" ")} title={title}>
-      {dot && <span className="dot" aria-hidden />}
-      {children}
-    </span>
-  );
-}
-
-export function OnlineBadge({ online }: { online: boolean }) {
-  return <Badge tone={online ? "good" : "bad"} dot live={online}>{online ? "En ligne" : "Hors ligne"}</Badge>;
 }
 
 export const Skeleton = ({ height, width = "100%" }: { height: number | string; width?: number | string }) =>
@@ -77,12 +60,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
+      <div className="toasts" role="status">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.tone}`}>
-            {t.tone === "good" ? <CheckCircleIcon size={20} weight="fill" aria-hidden /> : <XCircleIcon size={20} weight="fill" aria-hidden />}
-            <span>{t.text}</span>
-            <Button variant="ghost" size="sm" iconOnly icon={<XIcon size={16} aria-hidden />} onClick={() => dismiss(t.id)}>Fermer</Button>
+            <span className="toast-mark" aria-hidden>{t.tone === "good" ? "✓" : "✗"}</span>
+            <span className="toast-text">{t.text}</span>
+            <Button variant="ghost" size="sm" onClick={() => dismiss(t.id)}>fermer</Button>
           </div>
         ))}
       </div>
@@ -131,11 +114,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       <Modal open={pending !== null} onClose={() => close(false)} labelledBy="confirm-title">
         {pending && (
           <>
-            <div className="modal-body">
-              <h2 id="confirm-title">
-                {pending.danger && <WarningIcon className="danger-icon" size={22} weight="fill" aria-hidden />}
-                {pending.title}
-              </h2>
+            <div className={pending.danger ? "modal-body danger" : "modal-body"}>
+              <h2 id="confirm-title">{pending.title}</h2>
               <p>{pending.body}</p>
             </div>
             <div className="modal-actions">

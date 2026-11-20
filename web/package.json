@@ -6,12 +6,11 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource/fira-code": "^5.3.0",
-    "@fontsource/fira-sans": "^5.3.0",
-    "@phosphor-icons/react": "^2.1.10",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "uplot": "^1.6.32"
@@ -20,7 +19,9 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "jsdom": "^31.0.1",
     "typescript": "~6.0.3",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

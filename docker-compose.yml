@@ -1,6 +1,6 @@
 # docker compose up -d --build
 #
-# The app listens on 127.0.0.1:3000 only. Two ways to put it behind
+# The app listens on 127.0.0.1:3090 (host) only. Two ways to put it behind
 # sensor.devgoblin.fr (Cloudflare), see README "Déploiement":
 #   - Cloudflare Tunnel: COMPOSE_PROFILES=tunnel + TUNNEL_TOKEN in .env
 #     (no open port, no origin certificate: fixes the 525 error);
@@ -18,7 +18,7 @@ services:
     volumes:
       - ./data:/data
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3090:3000"
 
   cloudflared:
     image: cloudflare/cloudflared:2026.11.1

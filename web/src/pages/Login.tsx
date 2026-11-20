@@ -1,4 +1,3 @@
-import { EyeIcon, EyeSlashIcon, WindIcon } from "@phosphor-icons/react";
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import { Button } from "../components/ui";
@@ -27,25 +26,18 @@ export function Login({ onLogin }: { onLogin: () => void }) {
 
   return (
     <main className="login">
-      <form className="card login-card" onSubmit={submit} noValidate>
-        <div>
-          <div className="brand">
-            <span className="brand-mark"><WindIcon size={16} weight="bold" aria-hidden /></span>
-            AQA
-          </div>
-          <h1 style={{ fontSize: "1.35rem" }}>Connexion</h1>
-          <p className="muted small">Suivi de la qualité de l'air de tes capteurs.</p>
-        </div>
+      <form className="login-panel" onSubmit={submit} noValidate>
+        <div className="label-caps login-brand">AQA</div>
+        <h1>Connexion</h1>
+        <p className="muted small">Suivi de la qualité de l'air de tes capteurs.</p>
         <label className="field">
-          <span>Mot de passe administrateur</span>
+          <span className="label-caps">Mot de passe administrateur</span>
           <div className="password">
             <input className="input" type={show ? "text" : "password"} autoFocus autoComplete="current-password"
                    value={password} onChange={(e) => setPassword(e.target.value)}
                    aria-invalid={error ? true : undefined} aria-describedby={error ? "login-error" : undefined} />
-            <Button type="button" variant="ghost" size="sm" iconOnly
-                    icon={show ? <EyeSlashIcon size={18} aria-hidden /> : <EyeIcon size={18} aria-hidden />}
-                    onClick={() => setShow((s) => !s)} aria-pressed={show}>
-              {show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)} aria-pressed={show}>
+              {show ? "masquer" : "afficher"}
             </Button>
           </div>
           {error && <small id="login-error" className="field-error" role="alert">{error}</small>}

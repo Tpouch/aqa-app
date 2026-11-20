@@ -60,6 +60,10 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX events_device ON events(device_id, ts);
   `,
+  `
+  ALTER TABLE devices ADD COLUMN snd_ref INTEGER;
+  ALTER TABLE devices ADD COLUMN db_ref REAL;
+  `,
 ];
 
 export type Db = DatabaseSync;
