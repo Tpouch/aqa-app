@@ -1,0 +1,32 @@
+# docker compose up -d --build
+#
+# The app listens on 127.0.0.1:3000 only. Two ways to put it behind
+# sensor.devgoblin.fr (Cloudflare), see README "Déploiement":
+#   - Cloudflare Tunnel: COMPOSE_PROFILES=tunnel + TUNNEL_TOKEN in .env
+#     (no open port, no origin certificate: fixes the 525 error);
+#   - your own reverse proxy (Caddy/Nginx) with a Cloudflare Origin certificate.
+
+services:
+  app:
+    build: .
+    image: aqa-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "3000"
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.1
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}  # required with the tunnel profile
+    depends_on:
+      app:
+        condition: service_healthy

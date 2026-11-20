@@ -1,0 +1,63 @@
+import type {
+  AggregateRow, CommandRow, CommandType, DeviceSummary, FirmwareRow, FrameRow, UnknownDevice,
+} from "../../server/src/types";
+
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+// Called on any 401 so the app can drop back to the login screen.
+let onUnauthorized: () => void = () => {};
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
+}
+
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const init: RequestInit = { method, credentials: "same-origin", headers: {} };
+  if (body instanceof FormData) {
+    init.body = body;
+  } else if (body !== undefined) {
+    init.body = JSON.stringify(body);
+    (init.headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
+  const res = await fetch(url, init);
+  if (res.status === 204) return undefined as T;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401 && !url.endsWith("/session")) onUnauthorized();
+    throw new ApiError(res.status, (data as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  return data as T;
+}
+
+export const api = {
+  session: () => request<{ authenticated: boolean }>("GET", "/api/v1/session"),
+  login: (password: string) => request<{ authenticated: boolean }>("POST", "/api/v1/session", { password }),
+  logout: () => request<{ authenticated: boolean }>("DELETE", "/api/v1/session"),
+
+  devices: () => request<{ devices: DeviceSummary[]; unknown: UnknownDevice[] }>("GET", "/api/v1/devices"),
+  device: (id: string) => request<DeviceSummary>("GET", `/api/v1/devices/${id}`),
+  addDevice: (id: string, name: string) =>
+    request<{ device: DeviceSummary; token: string }>("POST", "/api/v1/devices", { id, name }),
+  renameDevice: (id: string, name: string) => request<DeviceSummary>("PATCH", `/api/v1/devices/${id}`, { name }),
+  rotateToken: (id: string) => request<{ token: string }>("POST", `/api/v1/devices/${id}/token`),
+  deleteDevice: (id: string) => request<void>("DELETE", `/api/v1/devices/${id}`),
+  forgetUnknown: (id: string) => request<void>("DELETE", `/api/v1/unknown-devices/${id}`),
+
+  frames: (id: string, from: number, to: number) =>
+    request<{ frames: FrameRow[] }>("GET", `/api/v1/devices/${id}/frames?from=${from}&to=${to}&limit=50000`),
+  aggregate: (id: string, from: number, to: number, step: number) =>
+    request<{ step: number; buckets: AggregateRow[] }>(
+      "GET", `/api/v1/devices/${id}/frames/aggregate?from=${from}&to=${to}&step=${step}`),
+
+  commands: (id: string) => request<{ commands: CommandRow[] }>("GET", `/api/v1/devices/${id}/commands`),
+  sendCommand: (id: string, type: CommandType, params?: Record<string, unknown>) =>
+    request<CommandRow>("POST", `/api/v1/devices/${id}/commands`, params ? { type, params } : { type }),
+  cancelCommand: (id: string, cid: string) => request<void>("DELETE", `/api/v1/devices/${id}/commands/${cid}`),
+
+  firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
+  uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),
+  deleteFirmware: (version: string) => request<void>("DELETE", `/api/v1/firmware/${encodeURIComponent(version)}`),
+};
