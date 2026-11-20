@@ -1,32 +1,29 @@
 # docker compose up -d --build
 #
-# The app listens on 127.0.0.1:3090 (host) only. Two ways to put it behind
-# sensor.devgoblin.fr (Cloudflare), see README "Déploiement":
-#   - Cloudflare Tunnel: COMPOSE_PROFILES=tunnel + TUNNEL_TOKEN in .env
-#     (no open port, no origin certificate: fixes the 525 error);
-#   - your own reverse proxy (Caddy/Nginx) with a Cloudflare Origin certificate.
+# Configuration comes only from environment variables, so a platform such as
+# Coolify asks for them in its UI. Locally, docker compose reads them from a
+# `.env` file next to this one (see .env.example).
+# Variables marked `:?` are required: the deployment stops if they are empty.
+#
+# The app is published on the host at 127.0.0.1:3090 (container port 3000).
+# Put a reverse proxy (Nginx Proxy Manager, Caddy…) in front of it for
+# sensor.devgoblin.fr.
 
 services:
   app:
     build: .
     image: aqa-app
     restart: unless-stopped
-    env_file: .env
     environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required (at least 12 characters)}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required (at least 32 characters)}
+      PUBLIC_URL: ${PUBLIC_URL:-https://sensor.devgoblin.fr}
+      RETENTION_DAYS: ${RETENTION_DAYS:-0}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       DATA_DIR: /data
       PORT: "3000"
     volumes:
       - ./data:/data
     ports:
       - "127.0.0.1:3090:3000"
-
-  cloudflared:
-    image: cloudflare/cloudflared:2026.11.1
-    profiles: ["tunnel"]
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}  # required with the tunnel profile
-    depends_on:
-      app:
-        condition: service_healthy
