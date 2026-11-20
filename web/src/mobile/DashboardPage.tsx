@@ -53,7 +53,7 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
           {editing ? "terminé" : "organiser"}
         </button>
       </div>
-      {editing && <p className="mb-hint muted small">Glisse une jauge pour changer l'ordre. L'ordre est gardé sur ce téléphone.</p>}
+      {editing && <p className="mb-hint muted small">Glisse une jauge par sa poignée ⋮⋮ (ou utilise ↑ ↓) pour changer l'ordre. L'ordre est gardé sur ce téléphone.</p>}
       <div ref={gridRef} className={`mb-gauges${editing ? " mb-editing" : ""}`}>
         {order.map((m, i) => (
           <Gauge key={m} metric={m} device={device} stale={stale} editing={editing} lifted={lifted === m}

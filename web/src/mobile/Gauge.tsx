@@ -37,7 +37,7 @@ export function Gauge({ metric, device, stale, editing, lifted, first, last, onO
   last: boolean;
   onOpen: () => void;
   onMove: (delta: -1 | 1) => void;
-  // Long press (dashboard) or drag (organise mode) handlers.
+  // Long press on the card (dashboard) or drag on the handle (organise mode).
   pointer: React.DOMAttributes<HTMLElement>;
 }) {
   const { def, v, band, scale } = reading(metric, device);
@@ -75,8 +75,8 @@ export function Gauge({ metric, device, stale, editing, lifted, first, last, onO
     );
   }
   return (
-    <div className={cls} data-metric={metric} role="group" aria-label={label} {...pointer}>
-      <span className="mb-g-handle" aria-hidden>⋮⋮</span>
+    <div className={cls} data-metric={metric} role="group" aria-label={label}>
+      <span className="mb-g-handle" aria-hidden {...pointer}>⋮⋮</span>
       {body}
       <span className="mb-g-move">
         <button type="button" disabled={first} onClick={() => onMove(-1)} aria-label={`Monter ${def.label}`}><span aria-hidden>↑</span></button>

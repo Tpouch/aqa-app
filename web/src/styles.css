@@ -761,13 +761,19 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-sel);
 .mb-g-arc { width: 100%; max-width: 132px; height: auto; aspect-ratio: 100 / 82; }
 .mb-g-value { font-size: 24px; line-height: 1.1; margin-top: -22px; }
 .mb-g-word { font-size: 12px; min-height: 1.5em; }
-.mb-editing .mb-gauge { border-style: dashed; border-color: var(--rule-strong); touch-action: none; cursor: grab; }
+.mb-editing .mb-gauge { border-style: dashed; border-color: var(--rule-strong); cursor: default; }
 .mb-gauge.lifted {
   z-index: 2; cursor: grabbing;
   border: 1px solid var(--text); background: var(--surface-sel);
 }
-.mb-g-handle { position: absolute; top: 6px; right: 8px; font-size: 13px; letter-spacing: -2px; color: var(--muted); }
-.mb-editing .mb-g-head { padding-right: 18px; }
+.mb-g-handle {
+  position: absolute; top: 0; right: 0; width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; letter-spacing: -2px; color: var(--muted);
+  touch-action: none; cursor: grab;
+}
+.mb-gauge.lifted .mb-g-handle { cursor: grabbing; }
+.mb-editing .mb-g-head { padding-right: 30px; }
 .mb-g-move { display: flex; gap: 6px; margin-top: 6px; }
 .mb-g-move button {
   width: 44px; height: 44px;

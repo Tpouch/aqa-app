@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Metric } from "../../../server/src/types";
 import { moveItem } from "./order";
 
@@ -52,37 +52,60 @@ export function useReorder(order: Metric[], onChange: (o: Metric[]) => void, ena
     for (const el of items()) rects.current.set(el.dataset.metric!, el.getBoundingClientRect());
   };
 
+  const move = (e: PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    d.x = e.clientX;
+    d.y = e.clientY;
+    follow();
+    // Slot under the finger, judged on where the other gauges sit (not their animation).
+    const over = items().find((el) => {
+      if (el === d.el) return false;
+      const r = rects.current.get(el.dataset.metric!);
+      return !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    });
+    if (!over) return;
+    const list = orderRef.current;
+    const from = list.indexOf(d.metric);
+    const to = list.indexOf(over.dataset.metric as Metric);
+    if (from >= 0 && to >= 0 && from !== to) onChange(moveItem(list, from, to));
+  };
+
+  // Move and release are followed on window: React may move the lifted node in
+  // the DOM (dropping any pointer capture), and the finger may end over a gap.
+  const listeners = useRef<(() => void) | null>(null);
+  const stop = () => {
+    listeners.current?.();
+    listeners.current = null;
+    end();
+  };
+  useEffect(() => {
+    if (!enabled) stop();
+    return () => { listeners.current?.(); listeners.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  // Drag starts on the handle only: the rest of the card still scrolls the page.
   const bind = (metric: Metric) => ({
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
-      if (!enabled || drag.current || (e.target as HTMLElement).closest("button")) return;
-      const el = e.currentTarget;
+      if (!enabled || drag.current || !e.isPrimary || e.button !== 0) return;
+      const el = e.currentTarget.closest<HTMLElement>("[data-metric]");
+      if (!el) return;
+      e.preventDefault();
       const r = el.getBoundingClientRect();
-      el.setPointerCapture(e.pointerId);
       drag.current = { metric, el, grabX: e.clientX - r.left, grabY: e.clientY - r.top, x: e.clientX, y: e.clientY };
       for (const it of items()) rects.current.set(it.dataset.metric!, it.getBoundingClientRect());
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", stop);
+      window.addEventListener("pointercancel", stop);
+      listeners.current = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", stop);
+        window.removeEventListener("pointercancel", stop);
+      };
       setLifted(metric);
       follow();
     },
-    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
-      const d = drag.current;
-      if (!d || d.metric !== metric) return;
-      d.x = e.clientX;
-      d.y = e.clientY;
-      follow();
-      // Slot under the finger, judged on where the other gauges sit (not their animation).
-      const over = items().find((el) => {
-        if (el === d.el) return false;
-        const r = rects.current.get(el.dataset.metric!);
-        return !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-      });
-      if (!over) return;
-      const list = orderRef.current;
-      const from = list.indexOf(metric);
-      const to = list.indexOf(over.dataset.metric as Metric);
-      if (from >= 0 && to >= 0 && from !== to) onChange(moveItem(list, from, to));
-    },
-    onPointerUp: end,
-    onPointerCancel: end,
   });
 
   return { lifted, bind, gridRef };
