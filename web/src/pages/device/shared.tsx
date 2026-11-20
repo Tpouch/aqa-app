@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Badge } from "../../components/ui";
 import { api } from "../../api";
 import { METRICS, type CommandRow, type CommandType, type Metric } from "../../../../server/src/types";
 import { usePoll } from "../../util";
@@ -53,10 +52,6 @@ export function useSeries(id: string, from: number, to: number, live: boolean, r
   const window: [number, number] = res.data ? [res.data.from, res.data.to] : [from, to];
   return { data: res.data, columns, step, window, loading: !res.data, error: res.error };
 }
-
-// Still used by OptionsTab until Task 8 replaces it.
-export const SignalBadge = ({ rssi }: { rssi: number }) =>
-  rssi < -80 ? <Badge tone="warn">faible</Badge> : rssi < -70 ? <Badge>moyen</Badge> : <Badge tone="good">bon</Badge>;
 
 // ---------------------------------------------------------------- commands
 

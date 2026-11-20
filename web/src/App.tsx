@@ -90,7 +90,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
         ) : (
           <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
-                      onPendingChange={onPendingChange}
+                      onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
                       onDeleted={() => { localStorage.removeItem("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
         )}
       </main>

@@ -1,25 +1,26 @@
 import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../api";
-import { Skeleton, useToast } from "../../components/ui";
-import type { CommandRow, CommandType, DeviceSummary } from "../../../../server/src/types";
+import { useToast } from "../../components/ui";
+import type { CommandRow, CommandType } from "../../../../server/src/types";
 import { TAB_LABEL, type Tab } from "../../routes";
 import type { Selection } from "../../selection";
 import { useNow, usePoll } from "../../util";
 import { CardPage } from "../card/CardPage";
-import { OptionsTab } from "./OptionsTab";
 import { MeasuresPage } from "../measures/MeasuresPage";
+import { SettingsPage } from "../settings/SettingsPage";
 import { COMMAND_LABEL, useCommands } from "./shared";
 
 export type Send = (type: CommandType, params?: Record<string, unknown>) => Promise<boolean>;
 
-export function DevicePage({ id, tab, selection, onSelection, onPendingChange, onDeleted }: {
+export function DevicePage({ id, tab, selection, onSelection, onPendingChange, onDeleted, onDeviceChanged }: {
   id: string;
   tab: Tab;
   selection: Selection;
   onSelection: (s: Selection) => void;
   onPendingChange: (n: number) => void;
   onDeleted: () => void;
+  onDeviceChanged: () => void;
 }) {
   const device = usePoll(() => api.device(id), 15000, [id]);
   const commands = useCommands(id);
@@ -62,17 +63,12 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
   }
   const d = device.data;
 
-  // Carte and Réglages still show the former content until their redesign.
   return (
     <div id={`panel-${tab}`} className="tab-panel">
       <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
       {tab === "mesures" && <MeasuresPage id={id} device={d} selection={selection} onSelection={onSelection} />}
       {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />}
-      {tab === "reglages" && <ReglagesPage device={d} send={send} reloadDevice={device.reload} onDeleted={onDeleted} />}
+      {tab === "reglages" && <SettingsPage device={d} send={send} reloadDevice={() => { device.reload(); onDeviceChanged(); }} onDeleted={onDeleted} />}
     </div>
   );
-}
-
-function ReglagesPage({ device, ...rest }: Omit<Parameters<typeof OptionsTab>[0], "device"> & { device: DeviceSummary | null }) {
-  return device ? <OptionsTab device={device} {...rest} /> : <Skeleton height={400} />;
 }

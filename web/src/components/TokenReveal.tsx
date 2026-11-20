@@ -1,4 +1,3 @@
-import { CheckIcon, CopyIcon, KeyIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button, Modal } from "./ui";
 
@@ -9,13 +8,12 @@ export function TokenReveal({ deviceId, token, onClose }: { deviceId: string; to
   return (
     <Modal open={token !== null} onClose={() => { setCopied(false); onClose(); }} labelledBy="token-title">
       <div className="modal-body">
-        <h2 id="token-title"><KeyIcon size={22} aria-hidden />Jeton de {deviceId}</h2>
+        <h2 id="token-title">Jeton de {deviceId}</h2>
         <p>Copie cette ligne dans le <code>.env</code> du firmware, puis recompile et flashe la carte.
           <strong> Elle ne sera plus jamais affichée.</strong></p>
         <div className="secret">
           <code>{snippet}</code>
-          <Button size="sm" iconOnly variant="ghost"
-                  icon={copied ? <CheckIcon size={18} aria-hidden /> : <CopyIcon size={18} aria-hidden />}
+          <Button size="sm"
                   onClick={() => navigator.clipboard.writeText(snippet).then(() => setCopied(true))}>
             {copied ? "Copié" : "Copier"}
           </Button>
