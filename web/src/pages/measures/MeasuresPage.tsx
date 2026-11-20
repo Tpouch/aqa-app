@@ -50,6 +50,8 @@ export function MeasuresPage({ id, device, selection, onSelection }: {
   const single = items.find((i) => i.metric === selection.metric)!;
   const periodText = periodLabel(range);
   const rows = series.data?.rows ?? [];
+  // Nothing loaded and the fetch failed: the error replaces the skeletons.
+  const failed = !!series.error && !series.data;
 
   const exportCsv = () => {
     const header = csvColumns(shown, calibration);
@@ -76,11 +78,11 @@ export function MeasuresPage({ id, device, selection, onSelection }: {
               view={selection.view} onView={(view) => onSelection({ ...selection, view })}
               onCsv={exportCsv} csvDisabled={!rows.length || !shown.length} />
 
-      {series.error && !series.data && (
+      {failed && (
         <p className="callout warn" role="alert"><span aria-hidden>▲</span> {series.error}</p>
       )}
 
-      {!grid && (
+      {!failed && !grid && (
         <>
           <StatsRow def={single.def} stats={series.loading ? undefined : single.stats} span={series.window[1] - series.window[0]} period={periodText} />
           {series.loading
@@ -89,7 +91,7 @@ export function MeasuresPage({ id, device, selection, onSelection }: {
         </>
       )}
 
-      {grid && (series.loading
+      {!failed && grid && (series.loading
         ? <Skeleton height={400} />
         : (
           <Grid headRef={head} xs={series.columns.xs} xRange={series.window} period={periodText}

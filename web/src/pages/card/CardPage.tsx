@@ -10,12 +10,13 @@ interface Props {
   id: string;
   device: DeviceSummary | null;
   commands: CommandRow[] | undefined;
+  commandsError: string | null;
   reload: () => void;
   send: Send;
   now: number;
 }
 
-export function CardPage({ id, device, commands, reload, send, now }: Props) {
+export function CardPage({ id, device, commands, commandsError, reload, send, now }: Props) {
   const confirm = useConfirm();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -74,7 +75,8 @@ export function CardPage({ id, device, commands, reload, send, now }: Props) {
               }}>
                 <label htmlFor="cp-ota-select">Mettre à jour</label>
                 <select id="cp-ota-select" className="input" value={otaVersion} onChange={(e) => setOtaVersion(e.target.value)} disabled={!firmware.data?.firmware.length}>
-                  <option value="">{firmware.data?.firmware.length ? "Choisir une version…" : "Aucun firmware envoyé"}</option>
+                  <option value="">{firmware.data?.firmware.length ? "Choisir une version…"
+                    : firmware.error && !firmware.data ? "Liste des firmwares indisponible" : "Aucun firmware envoyé"}</option>
                   {firmware.data?.firmware.map((f) => <option key={f.version} value={f.version}>{f.version}</option>)}
                 </select>
                 <Button type="submit" variant="primary" disabled={!otaVersion || busy !== null} loading={busy === "ota"}>Installer</Button>
@@ -96,7 +98,7 @@ export function CardPage({ id, device, commands, reload, send, now }: Props) {
           </p>
 
           <h3 className="label-caps cp-sub">En cours{active.length > 0 && ` (${active.length})`}</h3>
-          {!commands ? <Skeleton height={60} /> : active.length === 0 ? <p className="muted small">Aucune commande en attente.</p> : (
+          {!commands && commandsError ? <LoadError message={commandsError} /> : !commands ? <Skeleton height={60} /> : active.length === 0 ? <p className="muted small">Aucune commande en attente.</p> : (
             <ul className="cp-active">
               {active.map((c) => {
                 const st = COMMAND_STATE[c.state];
@@ -128,10 +130,15 @@ export function CardPage({ id, device, commands, reload, send, now }: Props) {
           )}
         </div>
 
-        <Journal events={journal.data?.events} now={now} />
+        <Journal events={journal.data?.events} error={journal.error} now={now} />
       </div>
     </div>
   );
+}
+
+// A list that never loaded: say so rather than leave a skeleton forever.
+function LoadError({ message }: { message: string }) {
+  return <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {message}</p>;
 }
 
 function StatusBlocks({ device: d }: { device: DeviceSummary }) {
@@ -178,7 +185,7 @@ const LEVEL: Record<EventRow["level"], { tone: string; label: string; glyph: str
   info: { tone: "muted", label: "info", glyph: "●" }, warn: { tone: "tone-warn", label: "avertissement", glyph: "▲" }, error: { tone: "tone-bad", label: "erreur", glyph: "✗" },
 };
 
-function Journal({ events, now }: { events: EventRow[] | undefined; now: number }) {
+function Journal({ events, error, now }: { events: EventRow[] | undefined; error: string | null; now: number }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const shown = (events ?? []).filter((e) =>
     filter === "all" ? true : filter === "commands" ? e.kind === "command" : e.level !== "info");
@@ -194,10 +201,10 @@ function Journal({ events, now }: { events: EventRow[] | undefined; now: number 
         </div>
       </div>
       <p className="muted small">Déduit par le serveur de ce que la carte envoie : démarrages, coupures, capteurs, commandes.</p>
-      {!events ? <Skeleton height={200} /> : shown.length === 0 ? (
+      {!events && error ? <LoadError message={error} /> : !events ? <Skeleton height={200} /> : shown.length === 0 ? (
         <p className="muted small">{filter === "problems" ? "Aucun problème enregistré." : "Rien pour l'instant."}</p>
       ) : (
-        <table className="cp-log" aria-live="polite">
+        <table className="cp-log">
           <tbody>
             {shown.map((e) => (
               <tr key={e.id}>

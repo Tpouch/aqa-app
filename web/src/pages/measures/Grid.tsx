@@ -60,13 +60,17 @@ export function Grid({ items, xs, xRange, period, onOpen, headRef }: {
       ))}
       {summary && (
         <div className="ms-summary">
-          <p className="ms-summary-title">Sur {period}</p>
-          <ul>
-            {zoned.map((i) => (
-              <li key={i.metric}>{alertPhrase(i.def)} <b>{formatDuration(i.alertSeconds!)}</b></li>
-            ))}
-          </ul>
-          {zoned.every((i) => i.alertSeconds === 0) && <p>Tout le reste dans le confort</p>}
+          {zoned.length === 0 ? <p className="ms-summary-title">Aucune mesure sur {period}</p> : (
+            <>
+              <p className="ms-summary-title">Sur {period}</p>
+              <ul>
+                {zoned.map((i) => (
+                  <li key={i.metric}>{alertPhrase(i.def)} <b>{formatDuration(i.alertSeconds!)}</b></li>
+                ))}
+              </ul>
+              {zoned.every((i) => i.alertSeconds === 0) && <p>Tout le reste dans le confort</p>}
+            </>
+          )}
         </div>
       )}
     </div>

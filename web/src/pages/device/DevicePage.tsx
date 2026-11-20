@@ -66,7 +66,7 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
     <div id={`panel-${tab}`} className="tab-panel">
       <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
       {tab === "mesures" && <MeasuresPage id={id} device={d} selection={selection} onSelection={onSelection} />}
-      {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />}
+      {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} commandsError={commands.error} reload={commands.reload} send={send} now={now} />}
       {tab === "reglages" && <SettingsPage device={d} send={send} reloadDevice={() => { device.reload(); onDeviceChanged(); }} onDeleted={onDeleted} />}
     </div>
   );
