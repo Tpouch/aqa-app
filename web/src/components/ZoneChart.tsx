@@ -64,6 +64,12 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const theme = useThemeKey();
+  // Window and height reach the live chart through refs: a 30 s poll moves the
+  // window and a grid resize changes the height, neither should rebuild it.
+  const rangeRef = useRef(range);
+  rangeRef.current = range;
+  const heightRef = useRef(height);
+  heightRef.current = height;
   // left: px from the chart's left edge; flip: tooltip goes left of the line.
   const [hover, setHover] = useState<{ idx: number; left: number; flip: boolean } | null>(null);
 
@@ -87,7 +93,6 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       return b ? c.tone[b.tone] : c.text;
     };
     const bounds = def.bands ? bandBounds(def.bands) : [];
-    const span = range[1] - range[0];
 
     // Each band filled between its bounds, clipped to the plot area.
     const drawBands = (u: uPlot) => {
@@ -161,7 +166,7 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
     };
     const opts: uPlot.Options = {
       width: el.clientWidth,
-      height,
+      height: heightRef.current,
       padding: [8, compact ? 12 : 64, 0, 0],
       cursor: {
         sync: { key: "aqa" },
@@ -185,7 +190,7 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
         }],
       },
       scales: {
-        x: { time: true, range: () => range },
+        x: { time: true, range: () => rangeRef.current },
         y: { range: (_u, min, max) => yRange(def, min ?? null, max ?? null) },
       },
       series: [
@@ -213,22 +218,27 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
     };
     plot.current = new uPlot(opts, [xs, ys], el);
     setHover(null);
-    const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height }));
+    const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height: heightRef.current }));
     ro.observe(el);
     return () => {
       ro.disconnect();
       plot.current?.destroy();
       plot.current = null;
     };
-    // Re-create only when the metric, its bands, window, size, mode or theme changes; data goes through setData.
+    // Re-create only when the metric, its bands, mode or theme changes; data, window and height are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, bandsKey, range[0], range[1], height, compact, theme]);
+  }, [def.metric, def.unit, bandsKey, compact, theme]);
 
   useEffect(() => {
     plot.current?.setData([xs, ys], false);
     plot.current?.setScale("x", { min: range[0], max: range[1] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xs, ys]);
+  }, [xs, ys, range[0], range[1]]);
+
+  useEffect(() => {
+    const u = plot.current;
+    if (u && box.current && u.height !== height) u.setSize({ width: box.current.clientWidth, height });
+  }, [height]);
 
   const hovering = hover !== null && xs[hover.idx] !== undefined;
   const idx = hovering ? hover!.idx : last;
@@ -237,7 +247,9 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
   const valueText = `${fmt(value, def.decimals)} ${def.unit}`;
 
   // The hover tooltip is visual only (no live region): it would chatter on every mouse move.
-  const currentText = empty ? "aucune mesure sur cette période" : `valeur actuelle ${fmt(ys[last], def.decimals)} ${def.unit}`;
+  // A window that ended more than ~2 min ago (past day, closed range) has no "current" value.
+  const past = range[1] < Date.now() / 1000 - 120;
+  const currentText = empty ? "aucune mesure sur cette période" : `${past ? "dernière valeur" : "valeur actuelle"} ${fmt(ys[last], def.decimals)} ${def.unit}`;
   const canvas = (
     <span className="zc-plot">
       <span ref={box} className="zc-canvas" role="img"

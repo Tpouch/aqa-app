@@ -152,8 +152,9 @@ table { border-collapse: collapse; }
   cursor: pointer;
 }
 .seg > button:first-child { border-left: 0; }
-.seg > button:hover:not([aria-pressed="true"]):not(:disabled) { color: var(--text); background: var(--surface-sel); }
-.seg > button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.seg > button:hover:not([aria-pressed="true"]):not(.active):not(:disabled) { color: var(--text); background: var(--surface-sel); }
+.seg > button[aria-pressed="true"],
+.seg > button.active { background: var(--text); color: var(--bg); }
 .seg > button:focus-visible { outline-offset: -4px; outline-color: currentColor; }
 
 /* ---------------------------------------------------------------- fields */

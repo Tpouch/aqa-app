@@ -44,10 +44,10 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
           </div>
           <div className="seg">
             <button type="button" aria-expanded={panel} aria-controls="ms-range"
-                    aria-pressed={range.kind === "custom"} onClick={() => setPanel(!panel)}>plage…</button>
+                    className={range.kind === "custom" ? "active" : undefined} onClick={() => setPanel(!panel)}>plage…</button>
           </div>
           <div className="seg">
-            <button type="button" disabled={csvDisabled} onClick={onCsv}>csv ↓</button>
+            <button type="button" disabled={csvDisabled} onClick={onCsv}>csv <span aria-hidden>↓</span></button>
           </div>
           <div className="seg" role="group" aria-label="Affichage">
             <button type="button" aria-pressed={view === "single"} onClick={() => onView("single")}>1 graphe</button>

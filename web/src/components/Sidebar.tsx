@@ -3,7 +3,7 @@ import { METRICS, type DeviceSummary, type Metric } from "../../../server/src/ty
 import { bandOf, metricDef, toDisplay } from "../metrics";
 import { TAB_LABEL, TAB_ORDER, type Tab } from "../routes";
 import type { Selection } from "../selection";
-import { applyTheme, readTheme } from "../theme";
+import { applyTheme, readTheme, type Theme } from "../theme";
 import { ago, fmt } from "../util";
 
 // The fixed left column: board, its five current readings (which double as the
@@ -111,7 +111,11 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
 
 // Theme toggle and logout; shared by the column and the first-run screen.
 export function SessionTools({ onLogout }: { onLogout: () => void }) {
-  const [theme, setTheme] = useState(readTheme);
+  // The attribute set before first paint is the truth, even when storage is blocked.
+  const [theme, setTheme] = useState<Theme>(() => {
+    const t = document.documentElement.dataset.theme;
+    return t === "light" || t === "dark" ? t : readTheme();
+  });
   const nextTheme = theme === "dark" ? "light" : "dark";
   return (
     <div className="sb-tools">
