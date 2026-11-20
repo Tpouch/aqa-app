@@ -49,8 +49,10 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-The app is published on the host at `127.0.0.1:3090` (port 3000 inside the
-container). The data (SQLite database and firmware images) lives in the named
+The app is published on every interface of the host, port `3090` (port 3000
+inside the container), so a reverse proxy on another machine can reach it at
+`http://<host IP>:3090`. Don't forward that port on your router: only the proxy
+should face the Internet. The data (SQLite database and firmware images) lives in the named
 Docker volume `aqa-data`, mounted on `/data`. Docker creates it with the right
 owner (the container runs as user `node`, uid 1000), so there is nothing to
 prepare on the server. It persists across redeployments; back it up with:
@@ -73,8 +75,9 @@ Locally, `docker compose` reads them from `.env`. `ADMIN_PASSWORD` and
 To expose `sensor.devgoblin.fr`, put a reverse proxy (Nginx Proxy Manager,
 Caddy…) in front of the app. Give it a certificate (Let's Encrypt or a
 Cloudflare origin certificate) and set Cloudflare's SSL mode to **Full
-(strict)**. If the proxy itself runs in Docker, `127.0.0.1` points to its own
-container: put it on the same Docker network and target `app:3000`.
+(strict)**. Point it at `http://<host IP>:3090`. If the proxy runs on the same
+machine in Docker, you can instead put it on the app's Docker network and
+target `app:3000`.
 
 **On Cloudflare**, add a WAF *Skip* rule (Bot Fight Mode, Browser Integrity
 Check, challenges) for
