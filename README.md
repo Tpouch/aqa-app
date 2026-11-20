@@ -89,13 +89,15 @@ From the Settings page you can:
 
 ### Dark or light, desktop or phone
 
-The app opens in dark mode and switches to light in one click. It works on a
-phone too.
+The app opens in dark mode and switches to light in one click. On a phone it
+has its own layout: a dashboard of gauges you can reorder (long press, then
+drag), the alerts, the board's state (read only) and a full-screen chart to view
+in landscape. Board commands and settings stay on the desktop.
 
 <p>
   <img src="docs/screenshots/measures-light.png" alt="Light theme" width="68%">
   &nbsp;
-  <img src="docs/screenshots/phone.png" alt="On a phone" width="27%">
+  <img src="docs/screenshots/phone.png" alt="Phone dashboard: one gauge per measure" width="27%">
 </p>
 
 ## Getting started
