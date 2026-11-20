@@ -1,6 +1,6 @@
 import { all, get, run, tx, type Db } from "./db.js";
 import { soundDb } from "./sound.js";
-import { ALERT_KINDS, type AlertKind, type AlertRule, type AlertRuleValues, type Metric } from "./types.js";
+import { ALERT_KINDS, type AlertKind, type AlertRow, type AlertRule, type AlertRuleValues, type Metric } from "./types.js";
 
 export interface Sample { ts: number; v: number } // sorted by ts ascending, no nulls
 export interface OpenAlert { threshold: number; peak_value: number | null }
@@ -127,6 +127,13 @@ export function readRules(db: Db): AlertRule[] {
       enabled: r.enabled === 1, threshold: r.threshold, duration_s: r.duration_s,
     }];
   });
+}
+
+export type AlertDbRow = Omit<AlertRow, "label" | "unit" | "metric" | "tone" | "advice">;
+
+export function toAlertRow(r: AlertDbRow): AlertRow {
+  const c = CATALOG[r.kind];
+  return { ...r, label: c.label, unit: c.unit, metric: c.metric, tone: c.tone, advice: c.advice };
 }
 
 // Only write points for alerts: a future webhook hooks in here.

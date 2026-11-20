@@ -330,6 +330,67 @@ describe("web app serving", () => {
   });
 });
 
+describe("alertes", () => {
+  type Rule = { kind: string; enabled: boolean; threshold: number | null; duration_s: number };
+  const rules = async () => (await admin("GET", "/api/v1/alert-rules")).json().rules as Rule[];
+
+  it("liste les règles par défaut", async () => {
+    const list = await rules();
+    expect(list).toHaveLength(8);
+    expect(list.find((r) => r.kind === "co2_high")).toMatchObject({ enabled: true, threshold: 1200, duration_s: 300 });
+    expect(list.find((r) => r.kind === "snd_high")?.enabled).toBe(false);
+    expect(list.find((r) => r.kind === "offline")?.threshold).toBeNull();
+  });
+
+  it("modifie seuil et durée", async () => {
+    const res = await admin("PATCH", "/api/v1/alert-rules/co2_high", { threshold: 1000, duration_s: 600 });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ kind: "co2_high", threshold: 1000, duration_s: 600 });
+    expect((await rules()).find((r) => r.kind === "co2_high")).toMatchObject({ threshold: 1000, duration_s: 600 });
+  });
+
+  it("refuse les valeurs hors bornes", async () => {
+    const patch = (kind: string, body: unknown) => admin("PATCH", `/api/v1/alert-rules/${kind}`, body);
+    expect((await patch("co2_high", { threshold: 99999 })).statusCode).toBe(422);
+    expect((await patch("co2_high", { duration_s: 30 })).statusCode).toBe(422);
+    expect((await patch("offline", { threshold: 5 })).statusCode).toBe(422);
+    expect((await patch("nope", { enabled: true })).statusCode).toBe(404);
+    expect((await patch("co2_high", {})).statusCode).toBe(422);
+  });
+
+  it("remet les valeurs par défaut", async () => {
+    const res = await admin("POST", "/api/v1/alert-rules/reset");
+    expect(res.statusCode).toBe(200);
+    expect((res.json().rules as Rule[]).find((r) => r.kind === "co2_high")?.threshold).toBe(1200);
+    expect((await rules()).find((r) => r.kind === "co2_high")).toMatchObject({ threshold: 1200, duration_s: 300 });
+  });
+
+  it("renvoie le journal de la carte", async () => {
+    const t = Math.floor(Date.now() / 1000);
+    run(built.db, "INSERT INTO alerts (device_id, kind, threshold, started_at, ended_at, start_value, peak_value, end_value, end_reason) VALUES (?, 'co2_high', 1200, ?, ?, 1300, 1400, 900, 'normal')",
+      DEVICE, t - 7200, t - 3600);
+    run(built.db, "INSERT INTO alerts (device_id, kind, threshold, started_at, start_value, peak_value) VALUES (?, 'co2_high', 1200, ?, 1300, 1500)",
+      DEVICE, t - 600);
+    const res = await admin("GET", `/api/v1/devices/${DEVICE}/alerts`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.open).toHaveLength(1);
+    expect(body.history).toHaveLength(1);
+    expect(body.open[0].advice).toMatch(/^Ouvre une fenêtre/);
+    expect(body.history[0].end_reason).toBe("normal");
+    const before = await admin("GET", `/api/v1/devices/${DEVICE}/alerts?before=${t - 7200}`);
+    expect(before.json().history).toHaveLength(0);
+    expect((await admin("GET", "/api/v1/devices/aqa-000000000000/alerts")).statusCode).toBe(404);
+    const devices = (await admin("GET", "/api/v1/devices")).json().devices as { id: string; open_alerts: number }[];
+    expect(devices.find((d) => d.id === DEVICE)?.open_alerts).toBe(1);
+    run(built.db, "DELETE FROM alerts");
+  });
+
+  it("refuse sans session", async () => {
+    expect((await built.app.inject({ method: "GET", url: "/api/v1/alert-rules" })).statusCode).toBe(401);
+  });
+});
+
 describe("logout", () => {
   it("clears the session", async () => {
     const res = await admin("DELETE", "/api/v1/session");

@@ -63,6 +63,7 @@ export interface DeviceSummary {
   status_at: number | null;
   latest: FrameRow | null;
   sound_calibration: SoundCalibration | null;
+  open_alerts: number;
 }
 
 export const ALERT_KINDS = [

@@ -4,10 +4,12 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DEVICE_ID_RE, newDeviceToken, requireAdmin, sha256Hex } from "../auth.js";
 import type { Config } from "../config.js";
+import { CATALOG, readRules, toAlertRow, type AlertDbRow } from "../alerts.js";
 import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
+import { ALERT_KINDS } from "../types.js";
 import type {
   AggregateRow, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
 } from "../types.js";
@@ -28,6 +30,19 @@ const patchBody = z.object({
     db_ref: z.number().min(20).max(130),
   }).strict().nullable().optional(),
 }).strict().refine((b) => b.name !== undefined || b.sound_calibration !== undefined, "name or sound_calibration required");
+
+const ruleBody = z.object({
+  enabled: z.boolean().optional(),
+  threshold: z.number().optional(),
+  duration_s: z.number().int().min(60).max(14400).optional(),
+}).strict().refine(
+  (b) => b.enabled !== undefined || b.threshold !== undefined || b.duration_s !== undefined,
+  "enabled, threshold or duration_s required");
+
+const alertsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  before: z.coerce.number().int().default(2 ** 31),
+});
 
 const commandBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("status"), params: z.object({}).optional() }),
@@ -96,6 +111,8 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       latest: latest ? toFrame(latest) : null,
       sound_calibration: d.snd_ref !== null && d.db_ref !== null
         ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
+      open_alerts: get<{ n: number }>(db,
+        "SELECT COUNT(*) AS n FROM alerts WHERE device_id = ? AND ended_at IS NULL", d.id)!.n,
     };
   }
 
@@ -116,6 +133,56 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       unknown: all<UnknownDevice>(db,
         "SELECT * FROM unknown_devices ORDER BY last_seen DESC LIMIT 20"),
     }));
+
+    // ---- alerts
+
+    scope.get("/api/v1/alert-rules", async () => ({ rules: readRules(db) }));
+
+    scope.post("/api/v1/alert-rules/reset", async () => {
+      for (const kind of ALERT_KINDS) {
+        const d = CATALOG[kind].defaults;
+        run(db, "UPDATE alert_rules SET enabled = ?, threshold = ?, duration_s = ? WHERE kind = ?",
+          d.enabled ? 1 : 0, d.threshold, d.duration_s, kind);
+      }
+      return { rules: readRules(db) };
+    });
+
+    scope.patch<{ Params: { kind: string } }>("/api/v1/alert-rules/:kind", async (request, reply) => {
+      const kind = ALERT_KINDS.find((k) => k === request.params.kind);
+      if (!kind) return reply.code(404).send({ error: "unknown alert kind" });
+      const body = ruleBody.safeParse(request.body);
+      if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
+      const c = CATALOG[kind];
+      if (body.data.threshold !== undefined) {
+        if (c.metric === null) return reply.code(422).send({ error: "this alert has no threshold" });
+        if (body.data.threshold < c.min || body.data.threshold > c.max) {
+          return reply.code(422).send({ error: `threshold must be between ${c.min} and ${c.max}` });
+        }
+      }
+      const sets: string[] = [];
+      const args: SQLInputValue[] = [];
+      if (body.data.enabled !== undefined) { sets.push("enabled = ?"); args.push(body.data.enabled ? 1 : 0); }
+      if (body.data.threshold !== undefined) { sets.push("threshold = ?"); args.push(body.data.threshold); }
+      if (body.data.duration_s !== undefined) { sets.push("duration_s = ?"); args.push(body.data.duration_s); }
+      run(db, `UPDATE alert_rules SET ${sets.join(", ")} WHERE kind = ?`, ...args, kind);
+      return readRules(db).find((r) => r.kind === kind);
+    });
+
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", async (request, reply) => {
+      if (!findDevice(request.params.id)) return reply.code(404).send({ error: "unknown device" });
+      const q = alertsQuery.safeParse(request.query);
+      if (!q.success) return reply.code(422).send({ error: q.error.issues[0]?.message });
+      const cols = `id, kind, threshold, started_at, ended_at, start_value, peak_value, end_value, end_reason`;
+      return {
+        open: all<AlertDbRow>(db,
+          `SELECT ${cols} FROM alerts WHERE device_id = ? AND ended_at IS NULL ORDER BY started_at DESC`,
+          request.params.id).map(toAlertRow),
+        history: all<AlertDbRow>(db,
+          `SELECT ${cols} FROM alerts WHERE device_id = ? AND ended_at IS NOT NULL AND started_at < ?
+           ORDER BY started_at DESC LIMIT ?`,
+          request.params.id, q.data.before, q.data.limit).map(toAlertRow),
+      };
+    });
 
     scope.post("/api/v1/devices", async (request, reply) => {
       const body = z.object({
