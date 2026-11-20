@@ -685,3 +685,57 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-sel);
 
 .setup-tools { display: flex; justify-content: flex-end; padding: 12px 16px 0; font-size: 11px; }
 .setup-tools + .setup { min-height: 0; padding-top: 16px; }
+
+/* ---------------------------------------------------------------- mobile (phone only, see mobile/routes.ts PHONE_QUERY) */
+.mb {
+  --mb-tabs: 58px;
+  min-height: 100dvh;
+  padding: 0 max(12px, env(safe-area-inset-right)) calc(var(--mb-tabs) + env(safe-area-inset-bottom) + 16px) max(12px, env(safe-area-inset-left));
+}
+.mb.mb-full { padding: 0; }
+.mb-top {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 12px) 4px 10px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 12px;
+}
+.mb-brand { font-weight: 600; letter-spacing: 0.12em; }
+.mb-device { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
+.mb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-switch {
+  font-size: 16px; /* under 16px iOS zooms the page on focus */
+  background: var(--bg); border: 1px solid var(--rule-strong); padding: 4px 6px; min-height: 36px; max-width: 45vw;
+}
+.mb-ago { margin-left: auto; font-size: 12px; white-space: nowrap; }
+.mb-main:focus { outline: none; }
+
+.mb-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex;
+  height: calc(var(--mb-tabs) + env(safe-area-inset-bottom));
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--bg);
+  border-top: 1px solid var(--rule-strong);
+}
+.mb-tab {
+  flex: 1; min-width: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; color: var(--muted); text-decoration: none; position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.mb-tab[aria-current="page"] { color: var(--text); }
+.mb-tab[aria-current="page"]::before {
+  content: ""; position: absolute; top: -1px; left: 25%; right: 25%; height: 2px; background: var(--text);
+}
+.mb-tab-icon { position: relative; }
+.mb-icon { width: 22px; height: 22px; }
+.mb-badge {
+  position: absolute; top: -5px; left: 14px;
+  min-width: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--bad); color: var(--bg); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+}
+
+.mb-empty {
+  min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; gap: 16px;
+  padding: 24px max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+}
