@@ -78,11 +78,13 @@ function CalibrationRow({ device, reload }: { device: DeviceSummary; reload: () 
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    const res = calibrationFrom(device.latest, nowS(), db);
-    if (!res.ok) return setError(res.error);
     setError(null);
     setBusy(true);
     try {
+      // Fresh summary: the polled one can be up to 15 s old.
+      const fresh = await api.device(device.id);
+      const res = calibrationFrom(fresh.latest, nowS(), db);
+      if (!res.ok) return setError(res.error);
       await api.updateDevice(device.id, { sound_calibration: res.value });
       toast("good", `Son calibré : ${fmt(res.value.db_ref, 1)} dB pour une amplitude de ${fmt(res.value.snd_ref)}.`);
       setDb("");
