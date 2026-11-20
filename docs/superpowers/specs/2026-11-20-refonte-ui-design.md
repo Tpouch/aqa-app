@@ -1,6 +1,6 @@
 # Refonte de l'UI du dashboard AQA
 
-Date : 2026-11-20 · Portée : `web/` uniquement (le serveur ne change pas)
+Date : 2026-11-20 · Portée : `web/`, plus une petite extension du serveur pour la calibration du son
 
 ## Intention
 
@@ -17,9 +17,8 @@ Maquettes validées dans le compagnon visuel : `.superpowers/brainstorm/174572-1
 
 ## Non-objectifs
 
-- Aucune modification de l'API, du serveur, du firmware ou du modèle de données.
+- Aucune modification du firmware. Côté serveur, seul ajout : la calibration du son par carte (voir « Son en dB »). Rien d'autre ne change dans l'API ni le modèle de données.
 - Pas de nouvelles fonctionnalités métier : toutes les actions existantes sont conservées, rien n'est ajouté côté données (sauf calculs d'affichage côté client : min/moy/max, temps en zone).
-- Pas de calibration du capteur de son.
 
 ## Anti-objectifs (échec même si « ça marche »)
 
@@ -73,11 +72,29 @@ L'auteur a laissé le choix technique ; l'approche 1 est le choix de Claude.
 |---|---|
 | CO₂ (ppm) | bon < 800 · aérer 800–1200 · mauvais ≥ 1200 (existant) |
 | PM2.5 (µg/m³) | bon < 15 · aérer 15–35 · mauvais ≥ 35 (existant) |
-| Température (°C) | confort 19–24, hors bande neutre |
-| Humidité (%) | confort 40–60, hors bande neutre |
-| Son (`snd`, amplitude brute « p2p ») | **aucune zone** : la valeur n'est pas en dB, les seuils en dB proposés pendant la discussion ne s'appliquent pas. Courbe + min/moy/max uniquement. (Choix de Claude, à confirmer.) |
+| Température (°C) | confort 19–24 · hors confort en dessous (« froid ») et au-dessus (« chaud ») |
+| Humidité (%) | confort 40–60 · hors confort en dessous (« sec ») et au-dessus (« humide ») |
+| Son (dB estimés, après calibration) | calme < 55 · bruyant 55–70 · fort ≥ 70 |
+| Son (non calibré, amplitude brute) | aucune zone, unité « amplitude », lien « Calibrer » vers Réglages |
 
-Mots de zone affichés dans la colonne : CO₂/PM2.5 → « bon » / « aérer » / « mauvais » ; température/humidité → « confort » / « froid »·« chaud » / « sec »·« humide » ; son → pas de mot.
+**Hors confort = alerte (décision de l'auteur, 1a).** Pour la température et l'humidité, les bandes hors confort sont dessinées en couleur d'alerte (orange), la valeur et le mot (« chaud », « sec »…) prennent cette couleur, et le temps passé hors confort est compté. La 4ᵉ stat s'appelle donc « EN ZONE MAUVAISE » pour CO₂/PM2.5, « HORS CONFORT » pour température/humidité, « SON FORT » pour le son calibré ; absente pour le son non calibré.
+
+Modèle de niveaux : chaque mesure décrit ses bandes (bornes, mot, ton bon/aérer/mauvais). Ça remplace `thresholds: [warn, bad]` dans `util.ts`, car la température et l'humidité ont des bandes des deux côtés.
+
+Mots de zone dans la colonne : CO₂/PM2.5 → « bon » / « aérer » / « mauvais » ; température → « froid » / « confort » / « chaud » ; humidité → « sec » / « confort » / « humide » ; son → « calme » / « bruyant » / « fort ».
+
+### Échelle verticale (décision de l'auteur, 2c)
+L'axe s'ajuste aux données, mais inclut toujours **la limite de la zone suivante** pour qu'on voie où elle commence. CO₂ entre 450 et 600 → l'axe monte au moins jusqu'à 800 (début de « aérer »). Température et humidité → la bande de confort entière est toujours visible. Son calibré → au moins jusqu'à 55 dB. Si la courbe entre dans une zone plus haute, l'axe l'englobe normalement.
+
+### Son en dB (décision de l'auteur, option a)
+- Le firmware envoie `snd` = amplitude crête-à-crête ADC (0–4095), moyennée sur 15 s (`EPITECH_ESP32/src/hal/sensors/sound_sensor.cpp`, `docs/api.md`). Il ne change pas.
+- **Calibration par carte, stockée sur le serveur** : deux valeurs, `snd_ref` (amplitude de référence) et `db_ref` (dB lus sur un sonomètre au même moment). Nouvelles colonnes nullables sur `devices` (migration douce comme le reste de `db.ts`), exposées dans le résumé de la carte et modifiables via le `PATCH /api/v1/devices/:id` existant (corps étendu : `name` devient optionnel, ajout d'un objet `sound_calibration` ou `null` pour effacer). Tests serveur ajoutés dans `server/test/api.test.ts`.
+- **Conversion à l'affichage** dans le dashboard : `dB = db_ref + 20·log10(snd / snd_ref)`, avec `snd ≤ 0` → pas de valeur. S'applique à l'historique comme aux valeurs actuelles et à l'export CSV (colonne `snd_db` ajoutée, `snd` brut conservé).
+- **Réglages → ligne « Calibrer le son »** : aide « Mesure le niveau de la pièce avec une appli sonomètre, puis saisis-le » ; champ dB + bouton « Calibrer maintenant » qui prend comme `snd_ref` la dernière valeur `snd` reçue (refusé si la dernière mesure date de plus de 2 min ou si `snd` est nul) ; affiche la calibration actuelle et un bouton « Effacer ».
+- Libellé partout : « Son · dB (estimé) ».
+
+### Bandeau en mode grille (choix de Claude)
+Le bandeau reste identique en grille (périodes, ‹ jour ›, plage…, csv). La ligne de stats MIN/MOY/MAX n'apparaît qu'en vue 1 graphe ; en grille, chaque graphique affiche seulement la valeur sous le curseur. « csv ↓ » exporte les mesures affichées (la mesure choisie en vue 1 graphe, les mesures cochées en grille).
 
 ### Page Carte
 - En-tête : nom, identifiant, état en ligne + dernier contact, bouton « actualiser l'état ».
@@ -87,7 +104,7 @@ Mots de zone affichés dans la colonne : CO₂/PM2.5 → « bon » / « aérer �
 - Si aucun rapport d'état : message à la place des blocs.
 
 ### Page Réglages
-- Une ligne par réglage : libellé + aide courte à gauche (~220 px), champ(s) + bouton à droite. Ordre : Nom, Wi-Fi, Position, Paramètres, Firmwares.
+- Une ligne par réglage : libellé + aide courte à gauche (~220 px), champ(s) + bouton à droite. Ordre : Nom, Calibrer le son, Wi-Fi, Position, Paramètres, Firmwares.
 - **Zone sensible** en bas, séparée par un filet de couleur d'alerte : Nouveau jeton, Supprimer la carte.
 
 ### Connexion et ajout de carte
