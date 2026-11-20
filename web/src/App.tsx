@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
-import { Sidebar } from "./components/Sidebar";
+import { Sidebar, SessionTools } from "./components/Sidebar";
 import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
 import { DevicePage } from "./pages/device/DevicePage";
 import { Login } from "./pages/Login";
@@ -80,6 +80,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
           Aller au contenu
         </a>
+        <div className="setup-tools"><SessionTools onLogout={() => api.logout().finally(onLogout)} /></div>
         <main id="main" tabIndex={-1} className="setup">
           <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
         </main>

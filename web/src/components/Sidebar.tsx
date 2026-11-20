@@ -19,8 +19,6 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
   onLogout: () => void;
   now: number;
 }) {
-  const [theme, setTheme] = useState(readTheme);
-  const nextTheme = theme === "dark" ? "light" : "dark";
   const checkboxes = tab === "mesures" && selection.view === "grid";
 
   const pick = (m: Metric) => {
@@ -105,15 +103,24 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
             )}
           </a>
         ))}
-        <div className="sb-tools">
-          <button type="button" className="sb-link" aria-label={`Passer au thème ${nextTheme === "light" ? "clair" : "sombre"}`}
-                  onClick={() => { applyTheme(nextTheme); setTheme(nextTheme); }}>
-            ◐ {nextTheme === "light" ? "clair" : "sombre"}
-          </button>
-          <span aria-hidden className="muted">·</span>
-          <button type="button" className="sb-link" onClick={onLogout}>déconnexion</button>
-        </div>
+        <SessionTools onLogout={onLogout} />
       </nav>
     </aside>
+  );
+}
+
+// Theme toggle and logout; shared by the column and the first-run screen.
+export function SessionTools({ onLogout }: { onLogout: () => void }) {
+  const [theme, setTheme] = useState(readTheme);
+  const nextTheme = theme === "dark" ? "light" : "dark";
+  return (
+    <div className="sb-tools">
+      <button type="button" className="sb-link" aria-label={`Passer au thème ${nextTheme === "light" ? "clair" : "sombre"}`}
+              onClick={() => { applyTheme(nextTheme); setTheme(nextTheme); }}>
+        ◐ {nextTheme === "light" ? "clair" : "sombre"}
+      </button>
+      <span aria-hidden className="muted">·</span>
+      <button type="button" className="sb-link" onClick={onLogout}>déconnexion</button>
+    </div>
   );
 }
