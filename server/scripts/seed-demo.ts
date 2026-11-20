@@ -10,7 +10,10 @@ const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 async function call(path: string, init: RequestInit & { json?: unknown } = {}) {
-  const headers: Record<string, string> = { "content-type": "application/json", ...(init.headers as object) };
+  // No JSON content-type without a body: the server rejects an empty JSON body (400).
+  const headers: Record<string, string> = {
+    ...(init.json !== undefined ? { "content-type": "application/json" } : {}), ...(init.headers as object),
+  };
   const res = await fetch(base + path, {
     ...init, headers, body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
   });
