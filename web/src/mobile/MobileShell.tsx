@@ -6,6 +6,7 @@ import type { DeviceSummary } from "../../../server/src/types";
 import { ago } from "../util";
 import { MOBILE_LABEL, parseMobileRoute, type MobileRoute } from "./routes";
 import { DashboardPage } from "./DashboardPage";
+import { GraphPage, openGraph } from "./GraphPage";
 import { InfoPage } from "./InfoPage";
 import { MobileAlertsPage } from "./MobileAlertsPage";
 import { TabBar } from "./TabBar";
@@ -72,16 +73,11 @@ export function MobileShell({ devices, device, onDevice, onLogout, now, error }:
 
 function Page({ route, device, now, onLogout }: { route: MobileRoute; device: DeviceSummary; now: number; onLogout: () => void }) {
   switch (route.tab) {
-    case "dashboard": return <DashboardPage device={device} onOpen={(m) => { window.location.hash = `/graph/${m}`; }} />;
+    case "dashboard": return <DashboardPage device={device} onOpen={openGraph} />;
     case "alertes": return <MobileAlertsPage key={device.id} id={device.id} device={device} />;
     case "infos": return <InfoPage device={device} now={now} onLogout={onLogout} />;
-    case "graph": return <Placeholder name={`Graph ${route.metric ?? ""}`} />;
+    case "graph": return <GraphPage key={device.id} id={device.id} device={device} metric={route.metric} />;
   }
-}
-
-// Temporary until the page lands (Tasks 4 to 6).
-function Placeholder({ name }: { name: string }) {
-  return <p className="muted">{name}</p>;
 }
 
 function TopBar({ devices, device, onDevice, now }: {

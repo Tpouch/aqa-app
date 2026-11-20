@@ -785,3 +785,31 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-sel);
 .mb-id { font-size: 12px; }
 .mb-session { margin-top: 20px; }
 .mb-session .sb-link { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* mobile · graph */
+.mb-graph-list li > button {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; min-height: 52px; padding: 0 4px;
+  background: none; border: 0; border-bottom: 1px solid var(--rule); text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mb-graph-list li > button:active { background: var(--surface-sel); }
+.mb-fg {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  height: 100dvh; background: var(--bg);
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+.mb-fg-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mb-fg-head h2 { font-size: 15px; font-weight: 500; margin-right: auto; }
+.mb-fg-range > button { min-height: 40px; min-width: 40px; padding: 0 8px; font-size: 13px; }
+.mb-fg-close {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--rule-strong); border-radius: 2px; font-size: 16px;
+}
+.mb-fg-hint { margin: 6px 0 0; }
+.mb-fg-chart { flex: 1; min-height: 0; margin-top: 8px; }
+@media (orientation: portrait) {
+  .mb-fg-range { order: 3; flex-basis: 100%; display: flex; }
+  .mb-fg-range > button { flex: 1; }
+}
