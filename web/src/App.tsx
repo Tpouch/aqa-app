@@ -3,12 +3,15 @@ import { api, setUnauthorizedHandler } from "./api";
 import { Sidebar, SessionTools } from "./components/Sidebar";
 import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
 import { DevicePage } from "./pages/device/DevicePage";
+import { MobileEmpty, MobileShell } from "./mobile/MobileShell";
+import { usePhone } from "./mobile/usePhone";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
 import { parseRoute, TAB_LABEL, type Tab } from "./routes";
 import { useSelection } from "./selection";
 import { storageGet, storageRemove, storageSet } from "./storage";
 import { useNow, usePoll } from "./util";
+import type { DeviceSummary, UnknownDevice } from "../../server/src/types";
 
 export function App() {
   return (
@@ -56,18 +59,39 @@ function useRoute(onLegacyDevice: (id: string) => void): Tab {
 
 function Shell({ onLogout }: { onLogout: () => void }) {
   const devices = usePoll(api.devices, 15000, []);
-  const [pending, setPending] = useState(0);
   const [chosen, setChosen] = useState(() => storageGet("aqa-device") ?? "");
-  const tab = useRoute(setChosen);
-  const [selection, setSelection] = useSelection();
+  const phone = usePhone();
   const now = useNow();
 
   const list = devices.data?.devices ?? [];
   const device = list.find((d) => d.id === chosen) ?? list[0];
+  const logout = () => { api.logout().finally(onLogout); };
 
   useEffect(() => {
     if (device) storageSet("aqa-device", device.id);
   }, [device]);
+
+  // A phone gets its own pages; a computer keeps the web view at any width.
+  if (phone) {
+    if (devices.data && !device) return <MobileEmpty onLogout={logout} />;
+    return <MobileShell devices={list} device={device} onDevice={setChosen} onLogout={logout} now={now}
+                        error={devices.error && !devices.data ? devices.error : null} />;
+  }
+  return <WebShell devices={devices} list={list} device={device} onDevice={setChosen} onLogout={logout} now={now} />;
+}
+
+function WebShell({ devices, list, device, onDevice, onLogout, now }: {
+  devices: ReturnType<typeof usePoll<{ devices: DeviceSummary[]; unknown: UnknownDevice[] }>>;
+  list: DeviceSummary[];
+  device: DeviceSummary | undefined;
+  onDevice: (id: string) => void;
+  onLogout: () => void;
+  now: number;
+}) {
+  const [pending, setPending] = useState(0);
+  const tab = useRoute(onDevice);
+  const [selection, setSelection] = useSelection();
+
   useEffect(() => {
     document.title = device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
   }, [tab, device]);
@@ -81,7 +105,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
           Aller au contenu
         </a>
-        <div className="setup-tools"><SessionTools onLogout={() => api.logout().finally(onLogout)} /></div>
+        <div className="setup-tools"><SessionTools onLogout={onLogout} /></div>
         <main id="main" tabIndex={-1} className="setup">
           <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
         </main>
@@ -94,8 +118,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
         Aller au contenu
       </a>
-      <Sidebar devices={list} device={device} onDevice={setChosen} tab={tab} selection={selection} onSelection={setSelection}
-               pending={pending} alerts={device?.open_alerts ?? 0} now={now} onLogout={() => api.logout().finally(onLogout)} />
+      <Sidebar devices={list} device={device} onDevice={onDevice} tab={tab} selection={selection} onSelection={setSelection}
+               pending={pending} alerts={device?.open_alerts ?? 0} now={now} onLogout={onLogout} />
       <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
           <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>
