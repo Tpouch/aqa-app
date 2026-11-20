@@ -45,14 +45,23 @@ To test with a real board on your machine, put
 ```bash
 git clone git@github.com:Tpouch/aqa-app.git && cd aqa-app
 cp .env.example .env && nano .env
-mkdir -p data && sudo chown 1000:1000 data   # the container runs as user "node" (uid 1000)
 docker compose up -d --build
 docker compose logs -f app
 ```
 
 The app is published on the host at `127.0.0.1:3090` (port 3000 inside the
-container). The data (SQLite database and firmware images) lives in `./data`:
-that's the folder to back up, and it must persist across redeployments.
+container). The data (SQLite database and firmware images) lives in the named
+Docker volume `aqa-data`, mounted on `/data`. Docker creates it with the right
+owner (the container runs as user `node`, uid 1000), so there is nothing to
+prepare on the server. It persists across redeployments; back it up with:
+
+```bash
+docker run --rm -v <project>_aqa-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/aqa-data.tgz -C /data .
+```
+
+Don't replace it with a host folder (`./data:/data`) unless that folder is owned
+by uid 1000: otherwise the app stops with "Cannot open /data/aqa.sqlite3".
 
 Configuration comes only from environment variables (see
 [Configuration](#configuration)). A platform like Coolify asks for them in its UI.
