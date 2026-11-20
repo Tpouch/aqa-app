@@ -5,9 +5,10 @@
 # `.env` file next to this one (see .env.example).
 # Variables marked `:?` are required: the deployment stops if they are empty.
 #
-# The app is published on the host at 127.0.0.1:3090 (container port 3000).
-# Put a reverse proxy (Nginx Proxy Manager, Caddy…) in front of it for
-# sensor.devgoblin.fr.
+# The app is published on every interface of the host, port 3090 (container
+# port 3000), so a reverse proxy on another machine of the network (Nginx Proxy
+# Manager…) can reach it at http://<host IP>:3090. Don't forward this port on
+# the router: only the proxy should be exposed to the Internet.
 
 services:
   app:
@@ -29,7 +30,7 @@ services:
       # root and the app would fail with "unable to open database file".
       - aqa-data:/data
     ports:
-      - "127.0.0.1:3090:3000"
+      - "3090:3000"
 
 volumes:
   aqa-data:
