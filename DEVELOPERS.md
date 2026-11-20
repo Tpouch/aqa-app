@@ -1,0 +1,163 @@
+# Developer guide
+
+Technical documentation for the AQA app. For what the project does, see the
+[README](README.md).
+
+The boards send their measurements over HTTPS. The app stores them, charts them
+over hours or weeks, and sends commands back to the boards: restart, geohash,
+config, Wi-Fi, signed OTA update.
+
+The board ↔ server contract is defined in the firmware repository,
+[`EPITECH_ESP32/docs/api.md`](https://github.com/Tpouch/EPITECH_ESP32/blob/main/docs/api.md),
+and this server follows it exactly.
+
+| | |
+|---|---|
+| `server/` | Fastify 5 + TypeScript, SQLite built into Node (`node:sqlite`), zod |
+| `web/` | React 19 + Vite, charts with [uPlot](https://github.com/leeoniya/uPlot) |
+| Deployment | Docker Compose, a single image (the API also serves the front end) |
+
+## Development
+
+Node ≥ 24 (Node 26 recommended).
+
+```bash
+npm install
+cp .env.example .env          # fill in ADMIN_PASSWORD and SESSION_SECRET
+npm run dev                   # API on :3000, Vite front end on :5173 (proxies /api)
+npm test                      # server tests (board contract + app routes) and web tests (Vitest)
+npm run typecheck
+npm run build                 # web/dist + server/dist; `npm start` serves everything on :3000
+```
+
+To fill a local database with a demo board and a week of fake measurements:
+
+```bash
+npx tsx --env-file=.env server/scripts/seed-demo.ts http://localhost:3000
+```
+
+To test with a real board on your machine, put
+`API_URL=http://<your PC's IP>:3000` and the `DEVICE_TOKEN` given by the app
+(see [Adding a board](#adding-a-board)) in the board's `.env`.
+
+## Deployment (Docker Compose)
+
+```bash
+git clone git@github.com:Tpouch/aqa-app.git && cd aqa-app
+cp .env.example .env && nano .env
+mkdir -p data && sudo chown 1000:1000 data   # the container runs as user "node" (uid 1000)
+docker compose up -d --build
+docker compose logs -f app
+```
+
+The app is published on the host at `127.0.0.1:3090` (port 3000 inside the
+container). The data (SQLite database and firmware images) lives in `./data`:
+that's the folder to back up, and it must persist across redeployments.
+
+Configuration comes only from environment variables (see
+[Configuration](#configuration)). A platform like Coolify asks for them in its UI.
+Locally, `docker compose` reads them from `.env`. `ADMIN_PASSWORD` and
+`SESSION_SECRET` are required: the deployment stops if they are empty.
+
+### Reverse proxy and Cloudflare
+
+To expose `sensor.devgoblin.fr`, put a reverse proxy (Nginx Proxy Manager,
+Caddy…) in front of the app. Give it a certificate (Let's Encrypt or a
+Cloudflare origin certificate) and set Cloudflare's SSL mode to **Full
+(strict)**. If the proxy itself runs in Docker, `127.0.0.1` points to its own
+container: put it on the same Docker network and target `app:3000`.
+
+**On Cloudflare**, add a WAF *Skip* rule (Bot Fight Mode, Browser Integrity
+Check, challenges) for
+`starts_with(http.request.uri.path, "/api/v1/devices/") or starts_with(http.request.uri.path, "/firmware/")`.
+Without it, the ESP32 gets HTML 403 pages instead of the API.
+
+## Adding a board
+
+1. Flash the board and note its id, `aqa-XXXXXXXXXXXX`. It is printed in the
+   serial log at boot and shown in the firmware repo's TUI (`tools/aqa_tui.py`).
+   A board that calls the API before it is registered also appears on its own in
+   the app's add-a-board screen.
+2. On the add-a-board screen, register the id. The app shows a token **once**.
+3. In the firmware's `.env`, set `DEVICE_TOKEN=<token>` (and
+   `API_URL=https://sensor.devgoblin.fr`), then rebuild and flash.
+
+The database only keeps a hash of the token. If you lose it, use
+**Réglages → Zone sensible → Nouveau jeton** and flash the board again.
+
+## OTA updates
+
+1. In the firmware repo, run `pio run`, then `tools/sign_firmware.sh`.
+2. **Réglages → Firmwares**: upload `firmware.bin`, `firmware.sig` and a version number.
+3. **Carte → Mettre à jour**: pick the version and install.
+
+The compiled firmware contains the Wi-Fi credentials and the `DEVICE_TOKEN`
+from its `.env`, so build **one image per board**. The app never makes it
+public. The board downloads it through an HMAC-signed link valid for 24 h and
+checks the RSA signature before activating it.
+
+## Sound calibration
+
+The board reports noise as a raw peak-to-peak ADC amplitude (0–4095, averaged
+over 15 s), not as decibels. **Réglages → Calibrer le son** stores one reference
+point per board on the server: `snd_ref` is the last amplitude received, and
+`db_ref` is the level read on a sound meter at the same moment. The client then
+shows `dB = db_ref + 20·log10(snd / snd_ref)`. Calibration is refused if the
+last measurement is older than 2 minutes. Until a board is calibrated, sound is
+shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
+`snd_db` when calibrated.
+
+## Configuration
+
+| Variable | Default | |
+|---|---|---|
+| `ADMIN_PASSWORD` | — | Web UI password, ≥ 12 characters |
+| `SESSION_SECRET` | — | ≥ 32 characters; signs session cookies and firmware links |
+| `PUBLIC_URL` | `https://sensor.devgoblin.fr` | Base of the OTA links sent to the boards |
+| `RETENTION_DAYS` | `0` | Delete older measurements (0 = never) |
+| `DATA_DIR` | `./data` (`/data` in Docker) | SQLite and firmware images |
+| `PORT`, `HOST` | `3000`, `0.0.0.0` | |
+| `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
+| `LOG_LEVEL` | `info` | |
+
+Generate a `SESSION_SECRET` with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+## Routes
+
+The board routes follow `docs/api.md`: `POST /api/v1/devices/{id}/status`,
+`/frames` and `/commands/{cid}/ack`, authenticated with a Bearer token. The app
+routes require the admin session cookie:
+
+| | |
+|---|---|
+| `POST/GET/DELETE /api/v1/session` | Log in (5 attempts per minute), state, log out |
+| `GET/POST /api/v1/devices` | List (+ unknown boards), add → token |
+| `GET/PATCH/DELETE /api/v1/devices/{id}` | Detail; update `name` and/or `sound_calibration` (`{ snd_ref, db_ref }` or `null`); delete (with its measurements) |
+| `POST /api/v1/devices/{id}/token` | New token |
+| `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
+| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/events` | Journal |
+| `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
+| `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
+| `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Download by the board, signed link |
+| `GET /healthz` | Health check |
+
+## Front-end structure
+
+| | |
+|---|---|
+| `web/src/metrics.ts` | Zones, zone words, dB conversion, y-axis range, period stats (pure, tested) |
+| `web/src/components/ZoneChart.tsx` | uPlot chart with named zone bands; cursor synced across charts |
+| `web/src/components/Sidebar.tsx` | Left column: live readings (also metric selectors), navigation, theme |
+| `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
+| `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
+| `web/src/pages/settings/` | Réglages, including sound calibration |
+| `web/src/styles.css` | Design tokens (dark default + light) and every style |
+
+Routes are hash-based (`#/mesures`, `#/carte`, `#/reglages`). Old links
+(`#/overview`, `#/sensor`, `#/commands`, `#/options`, `#/device/<id>/<tab>`)
+redirect to the new ones.

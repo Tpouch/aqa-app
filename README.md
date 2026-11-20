@@ -1,118 +1,117 @@
-# AQA app
+# AQA — know what you're breathing
 
-Serveur et interface web des capteurs de qualité de l'air AQA (ESP32). Les
-cartes envoient leurs mesures en HTTPS. L'app les stocke, trace les graphes sur
-des heures ou des semaines, et envoie des commandes aux cartes (redémarrage,
-géohash, config, mise à jour OTA signée).
+AQA is a small air-quality station for a room (a living room, a bedroom, a
+classroom, an office), and this repository is the website that goes with it.
 
-Le contrat entre la carte et le serveur est décrit dans le repo firmware, dans
-[`EPITECH_ESP32/docs/api.md`](https://github.com/Tpouch/EPITECH_ESP32/blob/main/docs/api.md).
-Ce serveur l'implémente à la lettre.
+The station is an ESP32 board with four sensors. Every 15 seconds it measures
+the air and sends the numbers to this app. The app keeps the history and draws
+it as charts anyone can read at a glance. It also tells you plainly when it's
+time to open a window.
 
-| | |
+![The Measures page: live readings on the left, the CO₂ curve over 24 hours on the right, with good / ventilate / bad zones](docs/screenshots/measures.png)
+
+> Looking for the board itself? The firmware, the wiring and the build
+> instructions are in **[Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32)**.
+
+## What it measures
+
+| | What it tells you |
 |---|---|
-| `server/` | Fastify 5 + TypeScript, SQLite intégré à Node (`node:sqlite`), zod |
-| `web/` | React 19 + Vite, graphes [uPlot](https://github.com/leeoniya/uPlot) |
-| Déploiement | Docker Compose, une seule image (l'API sert aussi le front) |
+| **CO₂** | How stale the air is. It rises when people stay in a closed room, and it's the clearest sign you need to ventilate. |
+| **Fine particles (PM2.5)** | Smoke, dust and pollution: tiny particles that get deep into the lungs. |
+| **Temperature** | Whether the room is comfortable, too cold or too warm. |
+| **Humidity** | Whether the air is too dry (sore throat, static) or too damp (mould). |
+| **Noise** | How loud the room is, in estimated decibels once the board is calibrated. |
 
-## Développement
+## Reading it at a glance
 
-Node ≥ 24 (Node 26 recommandé).
+Every value falls in a **zone**, and each zone has a word, so you never need to
+know what "1,200 ppm" means:
 
-```bash
-npm install
-cp .env.example .env          # remplir ADMIN_PASSWORD et SESSION_SECRET
-npm run dev                   # API sur :3000, front Vite sur :5173 (proxy /api)
-npm test                      # tests du serveur (contrat carte + routes app)
-npm run typecheck
-npm run build                 # web/dist + server/dist ; `npm start` sert le tout sur :3000
-```
+| | Good | Watch it | Bad |
+|---|---|---|---|
+| CO₂ | under 800 ppm (*bon*) | 800–1,200 (*aérer*, ventilate) | over 1,200 (*mauvais*) |
+| Fine particles | under 15 µg/m³ | 15–35 | over 35 (WHO guideline) |
+| Temperature | 19–24 °C (*confort*) | | colder or warmer |
+| Humidity | 40–60 % (*confort*) | | drier or damper |
+| Noise | under 55 dB (*calme*) | 55–70 dB (*bruyant*) | over 70 dB (*fort*) |
 
-Pour tester avec une vraie carte en local, mets dans son `.env` :
-`API_URL=http://<IP de ton PC>:3000` et le `DEVICE_TOKEN` donné par l'app
-(voir « Ajouter une carte »).
+The charts use the same zones: green at the bottom, amber in the middle, red at
+the top, with each zone's name written on the side. One look shows where the air
+is now and where it has been all day.
 
-## Déploiement (VPS + Docker Compose)
+*The interface itself is in French.*
 
-```bash
-git clone git@github.com:Tpouch/aqa-app.git && cd aqa-app
-cp .env.example .env && nano .env
-mkdir -p data && sudo chown 1000:1000 data   # le conteneur tourne en utilisateur "node" (uid 1000)
-docker compose up -d --build
-docker compose logs -f app
-```
+## Features
 
-L'app écoute sur `127.0.0.1:3090` du VPS. Les données (SQLite et firmwares)
-sont dans `./data` : c'est ce dossier qu'il faut sauvegarder.
+### Live readings, always in view
 
-La configuration passe uniquement par des variables d'environnement (tableau
-ci-dessous) : Coolify les demande dans son interface, et en local
-`docker compose` les lit dans `.env`. `ADMIN_PASSWORD` et `SESSION_SECRET`
-sont obligatoires, le déploiement s'arrête s'ils sont vides.
+The left column shows the five current values with their zone word, on every
+page. Click one to see its history.
 
-Pour exposer `sensor.devgoblin.fr`, mets un reverse proxy (Nginx Proxy Manager,
-Caddy…) devant l'app, avec un certificat (Let's Encrypt ou certificat d'origine
-Cloudflare) et le mode SSL Cloudflare **Full (strict)**. Si le proxy tourne
-lui-même dans Docker, `127.0.0.1` désigne son propre conteneur : branche-le
-sur le même réseau Docker et vise `app:3000`.
+### One big chart, or all of them at once
 
-**Côté Cloudflare :** ajoute une règle WAF *Skip* (Bot
-Fight Mode, Browser Integrity Check, challenges) pour
-`starts_with(http.request.uri.path, "/api/v1/devices/") or starts_with(http.request.uri.path, "/firmware/")`.
-Sans elle, l'ESP32 reçoit des 403 en HTML au lieu de l'API.
+Pick a period: the last hour up to the last 30 days, a specific day, or any range
+you like. Below the chart you get the minimum, the average, the maximum and
+**how long the air spent in the bad zone**. Switch to the grid to compare every
+measurement side by side on one screen. Hover over one chart and all of them
+show the same moment.
 
-## Ajouter une carte
+![Grid view: the five measurements side by side, with a summary of the time spent outside the comfort zone](docs/screenshots/grid.png)
 
-1. Flashe la carte, puis relève son identifiant `aqa-XXXXXXXXXXXX`. Il est
-   affiché au démarrage dans le log série, et dans le TUI `tools/aqa_tui.py`.
-   Une carte qui appelle l'API sans être enregistrée apparaît aussi
-   automatiquement dans **Gestion**.
-2. **Gestion → Ajouter une carte.** L'app affiche un jeton **une seule fois**.
-3. Dans le `.env` du firmware : `DEVICE_TOKEN=<jeton>` (et
-   `API_URL=https://sensor.devgoblin.fr`), puis recompile et flashe.
+You can download everything as a spreadsheet (CSV).
 
-La base ne garde qu'un hash du jeton. Si tu le perds, utilise
-**nouveau jeton** et reflashe la carte.
+### Look after the board from your browser
 
-## Mise à jour OTA
+The **Board** page (*Carte*) shows:
 
-1. Dans le repo firmware : `pio run`, puis `tools/sign_firmware.sh`.
-2. **Gestion → Firmwares :** envoie `firmware.bin`, `firmware.sig` et un numéro de version.
-3. Page du capteur → **Mise à jour OTA** → choisis la version.
+- whether the station is online,
+- its Wi-Fi signal,
+- which sensors are working,
+- a log of what happened: restarts, lost connections, sensors that stopped answering.
 
-Le firmware compilé contient le Wi-Fi et le `DEVICE_TOKEN` du `.env` : compile
-une image **par carte**. L'app ne le rend jamais public. La carte le télécharge
-par un lien signé (HMAC) valable 24 h, et vérifie la signature RSA avant de
-l'activer.
+From there you can restart the board or install a new firmware version without
+plugging in a cable.
 
-## Configuration
+![Board page: status, Wi-Fi, sensors, actions and log](docs/screenshots/board.png)
 
-| Variable | Défaut | |
-|---|---|---|
-| `ADMIN_PASSWORD` | — | Mot de passe de l'interface, ≥ 12 caractères |
-| `SESSION_SECRET` | — | ≥ 32 caractères, signe les cookies et les liens firmware |
-| `PUBLIC_URL` | `https://sensor.devgoblin.fr` | Base des liens OTA envoyés aux cartes |
-| `RETENTION_DAYS` | `0` | Supprime les mesures plus vieilles (0 = jamais) |
-| `DATA_DIR` | `./data` (`/data` en Docker) | SQLite et firmwares |
-| `PORT`, `HOST` | `3000`, `0.0.0.0` | |
-| `TRUST_PROXY` | `true` | IP client prise dans `X-Forwarded-For` (Cloudflare) |
-| `LOG_LEVEL` | `info` | |
+### Settings
 
-## Routes
+From the Settings page you can:
 
-Les routes de la carte suivent `docs/api.md` : `POST /api/v1/devices/{id}/status`,
-`/frames`, `/commands/{cid}/ack`, authentifiées par jeton Bearer. Les routes de
-l'app exigent le cookie de session admin :
+- rename the board,
+- move it to another Wi-Fi network,
+- set its location,
+- calibrate the noise sensor with a sound-meter app on your phone,
+- upload new firmware versions.
 
-| | |
-|---|---|
-| `POST/GET/DELETE /api/v1/session` | Connexion (5 essais par minute), état, déconnexion |
-| `GET/POST /api/v1/devices` | Liste (+ cartes inconnues), ajout → jeton |
-| `GET/PATCH/DELETE /api/v1/devices/{id}` | Détail, renommer, supprimer (avec les mesures) |
-| `POST /api/v1/devices/{id}/token` | Nouveau jeton |
-| `GET /api/v1/devices/{id}/frames?from&to&limit` | Mesures brutes |
-| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Moyennes (`step` : 60, 300, 900, 3600, 10800, 21600, 86400) |
-| `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | Historique, envoi, annulation (si `pending`) |
-| `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmwares (upload multipart : `version`, `firmware`, `signature`) |
-| `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Téléchargement par la carte, lien signé |
-| `GET /healthz` | Santé |
+![Settings page](docs/screenshots/settings.png)
+
+### Dark or light, desktop or phone
+
+The app opens in dark mode and switches to light in one click. It works on a
+phone too.
+
+<p>
+  <img src="docs/screenshots/measures-light.png" alt="Light theme" width="68%">
+  &nbsp;
+  <img src="docs/screenshots/phone.png" alt="On a phone" width="27%">
+</p>
+
+## Getting started
+
+1. **Build the station** by following the
+   [EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32) repository.
+2. **Run this app** on a server and choose an admin password. It ships as a
+   single Docker container.
+3. **Register the board** in the app. It gives you a secret key to put in the
+   board's settings before you flash it. Boards that are already trying to
+   connect show up in the list on their own.
+
+Step-by-step instructions, configuration and the API are in
+**[DEVELOPERS.md](DEVELOPERS.md)**.
+
+## Privacy
+
+Everything stays on your own server. There is one admin account, each board
+signs in with its own secret key, and nothing is sent to anyone else.
