@@ -64,6 +64,37 @@ const MIGRATIONS: string[] = [
   ALTER TABLE devices ADD COLUMN snd_ref INTEGER;
   ALTER TABLE devices ADD COLUMN db_ref REAL;
   `,
+  `
+  CREATE TABLE alert_rules (
+    kind        TEXT PRIMARY KEY,
+    enabled     INTEGER NOT NULL,
+    threshold   REAL,                       -- NULL for offline
+    duration_s  INTEGER NOT NULL
+  );
+  INSERT INTO alert_rules (kind, enabled, threshold, duration_s) VALUES
+    ('co2_high',  1, 1200, 300),
+    ('pm25_high', 1, 35,   300),
+    ('temp_low',  1, 19,   1800),
+    ('temp_high', 1, 24,   1800),
+    ('hum_low',   1, 40,   1800),
+    ('hum_high',  1, 60,   1800),
+    ('snd_high',  0, 70,   120),
+    ('offline',   1, NULL, 300);
+
+  CREATE TABLE alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    threshold   REAL,                       -- threshold when the alert opened
+    started_at  INTEGER NOT NULL,           -- start of the excursion, not the tick time
+    ended_at    INTEGER,                    -- NULL = ongoing
+    start_value REAL,
+    peak_value  REAL,                       -- worst value during the alert
+    end_value   REAL,
+    end_reason  TEXT                        -- 'normal' | 'disabled'
+  );
+  CREATE INDEX alerts_device ON alerts(device_id, started_at);
+  `,
 ];
 
 export type Db = DatabaseSync;

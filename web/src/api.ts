@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
+  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -59,6 +59,14 @@ export const api = {
   sendCommand: (id: string, type: CommandType, params?: Record<string, unknown>) =>
     request<CommandRow>("POST", `/api/v1/devices/${id}/commands`, params ? { type, params } : { type }),
   cancelCommand: (id: string, cid: string) => request<void>("DELETE", `/api/v1/devices/${id}/commands/${cid}`),
+
+  alertRules: () => request<{ rules: AlertRule[] }>("GET", "/api/v1/alert-rules"),
+  updateAlertRule: (kind: AlertKind, patch: Partial<AlertRuleValues>) =>
+    request<AlertRule>("PATCH", `/api/v1/alert-rules/${kind}`, patch),
+  resetAlertRules: () => request<{ rules: AlertRule[] }>("POST", "/api/v1/alert-rules/reset"),
+  alerts: (id: string, before?: number, beforeId?: number) =>
+    request<{ open: AlertRow[]; history: AlertRow[] }>(
+      "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}${beforeId === undefined ? "" : `&before_id=${beforeId}`}`}`),
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),

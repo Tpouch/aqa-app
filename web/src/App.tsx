@@ -95,7 +95,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         Aller au contenu
       </a>
       <Sidebar devices={list} device={device} onDevice={setChosen} tab={tab} selection={selection} onSelection={setSelection}
-               pending={pending} now={now} onLogout={() => api.logout().finally(onLogout)} />
+               pending={pending} alerts={device?.open_alerts ?? 0} now={now} onLogout={() => api.logout().finally(onLogout)} />
       <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
           <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>

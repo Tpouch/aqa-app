@@ -8,6 +8,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { SESSION_COOKIE } from "./auth.js";
 import type { Config } from "./config.js";
+import { CHECK_EVERY_S, checkAlerts } from "./alerts.js";
 import { now, openDb, run, type Db } from "./db.js";
 import { FirmwareStore } from "./firmware.js";
 import { appRoutes } from "./routes/app.js";
@@ -76,6 +77,15 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
     prune();
   }
 
-  app.addHook("onClose", async () => db.close());
+  const serverStart = now();
+  const alertTimer = setInterval(() => {
+    try { checkAlerts(db, now(), serverStart); } catch (err) { app.log.error({ err }, "alerts check failed"); }
+  }, CHECK_EVERY_S * 1000);
+  alertTimer.unref();
+
+  app.addHook("onClose", async () => {
+    clearInterval(alertTimer);
+    db.close();
+  });
   return { app, db, firmware };
 }

@@ -565,6 +565,49 @@ select.input, .field select { background: var(--bg); }
 }
 .cp-ago { font-size: 11px; }
 
+/* ---------------------------------------------------------------- alertes */
+
+.al-page { display: grid; }
+.al-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 14px; padding-bottom: 12px; border-bottom: 1px solid var(--rule-strong); }
+.al-head h2 { font-size: 22px; line-height: 1.1; font-weight: 400; overflow-wrap: anywhere; }
+.al-head p { font-size: 12px; }
+.al-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; margin-top: 14px; align-items: start; }
+.al-rules, .al-journal { min-width: 0; }
+.al-rules > h3, .al-journal > h3 { margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+
+.al-rule { border-bottom: 1px solid var(--rule); }
+.al-rule-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+.al-rule-row input[type="checkbox"] { width: 14px; height: 14px; margin: 0; accent-color: var(--text); cursor: pointer; }
+.al-rule-name { padding: 2px 0; border: 0; background: none; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.al-rule-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.al-rule-name[aria-expanded="true"]::after { content: " ▾"; color: var(--muted); }
+.al-rule.off .al-rule-name { color: var(--muted); }
+.al-rule-sum { font-size: 12px; text-align: right; white-space: nowrap; }
+.al-rule-note { padding: 0 0 6px 26px; font-size: 11px; }
+.al-rule-form { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 4px 0 10px 26px; }
+.al-rule-form .field { flex: 1 1 110px; min-width: 0; }
+.al-rule-actions { display: flex; gap: 6px; flex-basis: 100%; }
+.al-reset, .al-more { margin: 8px 0 0 -8px; }  /* quiet button: text aligned with the list */
+
+.al-now-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.al-now { padding: 10px 12px; border: 1px solid var(--bad); background: var(--bad-band); font-size: 13px; }
+.al-now.warn { border-color: var(--warn); background: var(--warn-band); }
+.al-now-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; }
+.al-now-tip { margin-top: 6px; }
+
+.al-log { font-size: 12px; }
+.al-log > li { display: grid; grid-template-columns: 88px 12px minmax(0, 1fr) auto; gap: 0 8px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.al-log time { white-space: nowrap; }
+.al-log-what { overflow-wrap: anywhere; }
+.al-log-dur { white-space: nowrap; text-align: right; }
+.al-log-end { grid-column: 3 / 5; }
+.al-empty { padding: 8px 0; }
+
+@media (max-width: 720px) {
+  .al-cols { grid-template-columns: minmax(0, 1fr); }
+  .al-journal { order: -1; }
+}
+
 /* ---------------------------------------------------------------- settings page */
 
 .st { display: grid; }
@@ -597,6 +640,11 @@ select.input, .field select { background: var(--bg); }
 .st-table td { padding: 6px 8px 6px 0; border-top: 1px solid var(--rule); vertical-align: middle; }
 .st-table .num { text-align: left; }
 .st-td-actions { text-align: right; }
+.inf-intro { padding: 16px 0; border-bottom: 1px solid var(--rule); max-width: 72ch; }
+.inf-zones { max-width: 360px; font-size: 13px; }
+.inf-zones td:first-child { width: 8em; }
+.setting-body h4 { margin-bottom: 4px; }
+.inf-sources { padding-top: 16px; max-width: 72ch; }
 .st input[type="file"] { padding: 6px 8px; font-size: 12px; }
 
 @media (max-width: 720px) {

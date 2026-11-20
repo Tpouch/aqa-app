@@ -63,6 +63,43 @@ export interface DeviceSummary {
   status_at: number | null;
   latest: FrameRow | null;
   sound_calibration: SoundCalibration | null;
+  open_alerts: number;
+}
+
+export const ALERT_KINDS = [
+  "co2_high", "pm25_high", "temp_low", "temp_high", "hum_low", "hum_high", "snd_high", "offline",
+] as const;
+export type AlertKind = (typeof ALERT_KINDS)[number];
+
+export interface AlertRuleValues {
+  enabled: boolean;
+  threshold: number | null; // null for offline
+  duration_s: number;
+}
+
+export interface AlertRule extends AlertRuleValues {
+  kind: AlertKind;
+  label: string;
+  unit: string;
+  metric: Metric | null;
+  defaults: AlertRuleValues;
+}
+
+export interface AlertRow {
+  id: number;
+  kind: AlertKind;
+  label: string;
+  unit: string;
+  metric: Metric | null;
+  tone: "warn" | "bad";
+  threshold: number | null;
+  started_at: number;
+  ended_at: number | null; // null = en cours
+  start_value: number | null;
+  peak_value: number | null;
+  end_value: number | null;
+  end_reason: "normal" | "disabled" | null;
+  advice: string;
 }
 
 export interface UnknownDevice {
