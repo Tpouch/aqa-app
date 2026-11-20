@@ -174,8 +174,8 @@ const FILTERS = [
   { key: "problems", label: "problèmes" },
 ] as const;
 
-const LEVEL: Record<EventRow["level"], { tone: string; label: string }> = {
-  info: { tone: "muted", label: "info" }, warn: { tone: "tone-warn", label: "avertissement" }, error: { tone: "tone-bad", label: "erreur" },
+const LEVEL: Record<EventRow["level"], { tone: string; label: string; glyph: string }> = {
+  info: { tone: "muted", label: "info", glyph: "●" }, warn: { tone: "tone-warn", label: "avertissement", glyph: "▲" }, error: { tone: "tone-bad", label: "erreur", glyph: "✗" },
 };
 
 function Journal({ events, now }: { events: EventRow[] | undefined; now: number }) {
@@ -201,8 +201,8 @@ function Journal({ events, now }: { events: EventRow[] | undefined; now: number 
           <tbody>
             {shown.map((e) => (
               <tr key={e.id}>
-                <td className="muted"><time dateTime={new Date(e.ts * 1000).toISOString()} title={dateTime(e.ts)}>{ago(e.ts, now)}</time></td>
-                <td className={LEVEL[e.level].tone}><span aria-hidden>●</span><span className="sr-only">{LEVEL[e.level].label}</span></td>
+                <td className="muted"><time dateTime={new Date(e.ts * 1000).toISOString()} title={dateTime(e.ts)}>{dateTime(e.ts)}</time><br /><span className="cp-ago">{ago(e.ts, now)}</span></td>
+                <td className={LEVEL[e.level].tone}><span aria-hidden>{LEVEL[e.level].glyph}</span><span className="sr-only">{LEVEL[e.level].label}</span></td>
                 <td>{e.message}</td>
               </tr>
             ))}

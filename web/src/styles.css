@@ -572,3 +572,4 @@ select.input, .field select { background: var(--bg); }
   .cp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
   .cp-stats > div:nth-child(3) { padding-left: 0; border-left: 0; }
 }
+.cp-ago { font-size: 11px; }
