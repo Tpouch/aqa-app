@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandOf, metricDef, periodStats, soundDb, toDisplay, yRange } from "./metrics";
+import { bandOf, bandRanges, metricDef, periodStats, SOUND_DB_BANDS, soundDb, toDisplay, yRange } from "./metrics";
 
 const cal = { snd_ref: 31, db_ref: 45 };
 
@@ -52,4 +52,16 @@ describe("metrics", () => {
     expect(periodStats(d, [0, 60], [null, null], 60)).toBeNull();
     expect(periodStats(metricDef("snd", null), [0], [12], 60)!.alertSeconds).toBeNull();
   });
+});
+
+describe("bandRanges", () => {
+  const nb = (s: string) => s.replace(/ | /g, " ");
+  it("CO₂", () => expect(bandRanges(metricDef("co2", null).bands!, "ppm").map(nb))
+    .toEqual(["moins de 800 ppm", "800 à 1 200 ppm", "1 200 ppm et plus"]));
+  it("température, borne inclusive", () => expect(bandRanges(metricDef("temp", null).bands!, "°C"))
+    .toEqual(["moins de 19 °C", "19 à 24 °C", "plus de 24 °C"]));
+  it("humidité, borne inclusive", () => expect(bandRanges(metricDef("hum", null).bands!, "%"))
+    .toEqual(["moins de 40 %", "40 à 60 %", "plus de 60 %"]));
+  it("son en dB", () => expect(bandRanges(SOUND_DB_BANDS, "dB"))
+    .toEqual(["moins de 55 dB", "55 à 70 dB", "70 dB et plus"]));
 });

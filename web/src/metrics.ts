@@ -17,6 +17,13 @@ export interface MetricDef {
 const BAD_ZONE = "EN ZONE MAUVAISE";
 const OUT_OF_COMFORT = "HORS CONFORT";
 
+/** Zones du son une fois calibré en dB estimés. */
+export const SOUND_DB_BANDS: Band[] = [
+  { to: 55, word: "calme", tone: "good" },
+  { to: 70, word: "bruyant", tone: "warn" },
+  { to: null, word: "fort", tone: "bad" },
+];
+
 export function metricDef(metric: Metric, cal: SoundCalibration | null): MetricDef {
   switch (metric) {
     case "co2":
@@ -59,17 +66,29 @@ export function metricDef(metric: Metric, cal: SoundCalibration | null): MetricD
       return cal
         ? {
             metric, label: "Son", unit: "dB (estimé)", decimals: 0, alertLabel: "SON FORT", nonNegative: true,
-            bands: [
-              { to: 55, word: "calme", tone: "good" },
-              { to: 70, word: "bruyant", tone: "warn" },
-              { to: null, word: "fort", tone: "bad" },
-            ],
+            bands: SOUND_DB_BANDS,
           }
         : {
             metric, label: "Son", unit: "amplitude", decimals: 0, alertLabel: null, nonNegative: true,
             bands: null,
           };
   }
+}
+
+const frNum = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+
+/** Plage lisible de chaque bande, dans l'ordre : « moins de 800 ppm », « 800 à 1 200 ppm », « 1 200 ppm et plus ». */
+export function bandRanges(bands: Band[], unit: string): string[] {
+  return bands.map((b, i) => {
+    const prev = bands[i - 1];
+    if (b.to === null) {
+      const lo = frNum(prev?.to ?? 0);
+      return prev?.inclusive ? `plus de ${lo} ${unit}` : `${lo} ${unit} et plus`;
+    }
+    const to = `${frNum(b.to)} ${unit}`;
+    if (!prev || prev.to === null) return b.inclusive ? `jusqu'à ${to}` : `moins de ${to}`;
+    return `${frNum(prev.to)} à ${to}`;
+  });
 }
 
 export function bandOf(def: MetricDef, v: number | null): Band | null {
