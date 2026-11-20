@@ -6,6 +6,8 @@ import type { DeviceSummary } from "../../../server/src/types";
 import { ago } from "../util";
 import { MOBILE_LABEL, parseMobileRoute, type MobileRoute } from "./routes";
 import { DashboardPage } from "./DashboardPage";
+import { InfoPage } from "./InfoPage";
+import { MobileAlertsPage } from "./MobileAlertsPage";
 import { TabBar } from "./TabBar";
 
 // Current mobile tab from the hash. Web and legacy hashes are replaced by
@@ -68,12 +70,11 @@ export function MobileShell({ devices, device, onDevice, onLogout, now, error }:
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function Page({ route, device, now: _now, onLogout }: { route: MobileRoute; device: DeviceSummary; now: number; onLogout: () => void }) {
+function Page({ route, device, now, onLogout }: { route: MobileRoute; device: DeviceSummary; now: number; onLogout: () => void }) {
   switch (route.tab) {
     case "dashboard": return <DashboardPage device={device} onOpen={(m) => { window.location.hash = `/graph/${m}`; }} />;
-    case "alertes": return <Placeholder name="Alertes" />;
-    case "infos": return <><Placeholder name="Infos" /><SessionTools onLogout={onLogout} /></>;
+    case "alertes": return <MobileAlertsPage key={device.id} id={device.id} device={device} />;
+    case "infos": return <InfoPage device={device} now={now} onLogout={onLogout} />;
     case "graph": return <Placeholder name={`Graph ${route.metric ?? ""}`} />;
   }
 }
