@@ -1,12 +1,8 @@
-import {
-  ArrowClockwiseIcon, ArrowCounterClockwiseIcon, ArrowsClockwiseIcon, CheckIcon, CloudArrowDownIcon,
-  CpuIcon, MapPinIcon, SlidersHorizontalIcon, WifiHighIcon, XIcon,
-} from "@phosphor-icons/react";
-import { useMemo, type ReactNode } from "react";
-import { api } from "../../api";
+import { useMemo } from "react";
 import { Badge } from "../../components/ui";
-import { METRICS, type CommandRow, type CommandType, type DeviceSummary, type Metric } from "../../../../server/src/types";
-import { ago, duration, usePoll } from "../../util";
+import { api } from "../../api";
+import { METRICS, type CommandRow, type CommandType, type Metric } from "../../../../server/src/types";
+import { usePoll } from "../../util";
 
 const STEPS = [60, 300, 900, 3600, 10800, 21600, 86400];
 const MAX_POINTS = 2000;
@@ -58,48 +54,9 @@ export function useSeries(id: string, from: number, to: number, live: boolean, r
   return { data: res.data, columns, step, window, loading: !res.data, error: res.error };
 }
 
-// ---------------------------------------------------------------- status card
-
-export function StatusCard({ device: d, now }: { device: DeviceSummary; now: number }) {
-  const s = d.status;
-  return (
-    <section className="card" aria-labelledby="status-title">
-      <div className="card-head"><h2 id="status-title"><CpuIcon size={18} aria-hidden />État de la carte</h2></div>
-      <div className="card-body">
-        {!s ? <p className="muted small">Aucun rapport d'état reçu. La carte en envoie un au démarrage puis chaque minute.</p> : (
-          <dl className="kv">
-            <dt>Contact</dt><dd>{ago(d.last_seen, now)}</dd>
-            <dt>Firmware</dt><dd>v{s.firmware_version} <span className="muted">· matériel {s.hardware_version}</span></dd>
-            <dt>Allumée depuis</dt><dd>{duration(s.uptime_s)} <span className="muted">· démarrage n°{s.boot_count}</span></dd>
-            <dt><WifiHighIcon size={14} aria-hidden />Wi-Fi</dt>
-            <dd>{s.ssid} · {s.rssi} dBm <SignalBadge rssi={s.rssi} /></dd>
-            <dt>Adresse IP</dt><dd><code>{s.ip}</code></dd>
-            <dt><MapPinIcon size={14} aria-hidden />Position</dt><dd><code>{s.geohash}</code></dd>
-            <dt>Capteurs</dt>
-            <dd className="sensor-list">
-              <SensorBadge ok={s.sensors.temperature} label="Temp./hum." />
-              <SensorBadge ok={s.sensors.co2 !== null} label={s.sensors.co2 ?? "CO₂"} />
-              <SensorBadge ok={s.sensors.pm} label="PM2.5" />
-              <SensorBadge ok={s.sensors.sound} label="Son" />
-            </dd>
-            <dt>En attente</dt>
-            <dd>{s.queue.pending} mesure{s.queue.pending > 1 ? "s" : ""}{s.queue.dropped > 0 && <> · <Badge tone="warn">{s.queue.dropped} perdues</Badge></>}</dd>
-            <dt>Mémoire libre</dt><dd>{Math.round(s.free_heap / 1024)} Ko</dd>
-          </dl>
-        )}
-      </div>
-    </section>
-  );
-}
-
+// Still used by OptionsTab until Task 8 replaces it.
 export const SignalBadge = ({ rssi }: { rssi: number }) =>
   rssi < -80 ? <Badge tone="warn">faible</Badge> : rssi < -70 ? <Badge>moyen</Badge> : <Badge tone="good">bon</Badge>;
-
-const SensorBadge = ({ ok, label }: { ok: boolean; label: string }) => (
-  <Badge tone={ok ? "good" : "bad"} title={ok ? "détecté au démarrage" : "non détecté"}>
-    {ok ? <CheckIcon size={12} weight="bold" aria-hidden /> : <XIcon size={12} weight="bold" aria-hidden />}{label}
-  </Badge>
-);
 
 // ---------------------------------------------------------------- commands
 
@@ -114,16 +71,6 @@ export const COMMAND_STATE: Record<CommandRow["state"], { label: string; tone?: 
 export const COMMAND_LABEL: Record<CommandType, string> = {
   status: "Rapport d'état", restart: "Redémarrage", rollback: "Retour au firmware précédent",
   geohash: "Changement de position", config: "Paramètres", ota: "Mise à jour du firmware", wifi: "Changement de Wi-Fi",
-};
-
-export const COMMAND_ICON: Record<CommandType, ReactNode> = {
-  status: <ArrowsClockwiseIcon size={14} aria-hidden />,
-  restart: <ArrowClockwiseIcon size={14} aria-hidden />,
-  rollback: <ArrowCounterClockwiseIcon size={14} aria-hidden />,
-  geohash: <MapPinIcon size={14} aria-hidden />,
-  config: <SlidersHorizontalIcon size={14} aria-hidden />,
-  ota: <CloudArrowDownIcon size={14} aria-hidden />,
-  wifi: <WifiHighIcon size={14} aria-hidden />,
 };
 
 // Polls the command list and exposes a `send` helper with toasts.

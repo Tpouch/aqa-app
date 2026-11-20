@@ -6,7 +6,7 @@ import type { CommandRow, CommandType, DeviceSummary } from "../../../../server/
 import { TAB_LABEL, type Tab } from "../../routes";
 import type { Selection } from "../../selection";
 import { useNow, usePoll } from "../../util";
-import { CommandsTab } from "./CommandsTab";
+import { CardPage } from "../card/CardPage";
 import { OptionsTab } from "./OptionsTab";
 import { MeasuresPage } from "../measures/MeasuresPage";
 import { COMMAND_LABEL, useCommands } from "./shared";
@@ -67,16 +67,10 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
     <div id={`panel-${tab}`} className="tab-panel">
       <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
       {tab === "mesures" && <MeasuresPage id={id} device={d} selection={selection} onSelection={onSelection} />}
-      {tab === "carte" && <CartePage id={id} device={d} commands={commands} send={send} now={now} />}
+      {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />}
       {tab === "reglages" && <ReglagesPage device={d} send={send} reloadDevice={device.reload} onDeleted={onDeleted} />}
     </div>
   );
-}
-
-function CartePage({ id, device, commands, send, now }: {
-  id: string; device: DeviceSummary | null; commands: ReturnType<typeof useCommands>; send: Send; now: number;
-}) {
-  return <CommandsTab id={id} device={device} commands={commands.data?.commands} reload={commands.reload} send={send} now={now} />;
 }
 
 function ReglagesPage({ device, ...rest }: Omit<Parameters<typeof OptionsTab>[0], "device"> & { device: DeviceSummary | null }) {
