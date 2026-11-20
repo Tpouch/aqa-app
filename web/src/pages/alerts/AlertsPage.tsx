@@ -8,6 +8,8 @@ import { RuleList } from "./RuleList";
 
 const PAGE = 50; // server default limit
 
+// Rendered with key={id}: a card switch remounts the page, so the poll data,
+// older pages and in-flight "plus ancien" requests never mix two cards.
 export function AlertsPage({ id, device }: { id: string; device: DeviceSummary | null }) {
   const toast = useToast();
   const now = useNow(30000);
@@ -23,9 +25,6 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
     api.alertRules().then((r) => { if (alive) setRules(r.rules); }, (e: Error) => { if (alive) setRulesError(e.message); });
     return () => { alive = false; };
   }, []);
-
-  // Older pages belong to one card.
-  useEffect(() => { setOlder([]); setOlderDone(false); }, [id]);
 
   // Closed alerts never change, so loaded pages are kept as they are; the poll
   // only refreshes the newest page, and rows it pushes out stay in `older`.
