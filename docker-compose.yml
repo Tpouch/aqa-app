@@ -24,6 +24,12 @@ services:
       DATA_DIR: /data
       PORT: "3000"
     volumes:
-      - ./data:/data
+      # Named volume: Docker creates it with the image's /data ownership (user
+      # "node"), so SQLite can write. A host folder (./data) would be owned by
+      # root and the app would fail with "unable to open database file".
+      - aqa-data:/data
     ports:
       - "127.0.0.1:3090:3000"
+
+volumes:
+  aqa-data:
