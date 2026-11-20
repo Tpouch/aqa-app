@@ -1,3 +1,4 @@
+import { soundDb } from "../../server/src/sound";
 import type { Metric, SoundCalibration } from "../../server/src/types";
 
 export type Tone = "good" | "warn" | "bad";
@@ -79,10 +80,7 @@ export function bandOf(def: MetricDef, v: number | null): Band | null {
   return null;
 }
 
-export function soundDb(snd: number | null, cal: SoundCalibration): number | null {
-  if (snd === null || snd <= 0) return null;
-  return cal.db_ref + 20 * Math.log10(snd / cal.snd_ref);
-}
+export { soundDb };
 
 export function toDisplay(metric: Metric, raw: number | null, cal: SoundCalibration | null): number | null {
   return metric === "snd" && cal ? soundDb(raw, cal) : raw;
