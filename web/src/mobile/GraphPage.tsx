@@ -9,14 +9,18 @@ import { fmt } from "../util";
 import { enterLandscape, exitLandscape } from "./fullscreen";
 import { reading } from "./Gauge";
 
-const FROM_APP = "aqa-graph-from-app";
-
-/** Open a metric's chart from a tap: try full screen + landscape (needs the gesture), then route. */
+/**
+ * Open a metric's chart from a tap: try full screen + landscape (needs the gesture), then route.
+ * The history entry itself remembers it was opened from the app, so ✕ can go back to where
+ * the user was; a link opened directly has no such mark and ✕ goes to the list instead.
+ */
 export function openGraph(metric: Metric): void {
   void enterLandscape();
-  try { sessionStorage.setItem(FROM_APP, "1"); } catch { /* blocked storage: ✕ goes to the list */ }
-  window.location.hash = `/graph/${metric}`;
+  window.history.pushState({ aqaFromApp: true }, "", `#/graph/${metric}`);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
+
+const openedFromApp = () => (window.history.state as { aqaFromApp?: boolean } | null)?.aqaFromApp === true;
 
 export function GraphPage({ id, device, metric }: { id: string; device: DeviceSummary; metric: Metric | null }) {
   return metric ? <FullGraph id={id} device={device} metric={metric} /> : <GraphList device={device} />;
@@ -85,9 +89,7 @@ function FullGraph({ id, device, metric }: { id: string; device: DeviceSummary; 
 
   const close = () => {
     exitLandscape();
-    let fromApp = false;
-    try { fromApp = sessionStorage.getItem(FROM_APP) === "1"; sessionStorage.removeItem(FROM_APP); } catch { /* blocked storage */ }
-    if (fromApp) window.history.back();
+    if (openedFromApp()) window.history.back();
     else window.location.replace("#/graph");
   };
 
