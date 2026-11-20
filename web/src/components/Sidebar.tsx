@@ -8,7 +8,7 @@ import { ago, fmt } from "../util";
 
 // The fixed left column: board, its five current readings (which double as the
 // Mesures page's metric picker), navigation, theme and logout.
-export function Sidebar({ devices, device, onDevice, tab, selection, onSelection, pending, onLogout, now }: {
+export function Sidebar({ devices, device, onDevice, tab, selection, onSelection, pending, alerts, onLogout, now }: {
   devices: DeviceSummary[];
   device: DeviceSummary | undefined;
   onDevice: (id: string) => void;
@@ -16,6 +16,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
   selection: Selection;
   onSelection: (s: Selection) => void;
   pending: number;
+  alerts: number;
   onLogout: () => void;
   now: number;
 }) {
@@ -98,6 +99,9 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
         {device && TAB_ORDER.map((t) => (
           <a key={t} href={`#/${t}`} aria-current={t === tab ? "page" : undefined}>
             {t === tab && <span aria-hidden>▸ </span>}{TAB_LABEL[t]}
+            {t === "alertes" && alerts > 0 && (
+              <span className="tone-bad sb-count"> {alerts}<span className="sr-only"> alertes en cours</span></span>
+            )}
             {t === "carte" && pending > 0 && (
               <span className="tone-warn sb-count"> {pending}<span className="sr-only"> en cours</span></span>
             )}

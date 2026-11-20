@@ -1,12 +1,12 @@
-// Three tabs. Every older hash (#/overview, #/sensor, #/commands, #/options,
+// Five tabs. Every older hash (#/overview, #/sensor, #/commands, #/options,
 // #/device/<id>/<tab>) maps onto one of them and is replaced by its canonical form.
-export type Tab = "mesures" | "carte" | "reglages";
+export type Tab = "mesures" | "alertes" | "carte" | "reglages" | "infos";
 
-export const TAB_LABEL: Record<Tab, string> = { mesures: "Mesures", carte: "Carte", reglages: "Réglages" };
-export const TAB_ORDER: Tab[] = ["mesures", "carte", "reglages"];
+export const TAB_LABEL: Record<Tab, string> = { mesures: "Mesures", alertes: "Alertes", carte: "Carte", reglages: "Réglages", infos: "Infos" };
+export const TAB_ORDER: Tab[] = ["mesures", "alertes", "carte", "reglages", "infos"];
 
 const ALIASES = new Map<string, Tab>([
-  ["mesures", "mesures"], ["carte", "carte"], ["reglages", "reglages"],
+  ["mesures", "mesures"], ["alertes", "alertes"], ["carte", "carte"], ["reglages", "reglages"], ["infos", "infos"],
   ["overview", "mesures"], ["sensor", "mesures"], ["commands", "carte"], ["options", "reglages"],
 ]);
 
