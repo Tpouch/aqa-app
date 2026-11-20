@@ -100,7 +100,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
           <a key={t} href={`#/${t}`} aria-current={t === tab ? "page" : undefined}>
             {t === tab && <span aria-hidden>▸ </span>}{TAB_LABEL[t]}
             {t === "alertes" && alerts > 0 && (
-              <span className="tone-bad sb-count"> {alerts}<span className="sr-only"> en cours</span></span>
+              <span className="tone-bad sb-count"> {alerts}<span className="sr-only"> alertes en cours</span></span>
             )}
             {t === "carte" && pending > 0 && (
               <span className="tone-warn sb-count"> {pending}<span className="sr-only"> en cours</span></span>
