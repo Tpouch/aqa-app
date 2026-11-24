@@ -3,9 +3,30 @@
 Technical documentation for the AQA app. For what the project does, see the
 [README](README.md).
 
-The boards send their measurements over HTTPS. The app stores them, charts them
-over hours or weeks, and sends commands back to the boards: restart, geohash,
-config, Wi-Fi, signed OTA update.
+The station is an ESP32 board with four sensors (firmware, wiring and build
+instructions: [Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32)).
+Every 15 seconds it measures the air and sends the readings to this app over
+HTTPS. The app stores them, charts them over hours or weeks, and sends commands
+back to the boards: restart, geohash, config, Wi-Fi, signed OTA update.
+
+## Getting started
+
+1. **Build the station** by following the
+   [EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32) repository.
+2. **Deploy this app** on a server with an admin password: one Docker container
+   (see [Deployment](#deployment-docker-compose)).
+3. **Register the board** in the app: it gives you a secret token to put in the
+   firmware's `.env` before you flash it (see [Adding a board](#adding-a-board)).
+   Boards already trying to connect show up in the list on their own.
+
+## Security and privacy
+
+- One admin account (`ADMIN_PASSWORD`), with a signed session cookie.
+- Each board signs in with its own token; the database keeps only its hash.
+- Firmware images are never public: boards download them through signed,
+  time-limited links (see [OTA updates](#ota-updates)).
+- Nothing leaves the server, except alert notifications when they are turned
+  on: they go to the ntfy server chosen in the UI (ntfy.sh by default).
 
 The board ↔ server contract is defined in the firmware repository,
 [`EPITECH_ESP32/docs/api.md`](https://github.com/Tpouch/EPITECH_ESP32/blob/main/docs/api.md),
