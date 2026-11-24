@@ -13,6 +13,7 @@ import { now, openDb, run, type Db } from "./db.js";
 import { FirmwareStore } from "./firmware.js";
 import { Notifier } from "./notify.js";
 import { Webhook } from "./webhook.js";
+import { mcpRoutes } from "./mcp/server.js";
 import { appRoutes } from "./routes/app.js";
 import { deviceRoutes } from "./routes/device.js";
 import { sessionRoutes } from "./routes/session.js";
@@ -65,6 +66,7 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
   sessionRoutes(app, cfg);
   deviceRoutes(app, db);
   appRoutes(app, db, cfg, firmware, notifier, webhook);
+  mcpRoutes(app, { db, cfg });
 
   const webIndex = cfg.WEB_DIR ? path.join(cfg.WEB_DIR, "index.html") : "";
   if (webIndex && fs.existsSync(webIndex)) {
@@ -74,7 +76,8 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
     // missing bundle never comes back as HTML.
     app.setNotFoundHandler((request, reply) => {
       const pathname = request.url.split("?")[0]!;
-      const isPage = !pathname.startsWith("/api/") && !pathname.startsWith("/firmware/") &&
+      const isMcp = pathname === "/mcp" || pathname.startsWith("/mcp/");
+      const isPage = !pathname.startsWith("/api/") && !pathname.startsWith("/firmware/") && !isMcp &&
                      !/\.[a-z0-9]+$/i.test(pathname);
       if (request.method === "GET" && isPage) {
         return reply.type("text/html").send(fs.createReadStream(webIndex));

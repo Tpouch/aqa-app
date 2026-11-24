@@ -1,5 +1,6 @@
 import path from "node:path";
 import { z } from "zod";
+import { isTimeZone } from "./localtime.js";
 
 const schema = z.object({
   HOST: z.string().default("0.0.0.0"),
@@ -23,6 +24,8 @@ const schema = z.object({
     }
     return hosts;
   }),
+  // Time zone agents use for "today" and for timestamps in their answers.
+  AQA_TZ: z.string().default("Europe/Paris").refine(isTimeZone, "AQA_TZ must be an IANA time zone"),
   // Built React app; empty disables static serving (API only).
   WEB_DIR: z.string().default(path.resolve(import.meta.dirname, "../../web/dist")),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),

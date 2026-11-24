@@ -103,8 +103,9 @@ target `app:3000`.
 
 **On Cloudflare**, add a WAF *Skip* rule (Bot Fight Mode, Browser Integrity
 Check, challenges) for
-`starts_with(http.request.uri.path, "/api/v1/devices/") or starts_with(http.request.uri.path, "/firmware/")`.
-Without it, the ESP32 gets HTML 403 pages instead of the API.
+`starts_with(http.request.uri.path, "/api/v1/devices/") or starts_with(http.request.uri.path, "/firmware/") or http.request.uri.path eq "/mcp"`.
+Without it, the ESP32 gets HTML 403 pages instead of the API, and an agent such
+as Hermes cannot reach the MCP endpoint.
 
 ## Adding a board
 
@@ -160,6 +161,7 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `ADMIN_PASSWORD` | — | Web UI password, ≥ 12 characters |
 | `SESSION_SECRET` | — | ≥ 32 characters; signs session cookies and firmware links |
 | `PUBLIC_URL` | `https://sensor.devgoblin.fr` | Base of the OTA links sent to the boards |
+| `AQA_TZ` | `Europe/Paris` | IANA time zone that defines "today" for the agents (MCP tools) |
 | `RETENTION_DAYS` | `0` | Delete older measurements (0 = never) |
 | `DATA_DIR` | `./data` (`/data` in Docker) | SQLite and firmware images |
 | `PORT`, `HOST` | `3000`, `0.0.0.0` | In dev, Vite's proxy also follows `PORT` (shell or `.env`) |
@@ -266,11 +268,34 @@ webhook; API keys can only read it.
 If the receiver sits behind Cloudflare, add a WAF *Skip* rule for its
 `/webhooks/` path: otherwise Bot Fight Mode blocks AQA's POST.
 
+## MCP server
+
+`POST /mcp` exposes AQA to AI agents (Hermes…) as a read-only
+[MCP](https://modelcontextprotocol.io) server, in `server/src/mcp/`.
+
+- **Auth**: `Authorization: Bearer aqa_…` only (an API key from Réglages → Clés
+  d'API). A session cookie alone gets 401. The route shares the 120 requests per
+  minute per IP limit with the REST key routes.
+- **Transport**: stateless Streamable HTTP, POST only. `GET` and `DELETE` answer
+  405 for a caller with a key (some clients probe with a GET for SSE) and 401
+  without one. JSON-RPC batches get 400 `{ error: "batch requests are not supported" }`.
+- **Tools** (7, all read-only): `list_rooms`, `get_day_report`, `get_report`,
+  `get_history` (at most 200 points), `list_alerts`, `get_alert_rules`,
+  `get_webhook` (coarse view: no secret, no failure detail). None of them
+  changes or tests the webhook: that stays session-only.
+- **Timestamps** are ISO 8601 with offset, in `AQA_TZ` or in the tool's `tz`
+  argument. Tool names and descriptions are English; values (zone words, labels,
+  verdicts) are French, as the app produces them.
+
+Connecting Hermes is described in the [README](README.md).
+
 ## Code structure (front end and shared modules)
 
 | | |
 |---|---|
 | `server/src/apikeys.ts` | API keys: generation, sha256 storage, lookup and revocation; `requireAdminOrKey` in `auth.ts` accepts them on routes flagged `config: { agent: true }` |
+| `server/src/mcp/` | The MCP server (`server.ts`) and its tools (`tools.ts`) |
+| `server/src/queries.ts` | Read queries shared by the REST routes and the MCP tools |
 | `server/src/zones.ts` | Zone bands of every measurement: the one definition, imported by the server and the web client |
 | `server/src/report.ts`, `reportText.ts` | The Bilan: numbers from one-minute averages, then its sentences (pure, tested; reusable for a weekly notification) |
 | `web/src/metrics.ts` | Zone words, dB conversion, y-axis range, period stats (pure, tested) |
