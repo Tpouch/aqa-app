@@ -20,6 +20,8 @@ describe("roomState", () => {
     expect(roomState(board({ latest: frame({ co2: 900, pm25: 20 }) }))).toEqual({ tone: "warn", word: "CO₂ aérer" }));
   it("hors ligne passe avant les valeurs, qui sont périmées", () =>
     expect(roomState(board({ online: false, latest: frame({ co2: 1480 }) }))).toEqual({ tone: "off", word: "hors ligne" }));
+  it("jamais connectée : en attente, pas en panne", () =>
+    expect(roomState(board({ online: false, last_seen: null, latest: null }))).toEqual({ tone: "off", word: "en attente du 1er contact" }));
   it("sans mesure", () => expect(roomState(board({ latest: null }))).toEqual({ tone: "off", word: "aucune mesure" }));
   it("le son brut, sans zones, ne compte pas", () =>
     expect(roomState(board({ latest: frame({ snd: 4000 }) }))).toEqual({ tone: "good", word: "bon" }));

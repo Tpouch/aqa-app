@@ -635,6 +635,8 @@ select.input, .field select { background: var(--bg); }
 .cp-stats .ms-stat-value { font-size: 16px; }
 .cp-stats dt { margin: 0; }
 .cp-empty { padding: 14px 0; border-bottom: 1px solid var(--rule-strong); }
+div.cp-empty { display: grid; gap: 6px; }
+.cp-empty .steps { display: grid; gap: 4px; padding-left: 18px; list-style: decimal; }
 .cp-sensors { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 0; border-bottom: 1px solid var(--rule-strong); font-size: 12px; }
 .cp-pos { margin-left: auto; }
 .cp-cols { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-top: 14px; align-items: start; }

@@ -4,7 +4,7 @@ import { SessionTools } from "../components/Sidebar";
 import { Skeleton } from "../components/ui";
 import { parseRoute } from "../routes";
 import type { DeviceSummary } from "../../../server/src/types";
-import { otherAlerts } from "../rooms";
+import { neverSeen, otherAlerts, WAITING } from "../rooms";
 import { ago } from "../util";
 import { MOBILE_LABEL, parseMobileRoute, type MobileRoute } from "./routes";
 import { DashboardPage } from "./DashboardPage";
@@ -116,8 +116,10 @@ export function TopBar({ devices, device, onDevice, now }: {
             </span>
           )}
           <span className="mb-ago muted">
-            {device.online ? <span className="sr-only">en ligne, </span> : "hors ligne · "}
-            {device.latest ? ago(device.latest.ts, now) : "aucune mesure"}
+            {neverSeen(device) ? WAITING : <>
+              {device.online ? <span className="sr-only">en ligne, </span> : "hors ligne · "}
+              {device.latest ? ago(device.latest.ts, now) : "aucune mesure"}
+            </>}
           </span>
         </div>
       )}

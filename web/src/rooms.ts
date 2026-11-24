@@ -6,7 +6,13 @@ export interface RoomState { tone: Tone | "off"; word: string }
 
 const RANK: Record<Tone, number> = { good: 0, warn: 1, bad: 2 };
 
+/** Registered but never heard from: waiting for its first flash, not broken. */
+export const neverSeen = (d: DeviceSummary) => d.last_seen === null;
+
+export const WAITING = "en attente du premier contact";
+
 export function roomState(d: DeviceSummary): RoomState {
+  if (neverSeen(d)) return { tone: "off", word: "en attente du 1er contact" };
   // Offline: the last values are stale, saying "CO₂ mauvais" would mislead.
   if (!d.online) return { tone: "off", word: "hors ligne" };
   if (!d.latest) return { tone: "off", word: "aucune mesure" };

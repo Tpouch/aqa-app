@@ -5,6 +5,7 @@ import { TAB_LABEL, TAB_ORDER, type Tab } from "../routes";
 import type { Selection } from "../selection";
 import { applyTheme, readTheme, type Theme } from "../theme";
 import { ago, fmt } from "../util";
+import { neverSeen, WAITING } from "../rooms";
 import { RoomList } from "./RoomList";
 
 // The fixed left column: board, its five current readings (which double as the
@@ -58,7 +59,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
                 <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
                 {device.online && <span className="sr-only">En ligne</span>}
                 <span className="sb-name" title={device.name}>{device.name}</span>
-                {!device.online && <span className="sb-offline">hors ligne</span>}
+                {!device.online && <span className="sb-offline">{neverSeen(device) ? WAITING : "hors ligne"}</span>}
               </div>
             )}
             <div className="sb-ago">{device.latest ? `mesuré ${ago(device.latest.ts, now)}` : "aucune mesure reçue"}</div>
