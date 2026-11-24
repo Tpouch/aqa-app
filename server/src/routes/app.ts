@@ -14,7 +14,7 @@ import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, tokenCandidates, VERSION_RE } from "../firmware.js";
 import { isTimeZone } from "../localtime.js";
 import {
-  AGGREGATE_STEPS, aggregateRows, deviceReport, deviceSummary, findDevice, listDeviceRows, ONLINE_WINDOW_S,
+  AGGREGATE_STEPS, aggregateRows, deviceReport, deviceSummary, findDevice, listDeviceRows,
   toFrame, type FrameDbRow,
 } from "../queries.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
@@ -23,8 +23,6 @@ import { hostAllowed, readWebhook, testPayload, type Webhook } from "../webhook.
 import type {
   CommandRow, EventRow, FirmwareRow, UnknownDevice,
 } from "../types.js";
-
-export { ONLINE_WINDOW_S };
 
 const deviceIdParam = z.object({ id: z.string().regex(DEVICE_ID_RE, "id must look like aqa-24A160B3C8F0") });
 const rangeQuery = z.object({

@@ -5,7 +5,7 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { FastifyInstance, preHandlerHookHandler, RouteHandlerMethod } from "fastify";
+import type { FastifyInstance, onRequestHookHandler, RouteHandlerMethod } from "fastify";
 import { z } from "zod";
 import { KEY_PREFIX, useKey } from "../apikeys.js";
 import { bearerToken } from "../auth.js";
@@ -56,7 +56,7 @@ export function buildMcpServer(ctx: ToolContext): McpServer {
 
   server.registerTool("get_history", {
     description: "Averages of one metric of one room over a time range, as at most `points` evenly spaced points. " +
-      "Use it to describe a trend or find when a value changed.",
+      "Use it to describe a trend or find when a value changed. Steps of 3 h or more are aligned on UTC, not on local midnight.",
     inputSchema: {
       room,
       metric: z.enum(["co2", "pm25", "temp", "hum", "snd"]).describe("co2 (ppm), pm25 (µg/m³), temp (°C), hum (%) or snd (sound)."),
@@ -101,13 +101,13 @@ export function mcpRoutes(app: FastifyInstance, deps: { db: Db; cfg: Config }): 
   const { db, cfg } = deps;
 
   // An API key only: a session cookie is not enough here.
-  const requireKey: preHandlerHookHandler = async (request, reply) => {
+  const requireKey: onRequestHookHandler = async (request, reply) => {
     const token = bearerToken(request);
     const id = token?.startsWith(KEY_PREFIX) ? useKey(db, token) : null;
     if (id === null) return reply.code(401).send({ error: "api key required" });
     request.apiKeyId = id;
   };
-  const hooks = { onRequest: app.agentRateLimit, preHandler: requireKey };
+  const hooks = { onRequest: [app.agentRateLimit, requireKey] };
 
   app.post("/mcp", hooks, async (request, reply) => {
     // The SDK accepts up to 100 messages per batch, which would cost one rate-limit

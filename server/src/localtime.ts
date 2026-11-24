@@ -65,6 +65,35 @@ export function localMidnight(date: string, tz: string): number {
   return second === first ? t : guess - second;
 }
 
+const OFFSET_RE = /(Z|[+-]\d{2}:?\d{2})$/i;
+const WALL_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+// Unix seconds of an ISO 8601 string, or null. A string without offset is read as
+// wall time in `tz` (not in the process zone); a bare date is local midnight.
+export function parseInstant(s: string, tz: string): number | null {
+  const str = s.trim();
+  if (OFFSET_RE.test(str)) {
+    const t = Date.parse(str);
+    return Number.isNaN(t) ? null : Math.floor(t / 1000);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return addDays(str, 0) === str ? localMidnight(str, tz) : null;
+  }
+  const m = WALL_RE.exec(str);
+  if (!m) return null;
+  const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];
+  const sec = m[6] === undefined ? 0 : +m[6];
+  if (h > 23 || mi > 59 || sec > 59) return null;
+  const date = `${m[1]}-${m[2]}-${m[3]}`;
+  if (addDays(date, 0) !== date) return null;
+  const guess = Date.UTC(y, mo - 1, d, h, mi, sec) / 1000;
+  const offsetAt = offsetLookup(tz);
+  const first = offsetAt(guess);
+  const t = guess - first;
+  const second = offsetAt(t);
+  return second === first ? t : guess - second;
+}
+
 export function addDays(date: string, n: number): string {
   const [y, m, d] = date.split("-").map(Number);
   const x = new Date(Date.UTC(y!, m! - 1, d! + n));

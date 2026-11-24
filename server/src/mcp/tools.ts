@@ -2,7 +2,7 @@
 // input comes back as { ok: false, error } (French), never as an exception.
 import { CATALOG, readRules } from "../alerts.js";
 import { all, type Db } from "../db.js";
-import { addDays, isoLocal, isTimeZone, localClock, localMidnight, withIsoTimes } from "../localtime.js";
+import { addDays, isoLocal, isTimeZone, localClock, localMidnight, parseInstant, withIsoTimes } from "../localtime.js";
 import {
   AGGREGATE_STEPS, aggregateRows, calibrationOf, deviceReport, deviceSummary, findDevice, listDeviceRows,
   type DeviceDbRow,
@@ -32,6 +32,8 @@ const dayNumber = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s
 const UNITS: Record<Metric, string> = { co2: "ppm", pm25: "µg/m³", temp: "°C", hum: "%", snd: "brut" };
 const METRIC_KEYS: Metric[] = ["co2", "pm25", "temp", "hum", "snd"];
 
+const DECIMALS: Record<Metric, number> = { co2: 0, pm25: 0, temp: 1, hum: 1, snd: 0 };
+
 const roomList = (db: Db) => listDeviceRows(db).map((d) => `${d.name} (${d.id})`).join(", ");
 
 /** The board for an id or a name (case and surrounding spaces ignored); a string is the error message. */
@@ -45,6 +47,7 @@ export function resolveRoom(db: Db, room: string): DeviceDbRow | string {
   if (matches.length > 1) {
     return `Plusieurs pièces s'appellent « ${room} » : ${matches.map((d) => d.id).join(", ")}. Utilise l'id.`;
   }
+  if (rooms.length === 0) return "Aucune pièce enregistrée.";
   return `Pièce inconnue : « ${room} ». Pièces : ${roomList(db)}.`;
 }
 
@@ -63,7 +66,8 @@ export function listRooms(ctx: ToolContext): ToolResult {
         const raw = s.latest![m];
         const v = m === "snd" && cal ? soundDb(raw, cal) : raw;
         const zone = bandOf(zonesOf(m, cal !== null), v)?.word ?? null;
-        return [m, { value: v, unit: m === "snd" && cal ? "dB" : UNITS[m], zone }];
+        const k = 10 ** DECIMALS[m];
+        return [m, { value: v === null ? v : Math.round(v * k) / k, unit: m === "snd" && cal ? "dB" : UNITS[m], zone }];
       }));
       latest = { at: isoLocal(s.latest.ts, ctx.tz), values };
     }
@@ -73,12 +77,12 @@ export function listRooms(ctx: ToolContext): ToolResult {
 }
 
 function report(
-  ctx: ToolContext, d: DeviceDbRow, tz: string, firstDate: string, lastDate: string, prevFrom: number,
+  ctx: ToolContext, d: DeviceDbRow, tz: string, firstDate: string, lastDate: string, prevFrom: number, withDate: boolean,
 ): ToolResult {
   const from = localMidnight(firstDate, tz);
   const to = localMidnight(addDays(lastDate, 1), tz);
   const { heatmap: _heatmap, ...rest } = deviceReport(ctx.db, d, { from, to, prevFrom, kind: "custom", tz, now: ctx.now() });
-  return ok(withIsoTimes({ ...rest, room: d.name, date: firstDate }, tz));
+  return ok(withIsoTimes({ ...rest, room: d.name, ...(withDate ? { date: firstDate } : {}) }, tz));
 }
 
 export function dayReport(ctx: ToolContext, a: { room: string; date?: string; tz?: string }): ToolResult {
@@ -90,7 +94,7 @@ export function dayReport(ctx: ToolContext, a: { room: string; date?: string; tz
   const date = a.date ?? today;
   if (!isDate(date)) return fail("Date invalide : attendu AAAA-MM-JJ.");
   if (date > today) return fail("Cette date est dans le futur.");
-  return report(ctx, d, tz, date, date, localMidnight(addDays(date, -1), tz));
+  return report(ctx, d, tz, date, date, localMidnight(addDays(date, -1), tz), true);
 }
 
 export function periodReport(ctx: ToolContext, a: { room: string; from: string; to: string; tz?: string }): ToolResult {
@@ -102,10 +106,8 @@ export function periodReport(ctx: ToolContext, a: { room: string; from: string; 
   const days = dayNumber(a.to) - dayNumber(a.from) + 1;
   if (days < 1) return fail("La date de fin précède la date de début.");
   if (days > 32) return fail("La période ne doit pas dépasser 32 jours.");
-  return report(ctx, d, tz, a.from, a.to, localMidnight(addDays(a.from, -days), tz));
+  return report(ctx, d, tz, a.from, a.to, localMidnight(addDays(a.from, -days), tz), false);
 }
-
-const DECIMALS: Record<Metric, number> = { co2: 0, pm25: 0, temp: 1, hum: 1, snd: 0 };
 
 export function history(
   ctx: ToolContext, a: { room: string; metric: Metric; from: string; to: string; points?: number; tz?: string },
@@ -115,9 +117,9 @@ export function history(
   const d = resolveRoom(ctx.db, a.room);
   if (typeof d === "string") return fail(d);
   if (!METRIC_KEYS.includes(a.metric)) return fail(`Mesure inconnue : « ${a.metric} ».`);
-  const from = Math.floor(Date.parse(a.from) / 1000);
-  const to = Math.floor(Date.parse(a.to) / 1000);
-  if (Number.isNaN(from) || Number.isNaN(to)) return fail("Date invalide : attendu ISO 8601.");
+  const from = parseInstant(a.from, tz);
+  const to = parseInstant(a.to, tz);
+  if (from === null || to === null) return fail("Date invalide : attendu ISO 8601.");
   if (to <= from) return fail("La fin doit suivre le début.");
   const points = a.points ?? 48;
   if (!Number.isInteger(points) || points < 1 || points > 200) return fail("points doit être un entier entre 1 et 200.");
@@ -135,7 +137,7 @@ export function history(
 }
 
 interface AlertQueryRow {
-  name: string; kind: keyof typeof CATALOG; started_at: number; ended_at: number | null;
+  name: string; kind: keyof typeof CATALOG; threshold: number | null; started_at: number; ended_at: number | null;
   start_value: number | null; peak_value: number | null; end_value: number | null; end_reason: string | null;
 }
 
@@ -152,17 +154,18 @@ export function listAlerts(
   }
   const now = ctx.now();
   const since = a.since === undefined ? now - 86400
-    : typeof a.since === "number" ? a.since : Math.floor(Date.parse(a.since) / 1000);
-  if (Number.isNaN(since)) return fail("Date invalide : attendu ISO 8601.");
+    : typeof a.since === "number" ? a.since : parseInstant(a.since, tz);
+  if (since === null) return fail("Date invalide : attendu ISO 8601.");
   const limit = Math.min(Math.max(Math.trunc(a.limit ?? 50), 1), 200);
   const rows = all<AlertQueryRow>(ctx.db,
-    `SELECT d.name AS name, a.kind, a.started_at, a.ended_at, a.start_value, a.peak_value, a.end_value, a.end_reason
+    `SELECT d.name AS name, a.kind, a.threshold, a.started_at, a.ended_at, a.start_value, a.peak_value, a.end_value, a.end_reason
      FROM alerts a JOIN devices d ON d.id = a.device_id
      WHERE (a.ended_at IS NULL OR a.started_at >= ?) AND (? IS NULL OR a.device_id = ?)
      ORDER BY a.started_at DESC, a.id DESC LIMIT ?`,
     since, deviceId, deviceId, limit);
   const alerts = rows.map((r) => ({
     room: r.name, kind: r.kind, label: CATALOG[r.kind].label,
+    unit: CATALOG[r.kind].unit, threshold: r.threshold,
     started_at: r.started_at, ended_at: r.ended_at, duration_s: (r.ended_at ?? now) - r.started_at,
     start_value: r.start_value, peak_value: r.peak_value, end_value: r.end_value, end_reason: r.end_reason,
   }));

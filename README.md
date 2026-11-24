@@ -117,10 +117,17 @@ cannot change anything in AQA. Four steps:
 
    ```bash
    hermes webhook subscribe aqa --secret <a long secret> \
+     --deliver telegram \
      --prompt "Une alerte qualité d'air vient de changer : {text}. Préviens-moi."
    ```
 
-   (Hermes' webhook receiver must be switched on first, see its docs.)
+   Without `--deliver`, Hermes only logs the result and nothing reaches your
+   chat: put your own chat platform instead of `telegram` (add
+   `--deliver-chat-id <id>` for a specific chat). Hermes' webhook receiver must
+   be switched on first: enable it with `hermes gateway setup` (or
+   `WEBHOOK_ENABLED=true`). It listens on port 8644, which must be reachable at
+   the public hostname you put in `WEBHOOK_ALLOWED_HOSTS` (for example behind
+   your reverse proxy).
    Add Hermes' public hostname to `WEBHOOK_ALLOWED_HOSTS` in AQA's `.env`
    (see [DEVELOPERS.md](DEVELOPERS.md)). Then, in AQA's *Alertes* page, enter
    `https://<hermes-public>/webhooks/aqa` and the same secret, and press
@@ -128,7 +135,7 @@ cannot change anything in AQA. Four steps:
 4. **Ask for an evening summary.** Create a daily job in Hermes:
 
    ```bash
-   hermes cron create "0 21 * * *" --timezone Europe/Paris \
+   hermes cron create "0 21 * * *" --timezone Europe/Paris --deliver telegram \
      "Appelle list_rooms puis get_day_report pour chaque pièce et envoie-moi un compte rendu court."
    ```
 

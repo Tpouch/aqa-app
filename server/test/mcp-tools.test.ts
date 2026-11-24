@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { openDb, run, type Db } from "../src/db.js";
-import { deviceReport } from "../src/queries.js";
-import { findDevice } from "../src/queries.js";
+import { deviceReport, findDevice } from "../src/queries.js";
 import { addDays, localMidnight } from "../src/localtime.js";
 import { ZONES, bandOf } from "../src/zones.js";
 import {
@@ -97,6 +96,13 @@ describe("periodReport", () => {
   });
 });
 
+describe("resolveRoom sans carte", () => {
+  it("dit qu'aucune pièce n'existe", () => {
+    const { db } = setup();
+    expect(resolveRoom(db, "Salon")).toBe("Aucune pièce enregistrée.");
+  });
+});
+
 describe("history", () => {
   it("choisit le pas le plus fin qui tient dans les points demandés", () => {
     const { db, ctx } = setup();
@@ -115,6 +121,17 @@ describe("history", () => {
     for (let i = 0; i < 24 * 60; i += 5) frame(db, SALON, from + i * 60, 600);
     const r = history(ctx, { room: SALON, metric: "co2", from: new Date(from * 1000).toISOString(), to: new Date((from + 86400) * 1000).toISOString(), points: 24 }) as { ok: true; data: any };
     expect(r.data.points.length).toBeLessThanOrEqual(24);
+  });
+  it("lit une fenêtre sans décalage dans le fuseau demandé", () => {
+    const { db, ctx } = setup();
+    board(db, SALON, "Salon");
+    const lo = Date.UTC(2026, 10, 24, 7) / 1000; // 08:00 Paris
+    for (let i = -2; i < 14; i++) frame(db, SALON, lo + i * 3600 + 5, 600);
+    const r = history(ctx, { room: SALON, metric: "co2", from: "2026-11-24T08:00", to: "2026-11-24T10:00", tz: "Europe/Paris" }) as { ok: true; data: any };
+    const ts = r.data.points.map((p: any) => Date.parse(p.at) / 1000);
+    expect(ts.length).toBeGreaterThan(0);
+    for (const t of ts) { expect(t).toBeGreaterThanOrEqual(lo); expect(t).toBeLessThanOrEqual(lo + 7200); }
+    expect(r.data.points[0].at.endsWith("+01:00")).toBe(true);
   });
   it("refuse une période trop longue", () => {
     const { db, ctx } = setup();

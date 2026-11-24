@@ -277,7 +277,8 @@ If the receiver sits behind Cloudflare, add a WAF *Skip* rule for its
   d'API). A session cookie alone gets 401. The route shares the 120 requests per
   minute per IP limit with the REST key routes.
 - **Transport**: stateless Streamable HTTP, POST only. `GET` and `DELETE` answer
-  405 (some clients probe with a GET for SSE). JSON-RPC batches are refused.
+  405 for a caller with a key (some clients probe with a GET for SSE) and 401
+  without one. JSON-RPC batches get 400 `{ error: "batch requests are not supported" }`.
 - **Tools** (7, all read-only): `list_rooms`, `get_day_report`, `get_report`,
   `get_history` (at most 200 points), `list_alerts`, `get_alert_rules`,
   `get_webhook` (coarse view: no secret, no failure detail). None of them
