@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RoomList } from "../components/RoomList";
 import { SessionTools } from "../components/Sidebar";
 import { Skeleton } from "../components/ui";
@@ -19,14 +19,22 @@ import { TabBar } from "./TabBar";
 export function useMobileRoute(onLegacyDevice: (id: string) => void): MobileRoute {
   const [hash, setHash] = useState(() => window.location.hash);
   const route = parseMobileRoute(hash);
+  // A new page opens at the top; one left for a chart (openGraph) gets its position
+  // back, once it is drawn again: the chart alone is too short to scroll that far.
+  const scrollY = useRef<number | null>(null);
   useEffect(() => {
     const on = () => {
+      scrollY.current = (window.history.state as { aqaScroll?: number } | null)?.aqaScroll ?? 0;
       setHash(window.location.hash);
-      window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
+  useLayoutEffect(() => {
+    if (scrollY.current === null) return;
+    window.scrollTo(0, scrollY.current);
+    scrollY.current = null;
+  }, [hash]);
   useEffect(() => {
     const legacy = parseRoute(hash).device;
     if (legacy) onLegacyDevice(legacy);
