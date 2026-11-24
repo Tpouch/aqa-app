@@ -165,3 +165,35 @@
 - [ ] Spec : marquer B1, B2, B3 et A1 « fait ». README : une ligne sur les pièces si utile. En-tête de `seed-demo.ts` : mentionner l'argument `chambre`.
 - [ ] `npm test`, `npm run typecheck`, `npm run build` ; `git diff main -- package-lock.json` vide.
 - [ ] Commit `docs(multicarte): …`.
+
+---
+
+## Suite : B4, B5, B6, A2
+
+Même cadre (contraintes globales ci-dessus). `App` trie la liste une fois ; `DevicePage` reçoit `others: DeviceSummary[]` (les autres cartes, dans l'ordre) pour B4 et A2.
+
+### Task 8: Ordre des cartes (B5)
+- `web/src/rooms.ts` : `sortDevices(list: DeviceSummary[]): DeviceSummary[]`, copie triée par nom avec `Intl.Collator("fr", { sensitivity: "base", numeric: true })`, puis par id.
+- Test : `["salon", "Chambre", "Étage", "bureau 10", "bureau 9"]` → `["bureau 9", "bureau 10", "Chambre", "Étage", "salon"]`.
+- `App` : `list = sortDevices(devices.data?.devices ?? [])` (colonne, feuille mobile, carte par défaut).
+- Commit `fix(multicarte): cartes triées par nom, sans tenir compte de la casse ni des accents`.
+
+### Task 9: Suppression (B4)
+- `web/src/pages/settings/deleteText.ts` : `deleteBody(next: string | null): string` et `deletedToast(name: string, next: string | null): string`.
+  - `next === null` : corps actuel (« …tu reviendras à l'écran d'ajout… »), toast « salon supprimée. ».
+  - sinon : « …tu passeras sur Chambre… », toast « salon supprimée. Tu vois maintenant Chambre. ».
+- `SettingsPage`/`DangerZone` reçoivent `next: string | null` = `others[0]?.name ?? null` (la carte que `App` affichera, liste triée).
+- Commit `fix(multicarte): la suppression dit sur quelle carte on arrive`.
+
+### Task 10: Carte jamais connectée (B6)
+- `rooms.ts` : `neverSeen(d) = d.last_seen === null` ; `roomState` → `{ tone: "off", word: "en attente du 1er contact" }` avant « hors ligne ».
+- Colonne (une carte) et barre mobile : « en attente du premier contact » au lieu de « hors ligne ».
+- Page Carte : en-tête « en attente du premier contact » et, à la place de « Aucun rapport d'état reçu », les étapes : jeton dans `DEVICE_TOKEN` du `.env`, recompiler et flasher, mesures en moins d'une minute ; jeton perdu → Réglages → Nouveau jeton.
+- Tests : `roomState` ; `TopBar` rendu ; `CardPage` rendu (contient « en attente du premier contact » et `DEVICE_TOKEN`).
+- Commit `fix(multicarte): une carte jamais connectée n'a plus l'air en panne`.
+
+### Task 11: Nom de la pièce dans Mesures (A2)
+- `web/src/measures.ts` : `csvFileName(room: string, id: string, what: string, day: string): string` (nom sans accents, minuscules, `[^a-z0-9]+` → `-` ; vide → id) ; `bannerSubtitle(room: string | null, period: string, step: string | null): string`.
+- Tests : `csvFileName("Chambre d'Élise", "aqa-…", "co2", "2026-11-24")` → `"chambre-d-elise-co2-2026-11-24.csv"` ; `csvFileName("!!", "aqa-X", "grille", d)` → `"aqa-X-grille-….csv"` ; `bannerSubtitle("Chambre", "24 h glissantes", "1 min")` → `"Chambre · 24 h glissantes · moyennes sur 1 min"` ; sans pièce → comme avant.
+- `MeasuresPage` : pièce dans le sous-titre seulement si `others.length > 0`.
+- Commit `feat(multicarte): le nom de la pièce dans Mesures et dans le nom du CSV`.
