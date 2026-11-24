@@ -271,20 +271,27 @@ select.input, .field select { background: var(--bg); }
 .sb-brand { font-weight: 600; letter-spacing: 0.14em; text-decoration: none; justify-self: start; }
 .sb-device { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); }
 .sb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sb-switch {
-  min-width: 0;
-  flex: 1;
-  padding: 2px 0;
+/* Several boards: one line per room (components/RoomList.tsx), shown one first. */
+.rooms { display: grid; margin: 6px 0 2px; border-top: 1px solid var(--rule); }
+.rooms > li { border-bottom: 1px solid var(--rule); }
+.room {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 0;
   border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-  background: var(--bg);
+  background: none;
   color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.sb-switch:hover { color: var(--text); }
+.room:focus-visible { outline-offset: 2px; }
+.room-name { display: flex; gap: 6px; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room:hover .room-name { color: var(--text); }
+.room-mark { flex: none; width: 1ch; }
+.room[aria-current] .room-name { color: var(--text); font-size: 15px; font-weight: 500; }
+.room-state { padding-left: calc(1ch + 6px); font-size: 11px; }
 .sb-ago { color: var(--muted); font-size: 11px; }
 .sb-add { justify-self: start; margin-top: 4px; font-size: 11px; }
 .sb-add[aria-current="page"] { color: var(--text); }
@@ -369,6 +376,7 @@ select.input, .field select { background: var(--bg); }
   }
   .sb-head { grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
   .sb-ago { grid-column: 2; }
+  .sb-head .rooms, .sb-add, .sb-unknown { grid-column: 1 / -1; }
   .sb-readings {
     display: flex;
     overflow-x: auto;
