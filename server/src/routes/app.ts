@@ -9,10 +9,12 @@ import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
+import { isTimeZone } from "../localtime.js";
+import { buildReport, REPORT_STEP } from "../report.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
 import type {
-  AggregateRow, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
+  AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
 } from "../types.js";
 
 export const ONLINE_WINDOW_S = 180;
@@ -23,6 +25,34 @@ const rangeQuery = z.object({
   from: z.coerce.number().int().nonnegative().default(0),
   to: z.coerce.number().int().nonnegative().default(2 ** 31),
 });
+
+const MAX_REPORT_S = 32 * 86400;
+const reportQuery = z.object({
+  from: z.coerce.number().int().nonnegative().max(2 ** 31),
+  to: z.coerce.number().int().nonnegative().max(2 ** 31),
+  prev_from: z.coerce.number().int().nonnegative().max(2 ** 31).optional(),
+  kind: z.enum(["week", "month", "custom"]).default("custom"),
+  tz: z.string().default(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+    .refine(isTimeZone, "tz must be an IANA time zone such as Europe/Paris"),
+}).refine((q) => q.to > q.from, "to must be after from")
+  .refine((q) => q.to - q.from <= MAX_REPORT_S, "the period must not exceed 32 days")
+  .refine((q) => q.prev_from === undefined || q.prev_from < q.from, "prev_from must be before from")
+  .refine((q) => q.prev_from === undefined || q.from - q.prev_from <= MAX_REPORT_S,
+    "the previous period must not exceed 32 days");
+
+// Averages per bucket of `step` seconds over [from, to].
+// Not aliased "ts": SQLite would resolve GROUP BY ts to the alias. The CAST
+// matters: node:sqlite binds JS numbers as REAL, and ts / 3600.0 would be a
+// float division putting every frame in its own bucket.
+function aggregateRows(db: Db, id: string, from: number, to: number, step: number): AggregateRow[] {
+  const rows = all<Omit<AggregateRow, "ts"> & { bucket: number }>(db,
+    `SELECT (ts / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket, COUNT(*) AS n,
+            AVG(snd) AS snd, AVG(co2) AS co2, AVG(pm25) AS pm25, AVG(hum) AS hum, AVG(temp) AS temp
+     FROM frames WHERE device_id = ? AND ts BETWEEN ? AND ?
+     GROUP BY bucket ORDER BY bucket`,
+    step, step, id, from, to);
+  return rows.map(({ bucket, ...r }) => ({ ts: bucket, ...r }));
+}
 
 const patchBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
@@ -308,17 +338,30 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       }).safeParse(request.query);
       if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message });
       const { step, from, to } = q.data;
-      // Not aliased "ts": SQLite would resolve GROUP BY ts to the alias. The
-      // CAST matters: node:sqlite binds JS numbers as REAL, and ts / 3600.0
-      // would be a float division putting every frame in its own bucket.
-      const rows = all<Omit<AggregateRow, "ts"> & { bucket: number }>(db,
-        `SELECT (ts / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket, COUNT(*) AS n,
-                AVG(snd) AS snd, AVG(co2) AS co2, AVG(pm25) AS pm25, AVG(hum) AS hum, AVG(temp) AS temp
-         FROM frames WHERE device_id = ? AND ts BETWEEN ? AND ?
-         GROUP BY bucket ORDER BY bucket`,
-        step, step, request.params.id, from, to);
-      const buckets: AggregateRow[] = rows.map(({ bucket, ...r }) => ({ ts: bucket, ...r }));
+      const buckets = aggregateRows(db, request.params.id, from, to, step);
       return { step, buckets };
+    });
+
+    // ---- bilan
+
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/report", async (request, reply) => {
+      const d = findDevice(request.params.id);
+      if (!d) return reply.code(404).send({ error: "unknown device" });
+      const q = reportQuery.safeParse(request.query);
+      if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message });
+      const { from, to, kind, tz } = q.data;
+      const prevFrom = q.data.prev_from ?? Math.max(0, from - (to - from));
+      const alertKinds = (lo: number, hi: number) => all<{ kind: AlertKind }>(db,
+        "SELECT kind FROM alerts WHERE device_id = ? AND started_at >= ? AND started_at < ?", d.id, lo, hi)
+        .map((a) => a.kind);
+      return buildReport({
+        deviceId: d.id, kind, tz, from, to, prevFrom, now: now(), step: REPORT_STEP,
+        firstTs: get<{ ts: number | null }>(db, "SELECT MIN(ts) AS ts FROM frames WHERE device_id = ?", d.id)!.ts,
+        cal: d.snd_ref !== null && d.db_ref !== null ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
+        current: aggregateRows(db, d.id, from, to - 1, REPORT_STEP),
+        previous: aggregateRows(db, d.id, prevFrom, from - 1, REPORT_STEP),
+        alerts: { current: alertKinds(from, to), previous: alertKinds(prevFrom, from) },
+      });
     });
 
     // ---- journal

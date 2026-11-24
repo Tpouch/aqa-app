@@ -61,6 +61,27 @@ show the same moment.
 
 You can download everything as a spreadsheet (CSV).
 
+### A report for the week or the month
+
+The **Report** tab (*Bilan*) answers "was my week good, and what should I
+change?" without a single number to decode:
+
+- one sentence first, such as *"Bonne semaine : l'air a été bon 86 % du temps"*
+  (a good week: the air was good 86 % of the time), coloured by how it went;
+- one line per measurement: how long it spent in each zone, its average, and
+  whether it did better or worse than the week before;
+- CO₂ hour by hour, one row per day, so habits show up at a glance (the
+  evening peak, the morning before everyone leaves);
+- two or three things to remember, in plain words: *"CO₂ goes over 1,200 ppm
+  almost every evening around 10 pm: air the room before going to bed."*, the
+  worst moment of the week, the number of alerts.
+
+Switch between the calendar week and the calendar month, and step back to
+earlier ones. Hours when the board was off are shown as "no measurement" and
+never counted as good air.
+
+![The Report tab: a one-line verdict, time spent in each zone per measurement, CO₂ hour by hour over the week and three takeaways](docs/screenshots/bilan.png)
+
 ### Alerts, even on your phone
 
 The **Alerts** page (*Alertes*) keeps a log of every time the air stayed bad
@@ -104,8 +125,8 @@ From the Settings page you can:
 
 The app opens in dark mode and switches to light in one click. On a phone it
 has its own layout: a dashboard of gauges you can reorder (long press, then
-drag), the alerts, the board's state (read only) and a full-screen chart to view
-in landscape. Board commands and settings stay on the desktop.
+drag), the weekly report, the alerts, the board's state (read only) and a
+full-screen chart to view in landscape. Board commands and settings stay on the desktop.
 
 <p>
   <img src="docs/screenshots/measures-light.png" alt="Light theme" width="68%">

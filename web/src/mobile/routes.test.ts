@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { isPhoneScreen, parseMobileRoute } from "./routes";
+import { isPhoneScreen, MOBILE_TABS, parseMobileRoute } from "./routes";
+
+describe("MOBILE_TABS", () => {
+  it("place Bilan juste après Dashboard", () => expect(MOBILE_TABS.slice(0, 2)).toEqual(["dashboard", "bilan"]));
+});
 
 describe("parseMobileRoute", () => {
   it.each([
     ["#/dashboard", "dashboard", null, null],
     ["#/alertes", "alertes", null, null],
+    ["#/bilan", "bilan", null, null],
     ["#/infos", "infos", null, null],
     ["#/graph", "graph", null, null],
     ["#/graph/co2", "graph", "co2", null],

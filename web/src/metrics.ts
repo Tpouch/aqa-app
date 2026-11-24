@@ -1,15 +1,14 @@
 import { soundDb } from "../../server/src/sound";
-import type { Metric, SoundCalibration } from "../../server/src/types";
+import { bandOf as bandIn, ZONES, type Band } from "../../server/src/zones";
+import type { Metric, SoundCalibration, Tone } from "../../server/src/types";
 
-export type Tone = "good" | "warn" | "bad";
-/** Bandes triées : v appartient à la 1re bande où v < to (ou v <= to si inclusive) ; to null = +∞. */
-export interface Band { to: number | null; inclusive?: boolean; word: string; tone: Tone }
+export type { Band, Tone };
 export interface MetricDef {
   metric: Metric;
   label: string;
   unit: string;
   decimals: number;
-  bands: Band[] | null;
+  bands: readonly Band[] | null;
   alertLabel: string | null;
   nonNegative: boolean;
 }
@@ -17,68 +16,30 @@ export interface MetricDef {
 const BAD_ZONE = "EN ZONE MAUVAISE";
 const OUT_OF_COMFORT = "HORS CONFORT";
 
-/** Zones du son une fois calibré en dB estimés. */
-export const SOUND_DB_BANDS: Band[] = [
-  { to: 55, word: "calme", tone: "good" },
-  { to: 70, word: "bruyant", tone: "warn" },
-  { to: null, word: "fort", tone: "bad" },
-];
+/** Zones du son une fois calibré en dB estimés (définies dans server/src/zones.ts). */
+export const SOUND_DB_BANDS = ZONES.snd_db;
 
 export function metricDef(metric: Metric, cal: SoundCalibration | null): MetricDef {
   switch (metric) {
     case "co2":
-      return {
-        metric, label: "CO₂", unit: "ppm", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true,
-        bands: [
-          { to: 800, word: "bon", tone: "good" },
-          { to: 1200, word: "aérer", tone: "warn" },
-          { to: null, word: "mauvais", tone: "bad" },
-        ],
-      };
+      return { metric, label: "CO₂", unit: "ppm", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: ZONES.co2 };
     case "pm25":
-      return {
-        metric, label: "PM2.5", unit: "µg/m³", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true,
-        bands: [
-          { to: 15, word: "bon", tone: "good" },
-          { to: 35, word: "aérer", tone: "warn" },
-          { to: null, word: "mauvais", tone: "bad" },
-        ],
-      };
+      return { metric, label: "PM2.5", unit: "µg/m³", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: ZONES.pm25 };
     case "temp":
-      return {
-        metric, label: "Température", unit: "°C", decimals: 1, alertLabel: OUT_OF_COMFORT, nonNegative: false,
-        bands: [
-          { to: 19, word: "froid", tone: "bad" },
-          { to: 24, inclusive: true, word: "confort", tone: "good" },
-          { to: null, word: "chaud", tone: "bad" },
-        ],
-      };
+      return { metric, label: "Température", unit: "°C", decimals: 1, alertLabel: OUT_OF_COMFORT, nonNegative: false, bands: ZONES.temp };
     case "hum":
-      return {
-        metric, label: "Humidité", unit: "%", decimals: 0, alertLabel: OUT_OF_COMFORT, nonNegative: true,
-        bands: [
-          { to: 40, word: "sec", tone: "bad" },
-          { to: 60, inclusive: true, word: "confort", tone: "good" },
-          { to: null, word: "humide", tone: "bad" },
-        ],
-      };
+      return { metric, label: "Humidité", unit: "%", decimals: 0, alertLabel: OUT_OF_COMFORT, nonNegative: true, bands: ZONES.hum };
     case "snd":
       return cal
-        ? {
-            metric, label: "Son", unit: "dB (estimé)", decimals: 0, alertLabel: "SON FORT", nonNegative: true,
-            bands: SOUND_DB_BANDS,
-          }
-        : {
-            metric, label: "Son", unit: "amplitude", decimals: 0, alertLabel: null, nonNegative: true,
-            bands: null,
-          };
+        ? { metric, label: "Son", unit: "dB (estimé)", decimals: 0, alertLabel: "SON FORT", nonNegative: true, bands: ZONES.snd_db }
+        : { metric, label: "Son", unit: "amplitude", decimals: 0, alertLabel: null, nonNegative: true, bands: null };
   }
 }
 
 const frNum = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 
 /** Plage lisible de chaque bande, dans l'ordre : « moins de 800 ppm », « 800 à 1 200 ppm », « 1 200 ppm et plus ». */
-export function bandRanges(bands: Band[], unit: string): string[] {
+export function bandRanges(bands: readonly Band[], unit: string): string[] {
   return bands.map((b, i) => {
     const prev = bands[i - 1];
     if (b.to === null) {
@@ -92,11 +53,7 @@ export function bandRanges(bands: Band[], unit: string): string[] {
 }
 
 export function bandOf(def: MetricDef, v: number | null): Band | null {
-  if (v === null || !def.bands) return null;
-  for (const b of def.bands) {
-    if (b.to === null || (b.inclusive ? v <= b.to : v < b.to)) return b;
-  }
-  return null;
+  return bandIn(def.bands, v);
 }
 
 export { soundDb };

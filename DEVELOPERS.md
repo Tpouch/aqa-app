@@ -30,7 +30,7 @@ npm run typecheck
 npm run build                 # web/dist + server/dist; `npm start` serves everything on :3000
 ```
 
-To fill a local database with a demo board and a week of fake measurements:
+To fill a local database with a demo board and five weeks of fake measurements:
 
 ```bash
 npx tsx --env-file=.env server/scripts/seed-demo.ts http://localhost:3000
@@ -155,6 +155,7 @@ routes require the admin session cookie:
 | `POST /api/v1/devices/{id}/token` | New token |
 | `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
 | `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
 | `GET /api/v1/devices/{id}/events` | Journal |
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
@@ -188,19 +189,22 @@ is logged and stored as the "last send" shown in the UI.
 Clicking a notification opens `PUBLIC_URL/#/alertes`. An alert closed because
 its rule was switched off sends nothing.
 
-## Front-end structure
+## Code structure (front end and shared modules)
 
 | | |
 |---|---|
-| `web/src/metrics.ts` | Zones, zone words, dB conversion, y-axis range, period stats (pure, tested) |
+| `server/src/zones.ts` | Zone bands of every measurement: the one definition, imported by the server and the web client |
+| `server/src/report.ts`, `reportText.ts` | The Bilan: numbers from one-minute averages, then its sentences (pure, tested; reusable for a weekly notification) |
+| `web/src/metrics.ts` | Zone words, dB conversion, y-axis range, period stats (pure, tested) |
 | `web/src/components/ZoneChart.tsx` | uPlot chart with named zone bands; cursor synced across charts |
 | `web/src/components/Sidebar.tsx` | Left column: live readings (also metric selectors), navigation, theme |
 | `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
+| `web/src/pages/report/` | Bilan: week / month bounds (`period.ts`), page and view, shared with the phone tab |
 | `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
 | `web/src/pages/alerts/` | Alertes: rules, ntfy notifications, journal |
 | `web/src/pages/settings/` | Réglages, including sound calibration |
 | `web/src/styles.css` | Design tokens (dark default + light) and every style |
 
-Routes are hash-based (`#/mesures`, `#/carte`, `#/reglages`). Old links
+Routes are hash-based (`#/mesures`, `#/bilan`, `#/alertes`, `#/carte`, `#/reglages`, `#/infos`). Old links
 (`#/overview`, `#/sensor`, `#/commands`, `#/options`, `#/device/<id>/<tab>`)
 redirect to the new ones.
