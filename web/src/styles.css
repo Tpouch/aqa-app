@@ -434,6 +434,8 @@ select.input, .field select { background: var(--bg); }
 .zc-tip.flip { transform: translateX(calc(-100% - 16px)); }
 .zc-tip-time { color: var(--muted); font-size: 11px; }
 .zc-tip-value { font-size: 13px; font-weight: 500; }
+.zc-tip-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; }
+.zc-tip-room { color: var(--muted); font-size: 11px; }
 
 .zc.compact {
   width: 100%;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { labelSides, mergeSeries, valueNear, type Cell } from "../compare";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
 import { fmt } from "../util";
 
@@ -14,6 +15,16 @@ interface Props {
   // Grid cell: header with label + value under the cursor, the whole chart opens it.
   compact?: boolean;
   onOpen?: () => void;
+  // Another room on the same chart (single view): dashed curve, its name at the end.
+  compare?: Compare;
+}
+
+export interface Compare {
+  here: string;               // name of the room shown, for the tooltip
+  name: string;               // name of the other room
+  xs: number[];
+  ys: (number | null)[];      // display units, like `ys`
+  tolerance: number;          // seconds: the tooltip takes the other room's value this close
 }
 
 function cssVar(name: string) {
@@ -44,8 +55,8 @@ function bandBounds(bands: readonly Band[]) {
   return bands.map((b, i) => ({ band: b, lo: i === 0 ? null : bands[i - 1]!.to, hi: b.to }));
 }
 
-function lastIndex(ys: (number | null)[]) {
-  for (let i = ys.length - 1; i >= 0; i--) if (ys[i] !== null) return i;
+function lastIndex(ys: Cell[]) {
+  for (let i = ys.length - 1; i >= 0; i--) if (ys[i] != null) return i;
   return -1;
 }
 
@@ -60,7 +71,7 @@ function useThemeKey() {
   return key;
 }
 
-export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen }: Props) {
+export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const theme = useThemeKey();
@@ -73,7 +84,16 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
   // left: px from the chart's left edge; flip: tooltip goes left of the line.
   const [hover, setHover] = useState<{ idx: number; left: number; flip: boolean } | null>(null);
 
+  // With another room, both series share one time axis (see mergeSeries).
+  const merged = useMemo(
+    () => compare ? mergeSeries(ownXs, ownYs, compare.xs, compare.ys) : { xs: ownXs, a: ownYs as Cell[], b: null },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ownXs, ownYs, compare?.xs, compare?.ys],
+  );
+  const { xs, a: ys, b: others } = merged;
+  const data: uPlot.AlignedData = others ? [xs, ys, others] : [xs, ys];
   const last = useMemo(() => lastIndex(ys), [ys]);
+  const lastOther = useMemo(() => (others ? lastIndex(others) : -1), [others]);
   const empty = last < 0;
   // Bands change with the sound calibration while metric and unit may not.
   const bandsKey = JSON.stringify(def.bands);
@@ -127,34 +147,58 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       ctx.restore();
     };
 
-    // Current value: dot in its zone colour, number written next to it.
-    const drawCurrent = (u: uPlot) => {
-      const data = u.data[1] as (number | null)[];
-      const i = lastIndex(data);
-      if (i < 0) return;
-      const v = data[i]!;
-      const { ctx, bbox } = u;
+    // End of a curve, or null when it has no point or ends outside the window.
+    const endOf = (u: uPlot, si: number) => {
+      const d = u.data[si] as Cell[] | undefined;
+      const i = d ? lastIndex(d) : -1;
+      if (i < 0) return null;
       const cx = u.valToPos(u.data[0][i]!, "x", true);
-      const cy = u.valToPos(v, "y", true);
-      if (cx < bbox.left - 1 || cx > bbox.left + bbox.width + 1) return;
-      const color = toneOf(v);
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, 4 * px, 0, 2 * Math.PI);
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.font = font(compact ? 11 : 13, 500);
+      const { bbox } = u;
+      if (cx < bbox.left - 1 || cx > bbox.left + bbox.width + 1) return null;
+      return { cx, cy: u.valToPos(d![i]!, "y", true), v: d![i]! };
+    };
+    // Text right-aligned left of the dot, above or below it, with a halo for the bands.
+    const label = (ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, side: "above" | "below", color: string) => {
       ctx.textAlign = "right";
-      const above = cy - 10 * px > bbox.top + 12 * px;
-      ctx.textBaseline = above ? "bottom" : "top";
-      const ty = above ? cy - 7 * px : cy + 7 * px;
-      const label = fmt(v, def.decimals);
+      ctx.textBaseline = side === "above" ? "bottom" : "top";
+      const ty = side === "above" ? cy - 7 * px : cy + 7 * px;
       ctx.lineWidth = 3 * px;
       ctx.lineJoin = "round";
       ctx.strokeStyle = c.bg;
-      ctx.strokeText(label, cx - 6 * px, ty);
+      ctx.strokeText(text, cx - 6 * px, ty);
       ctx.fillStyle = color;
-      ctx.fillText(label, cx - 6 * px, ty);
+      ctx.fillText(text, cx - 6 * px, ty);
+    };
+
+    // Current value: dot in its zone colour, number written next to it. The other
+    // room's curve ends with a ring and its name, on the side away from this one.
+    const drawCurrent = (u: uPlot) => {
+      const own = endOf(u, 1);
+      const other = compare ? endOf(u, 2) : null;
+      if (!own && !other) return;
+      const sides = labelSides(own?.cy ?? Infinity, other?.cy ?? null, u.bbox.top, u.bbox.top + u.bbox.height, 22 * px);
+      const { ctx } = u;
+      ctx.save();
+      if (other) {
+        ctx.beginPath();
+        ctx.arc(other.cx, other.cy, 3.5 * px, 0, 2 * Math.PI);
+        ctx.fillStyle = c.bg;
+        ctx.fill();
+        ctx.lineWidth = 1.5 * px;
+        ctx.strokeStyle = c.muted;
+        ctx.stroke();
+        ctx.font = font(12);
+        label(ctx, compare!.name, other.cx, other.cy, sides.other, c.muted);
+      }
+      if (own) {
+        const color = toneOf(own.v);
+        ctx.beginPath();
+        ctx.arc(own.cx, own.cy, 4 * px, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.font = font(compact ? 11 : 13, 500);
+        label(ctx, fmt(own.v, def.decimals), own.cx, own.cy, sides.main, color);
+      }
       ctx.restore();
     };
 
@@ -177,8 +221,13 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
           size: 8,
           width: 2,
           stroke: c.bg,
-          fill: (u, si) => toneOf((u.data[si] as (number | null)[])[u.cursor.idx ?? -1]),
+          fill: (u, si) => toneOf((u.data[si] as Cell[])[u.cursor.idxs?.[si] ?? u.cursor.idx ?? -1]),
         },
+        // Two rooms: a hover point only on a measure close to the cursor, not across a hole.
+        ...(compare ? { hover: { prox: (u: uPlot) => {
+          const x0 = u.scales.x?.min ?? 0;
+          return u.valToPos(x0 + compare.tolerance, "x") - u.valToPos(x0, "x");
+        } } } : {}),
       },
       legend: { show: false },
       hooks: {
@@ -197,6 +246,7 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       series: [
         {},
         { stroke: c.text, width: 2, spanGaps: false, points: { show: false } },
+        ...(compare ? [{ stroke: c.muted, width: 1.5, dash: [6 * px, 4 * px], spanGaps: false, points: { show: false } }] : []),
       ],
       axes: [
         { ...axis, space: compact ? 60 : 70, values: timeTicks },
@@ -217,7 +267,7 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
         },
       ],
     };
-    plot.current = new uPlot(opts, [xs, ys], el);
+    plot.current = new uPlot(opts, data, el);
     setHover(null);
     const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height: heightRef.current }));
     ro.observe(el);
@@ -226,15 +276,16 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
       plot.current?.destroy();
       plot.current = null;
     };
-    // Re-create only when the metric, its bands, mode or theme changes; data, window and height are applied below.
+    // Re-create only when the metric, its bands, mode, theme or compared room changes;
+    // data, window and height are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, bandsKey, compact, theme]);
+  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare]);
 
   useEffect(() => {
-    plot.current?.setData([xs, ys], false);
+    plot.current?.setData(data, false);
     plot.current?.setScale("x", { min: range[0], max: range[1] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xs, ys, range[0], range[1]]);
+  }, [merged, range[0], range[1]]);
 
   useEffect(() => {
     const u = plot.current;
@@ -243,23 +294,38 @@ export function ZoneChart({ def, xs, ys, range, height, compact = false, onOpen 
 
   const hovering = hover !== null && xs[hover.idx] !== undefined;
   const idx = hovering ? hover!.idx : last;
-  const value = idx >= 0 ? ys[idx] ?? null : null;
+  const tolerance = compare?.tolerance ?? 0;
+  const value = idx >= 0 ? valueNear(xs, ys, idx, tolerance) : null;
   const tone = bandOf(def, value)?.tone;
   const valueText = `${fmt(value, def.decimals)} ${def.unit}`;
+  const otherValue = others && hovering ? valueNear(xs, others, hover!.idx, tolerance) : null;
+  const otherTone = bandOf(def, otherValue)?.tone;
 
   // The hover tooltip is visual only (no live region): it would chatter on every mouse move.
   // A window that ended more than ~2 min ago (past day, closed range) has no "current" value.
   const past = range[1] < Date.now() / 1000 - 120;
-  const currentText = empty ? "aucune mesure sur cette période" : `${past ? "dernière valeur" : "valeur actuelle"} ${fmt(ys[last], def.decimals)} ${def.unit}`;
+  const currentText = (empty ? "aucune mesure sur cette période" : `${past ? "dernière valeur" : "valeur actuelle"} ${fmt(ys[last], def.decimals)} ${def.unit}`)
+    + (compare ? `, ${compare.name} ${lastOther < 0 ? "aucune mesure" : `${fmt(others![lastOther], def.decimals)} ${def.unit}`}` : "");
   const canvas = (
     <span className="zc-plot">
       <span ref={box} className="zc-canvas" role="img"
             aria-label={`${def.label}, ${currentText}`} />
-      {empty && <span className="zc-empty">Aucune mesure sur cette période</span>}
+      {empty && <span className="zc-empty">Aucune mesure{compare ? ` pour ${compare.here}` : ""} sur cette période</span>}
       {!compact && hovering && (
         <span className={`zc-tip${hover!.flip ? " flip" : ""}`} style={{ left: hover!.left }}>
           <span className="zc-tip-time">{stamp(xs[hover!.idx]!, range[1] - range[0])}</span>
-          <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>
+          {compare ? (
+            <>
+              <span className="zc-tip-row">
+                <span className="zc-tip-room"><span aria-hidden>━ </span>{compare.here}</span>
+                <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>
+              </span>
+              <span className="zc-tip-row">
+                <span className="zc-tip-room"><span aria-hidden>╍ </span>{compare.name}</span>
+                <span className={`zc-tip-value${otherTone ? ` tone-${otherTone}` : ""}`}>{fmt(otherValue, def.decimals)} {def.unit}</span>
+              </span>
+            </>
+          ) : <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>}
         </span>
       )}
     </span>

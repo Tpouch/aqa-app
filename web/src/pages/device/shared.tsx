@@ -20,16 +20,18 @@ export type Columns = { xs: number[] } & Record<Metric, (number | null)[]>;
 
 // Loads [from, to] and turns rows into chart columns. A missing stretch (board
 // offline) becomes a hole: a null is inserted after any jump longer than three
-// sampling periods. `live` keeps refreshing (ranges that end now).
-export function useSeries(id: string, from: number, to: number, live: boolean, refresh = live) {
+// sampling periods. `live` keeps refreshing (ranges that end now). A null id loads
+// nothing (no room to compare); `data.id` says whose rows these are.
+export function useSeries(id: string | null, from: number, to: number, live: boolean, refresh = live) {
   const step = stepFor(to - from);
   const res = usePoll(async () => {
     const end = live ? Math.floor(Date.now() / 1000) : to;
     const start = live ? end - (to - from) : from;
+    if (id === null) return { id, from: start, to: end, rows: [] };
     const rows = step === 0
       ? (await api.frames(id, start, end)).frames
       : (await api.aggregate(id, start, end, step)).buckets;
-    return { from: start, to: end, rows };
+    return { id, from: start, to: end, rows };
   }, refresh ? 30000 : 3_600_000, [id, from, to, live]);
 
   const columns = useMemo<Columns>(() => {
