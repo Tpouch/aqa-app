@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lastSendText, randomTopic } from "./notify";
+import { lastSendText, randomSecret, randomTopic } from "./notify";
 
 describe("lastSendText", () => {
   const now = new Date(2026, 10, 24, 15, 0).getTime() / 1000;
@@ -21,5 +21,13 @@ describe("randomTopic", () => {
     const t = randomTopic();
     expect(t).toMatch(/^aqa-[a-z0-9]{10}$/);
     expect(randomTopic()).not.toBe(t);
+  });
+});
+
+describe("randomSecret", () => {
+  it("32 caractères base64url, différent à chaque appel", () => {
+    const s = randomSecret();
+    expect(s).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(randomSecret()).not.toBe(s);
   });
 });

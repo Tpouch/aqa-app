@@ -93,6 +93,13 @@ export function readNotify(db: Db): NotifySettings {
   };
 }
 
+/** Short, body-free reason for a failed fetch (timeout, refused connection...). */
+export function networkError(err: unknown, timeoutMs: number): string {
+  const e = err as Error & { cause?: { code?: string; message?: string } };
+  if (e.name === "TimeoutError" || e.name === "AbortError") return `délai dépassé (${Math.round(timeoutMs / 1000) || 1} s)`;
+  return `injoignable : ${e.cause?.code ?? e.cause?.message ?? e.message}`;
+}
+
 interface Log { info(o: object, m: string): void; warn(o: object, m: string): void }
 
 export class Notifier {
@@ -167,9 +174,7 @@ export class Notifier {
       } catch { /* not ntfy's JSON: status code only */ }
       return `HTTP ${res.status}${reason ? ` : ${reason}` : ""}`;
     } catch (err) {
-      const e = err as Error & { cause?: { code?: string; message?: string } };
-      if (e.name === "TimeoutError" || e.name === "AbortError") return `délai dépassé (${Math.round(this.timeoutMs / 1000) || 1} s)`;
-      return `injoignable : ${e.cause?.code ?? e.cause?.message ?? e.message}`;
+      return networkError(err, this.timeoutMs);
     }
   }
 }

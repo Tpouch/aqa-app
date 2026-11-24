@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "../src/auth.js";
 import { loadConfig } from "../src/config.js";
 import { openDb } from "../src/db.js";
 import { Notifier } from "../src/notify.js";
+import { Webhook } from "../src/webhook.js";
 import { appRoutes } from "../src/routes/app.js";
 
 const PASSWORD = "correct horse battery";
@@ -94,7 +95,7 @@ describe("clés d'API", () => {
     expect((await admin("GET", `/api/v1/devices/${DEVICE}`)).statusCode).toBe(200);
   });
 
-  it("flags exactly the 8 expected read routes with agent: true", async () => {
+  it("flags exactly the 9 expected key-capable routes with agent: true", async () => {
     // Test-only app: an onRoute hook registered before appRoutes records the flagged routes.
     const db = openDb(":memory:");
     const app = Fastify({ logger: false });
@@ -110,7 +111,8 @@ describe("clés d'API", () => {
       app.decorate("agentRateLimit", (async () => {}) as onRequestHookHandler);
       await app.register(multipart);
       app.decorateRequest("apiKeyId", null);
-      appRoutes(app, db, cfg, built.firmware, new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }));
+      appRoutes(app, db, cfg, built.firmware, new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }),
+        new Webhook(db, { publicUrl: cfg.PUBLIC_URL, allowedHosts: [], log: app.log }));
       await app.ready();
       expect(flagged.sort()).toEqual([
         "GET /api/v1/alert-rules",
@@ -121,6 +123,7 @@ describe("clés d'API", () => {
         "GET /api/v1/devices/:id/frames",
         "GET /api/v1/devices/:id/frames/aggregate",
         "GET /api/v1/devices/:id/report",
+        "GET /api/v1/webhook",
       ]);
     } finally {
       await app.close();

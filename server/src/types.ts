@@ -121,6 +121,30 @@ export interface NotifySettings {
   last: NotifyLast | null; // null = nothing sent yet
 }
 
+export interface WebhookSettings {
+  enabled: boolean;
+  url: string;
+  secret_set: boolean;
+  notify_close: boolean;
+  last: NotifyLast | null;
+  /** Hosts the webhook may target (from the server .env). */
+  allowed_hosts: string[];
+}
+
+export interface WebhookPayload {
+  event: "alert.opened" | "alert.closed" | "test";
+  sent_at: number;
+  text: string;
+  device?: { id: string; name: string };
+  alert?: {
+    kind: AlertKind; label: string; tone: "warn" | "bad";
+    value: number | null; threshold: number | null; unit: string | null;
+    started_at: number; ended_at: number | null; duration_s: number;
+    end_value: number | null; advice: string;
+  };
+  url: string;
+}
+
 export interface UnknownDevice {
   id: string;
   first_seen: number;

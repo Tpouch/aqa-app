@@ -15,6 +15,14 @@ const schema = z.object({
   RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
   // Behind Cloudflare / a reverse proxy: trust X-Forwarded-For for client IPs.
   TRUST_PROXY: z.enum(["true", "false"]).default("true").transform((v) => v === "true"),
+  // Hosts the alert webhook may post to: bare hostnames, comma-separated. Empty = webhook off.
+  WEBHOOK_ALLOWED_HOSTS: z.string().default("").transform((v, ctx) => {
+    const hosts = v.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    for (const h of hosts) {
+      if (!/^[a-z0-9.-]+$/.test(h)) ctx.addIssue({ code: "custom", message: `"${h}" is not a hostname` });
+    }
+    return hosts;
+  }),
   // Built React app; empty disables static serving (API only).
   WEB_DIR: z.string().default(path.resolve(import.meta.dirname, "../../web/dist")),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),

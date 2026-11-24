@@ -120,6 +120,20 @@ const MIGRATIONS: string[] = [
     last_used_at INTEGER
   );
   `,
+  `
+  -- Outgoing webhook (Hermes): one global row, edited from the Alertes page.
+  CREATE TABLE webhook (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled       INTEGER NOT NULL DEFAULT 0,
+    url           TEXT NOT NULL DEFAULT '',
+    secret        TEXT,                     -- signs the body; never returned by the API
+    notify_close  INTEGER NOT NULL DEFAULT 1,
+    last_at       INTEGER,
+    last_ok       INTEGER,
+    last_error    TEXT
+  );
+  INSERT INTO webhook (id) VALUES (1);
+  `,
 ];
 
 export type Db = DatabaseSync;
