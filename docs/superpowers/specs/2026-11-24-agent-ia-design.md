@@ -9,7 +9,7 @@ L'auteur fait tourner chez lui un **agent [Hermes](https://hermes-agent.nousrese
 1. **Être prévenu** : quand une règle d'alerte se déclenche (ou se termine), AQA prévient l'agent, qui peut le dire à sa façon (message, résumé, réaction).
 2. **Faire un rapport le soir** : l'agent récupère les données de la journée et en tire un compte rendu.
 
-L'agent doit aussi pouvoir **régler lui-même le webhook** qui le prévient.
+L'agent devait aussi pouvoir **régler lui-même le webhook** qui le prévient. *Révisé après la relecture finale du webhook (décision de l'auteur) : l'agent peut seulement **lire** le réglage ; l'URL et le secret se règlent dans l'interface, et seulement vers des hôtes de confiance listés dans le `.env` (voir « Décision A » plus bas).*
 
 Ce qu'Hermes sait faire, et sur quoi on s'appuie :
 
@@ -24,7 +24,7 @@ Aujourd'hui, l'API d'AQA n'accepte que le cookie de session de l'admin (`require
 ## Objectifs
 
 - **Clés d'API** : créer, nommer, lister et révoquer des clés depuis l'interface ; une clé ne s'affiche qu'une fois.
-- Une clé donne accès en **lecture** à tout ce que l'interface montre (pièces, mesures, historique, bilan, alertes, règles) et au **réglage du webhook**.
+- Une clé donne accès en **lecture** à tout ce que l'interface montre (pièces, mesures, historique, bilan, alertes, règles) et à la **lecture du réglage du webhook** (le modifier reste réservé à l'interface).
 - **Webhook sortant** : un POST JSON signé à chaque ouverture d'alerte et (si voulu) à chaque fin, au format attendu par une route webhook Hermes.
 - **Serveur MCP** dans AQA (`/mcp`), protégé par clé, avec quelques outils typés qui couvrent les deux usages sans que l'agent ait à connaître l'API REST.
 - Une courte doc « brancher Hermes » (MCP, route webhook, cron du soir).
@@ -76,7 +76,7 @@ Aujourd'hui, l'API d'AQA n'accepte que le cookie de session de l'admin (`require
 | PR | Branche | Contenu | Dépend de |
 |---|---|---|---|
 | 1 | `feat-cles-api` | Table `api_keys`, authentification par clé sur les routes de lecture, section « Clés d'API » | — |
-| 2 | `feat-webhook` | Table `webhook`, envoi signé branché sur les alertes, API de réglage (session **et** clé), section « Webhook » | 1 (pour l'accès par clé ; l'envoi seul n'en dépend pas) |
+| 2 | `feat-webhook` | Table `webhook`, envoi signé branché sur les alertes, API de réglage (lecture par clé, écriture en session), hôtes de confiance dans le `.env`, section « Webhook » | 1 (pour l'accès par clé ; l'envoi seul n'en dépend pas) |
 | 3 | `feat-mcp` | Point `/mcp`, outils, doc Hermes | 1 et 2 |
 
 ### PR 1 — Clés d'API
@@ -115,7 +115,7 @@ CREATE TABLE api_keys (
 | `GET /devices/:id/alerts` | journal des alertes |
 | `GET /devices/:id/events` | journal de la carte |
 | `GET /alert-rules` | seuils en vigueur |
-| `GET /webhook`, `PATCH /webhook`, `POST /webhook/test` | réglage du webhook (PR 2) |
+| `GET /webhook` | lecture du réglage du webhook (PR 2) ; `PATCH` et `POST /webhook/test` restent session uniquement (décision A) |
 
 Tout le reste (commandes, firmware, création/suppression de carte, jeton, `PATCH` d'une carte ou d'une règle, ntfy, clés) : session uniquement.
 
@@ -184,7 +184,7 @@ Le secret est stocké en clair : il sert à signer. Il ne quitte le serveur que 
 - `offline` : `value`, `threshold`, `unit` à `null`.
 - `text` = titre + corps du message ntfy équivalent : un gabarit Hermes peut se contenter de `{text}`.
 
-**API (sous `/api/v1`, session ou clé)**
+**API (sous `/api/v1` ; `GET` session ou clé, `PATCH` et `POST /test` session uniquement)**
 
 - `GET /webhook` → `{ enabled, url, secret_set, notify_close, last: { at, ok, error } | null }`.
 - `PATCH /webhook` ← `{ enabled?, url?, secret?, notify_close? }` (zod strict). `url` : `http(s)`, ≤ 500 caractères. `secret` : chaîne de 16 à 200 caractères = remplacer, `null` = retirer (désactive aussi le webhook), absent = garder. Activer sans URL ou sans secret → 422.
@@ -193,7 +193,11 @@ Le secret est stocké en clair : il sert à signer. Il ne quitte le serveur que 
 
 **Interface** : section « Webhook » dans la page Alertes desktop, sous la section ntfy et sur son modèle (`NotifySection`) : interrupteur, URL, secret en écriture seule (« défini » / champ vide + bouton « Générer » qui remplit un secret aléatoire à copier dans Hermes avant d'enregistrer), « prévenir à la fin », « Envoyer un test », dernier envoi.
 
-**Risque restant** : une clé d'agent peut pointer le webhook vers n'importe quelle URL et y faire envoyer des alertes signées. Elle n'y gagne aucune donnée qu'elle ne lit déjà, et le résultat réduit l'empêche de sonder le réseau. Les adresses privées ne sont pas bloquées *(choix de Claude : inutile avec le résultat réduit, et ça fermerait un futur Hermes joint en direct sur le LAN)*.
+**Décision A (après la relecture finale du webhook)** : la première version laissait une clé régler et tester le webhook, avec un résultat réduit censé empêcher de sonder le réseau. La relecture a montré que c'était surestimé : le temps de réponse du test, l'heure du dernier envoi et le bit `ok` suffisent à distinguer hôte allumé / éteint / service qui accepte un POST, et une clé volée pouvait faire envoyer des POST à l'aveugle vers n'importe quelle adresse interne. L'auteur a choisi de fermer ce risque :
+
+- `PATCH /webhook` et `POST /webhook/test` sont **session uniquement**. Une clé ne peut que lire (`GET /webhook`, résultat réduit).
+- **Hôtes de confiance** : variable `WEBHOOK_ALLOWED_HOSTS` dans le `.env` (noms d'hôte séparés par des virgules, comparaison exacte, insensible à la casse, sans joker). Une URL dont l'hôte n'est pas listé est refusée (422) ; liste vide = webhook impossible à activer (fermé par défaut). L'hôte est revérifié à chaque envoi, au cas où il aurait été retiré du `.env` après coup. Exemple de l'auteur : `hermes-hooks.devgoblin.fr`, `baymax-hook…`.
+- Les redirections ne sont pas suivies (`redirect: "manual"`) : un 3xx est un échec, le corps signé ne part jamais vers une autre origine.
 
 **Cloudflare côté Hermes** : si l'adresse publique d'Hermes passe par Cloudflare, Bot Fight Mode peut refuser le POST d'AQA (client non navigateur). La doc le signale : règle WAF *Skip* sur le chemin `/webhooks/` d'Hermes.
 
@@ -216,8 +220,6 @@ Le secret est stocké en clair : il sert à signer. Il ne quitte le serveur que 
 | `list_alerts` | `room?` (toutes si absent), `since?` (ISO 8601, défaut il y a 24 h), `limit?` (défaut 50) | Alertes en cours et terminées : libellé, pièce, début, fin, durée, valeurs |
 | `get_alert_rules` | — | Règles actives : libellé, seuil, unité, durée |
 | `get_webhook` | — | Réglage du webhook (sans le secret) |
-| `set_webhook` | `url?`, `secret?`, `enabled?`, `notify_close?` | Même validation que `PATCH /webhook` |
-| `test_webhook` | — | Résultat de l'envoi de test |
 
 - **Fuseau** : `tz` facultatif (nom IANA), par défaut `AQA_TZ` — nouvelle variable de config, défaut `Europe/Paris` *(choix de Claude : le serveur tourne souvent en UTC dans Docker, un « aujourd'hui » en UTC couperait la soirée)*. Les heures renvoyées par les outils sont en ISO 8601 avec décalage dans ce fuseau (l'agent n'a pas à convertir des timestamps unix).
 - **Taille** : aucune sortie ne renvoie de mesures brutes ; `get_history` est plafonné à 200 points.
@@ -228,7 +230,7 @@ Une section dans `README.md` (ou `DEVELOPERS.md`, au choix du constructeur) avec
 
 1. Créer une clé dans Réglages → Clés d'API.
 2. Déclarer AQA comme serveur MCP HTTP dans la config Hermes (`<PUBLIC_URL>/mcp`, en-tête `Authorization: Bearer aqa_…`).
-3. Créer une route webhook Hermes (`hermes webhook subscribe …` avec un secret et un prompt du genre « Une alerte qualité d'air vient de changer : {text}. Préviens-moi. »), puis régler le webhook AQA sur l'**adresse publique** de cette route (`https://<hermes-public>/webhooks/<route>`) avec le même secret, dans l'interface ou en le demandant à l'agent. Signaler la règle Cloudflare *Skip* côté Hermes si son adresse passe par Cloudflare.
+3. Créer une route webhook Hermes (`hermes webhook subscribe …` avec un secret et un prompt du genre « Une alerte qualité d'air vient de changer : {text}. Préviens-moi. »), puis régler le webhook AQA sur l'**adresse publique** de cette route (`https://<hermes-public>/webhooks/<route>`) avec le même secret, dans l'interface (l'hôte doit figurer dans `WEBHOOK_ALLOWED_HOSTS`). Signaler la règle Cloudflare *Skip* côté Hermes si son adresse passe par Cloudflare.
 4. Un cron Hermes du soir : « Appelle `get_day_report` pour chaque pièce de `list_rooms` et envoie-moi un compte rendu court. »
 
 Syntaxe exacte des commandes Hermes à vérifier sur la doc officielle au moment de l'écrire.
@@ -237,7 +239,7 @@ Syntaxe exacte des commandes Hermes à vérifier sur la doc officielle au moment
 
 - **PR 1** : une clé valide lit `GET /devices` ; une clé inconnue → 401 ; une clé valide sur `POST /devices/:id/commands`, `POST /firmware`, `POST /api-keys`, `PATCH /alert-rules/:kind` → 401 ; la clé n'apparaît que dans la réponse de création ; révocation → 401 ensuite ; `last_used_at` mis à jour.
 - **PR 2** : charge utile et en-têtes de signature vérifiés contre un calcul HMAC indépendant ; pas de fin pour `disabled` ; un webhook qui ne répond pas ne retarde pas ntfy ; un serveur qui renvoie 500 avec un corps → `last_error` = `HTTP 500` sans le corps ; secret jamais présent dans `GET /webhook` ; activer ou tester sans secret → 422 ; après un échec, `GET /webhook` par clé renvoie l'erreur générique, par session le détail.
-- **PR 3** : sans clé → 401 ; `tools/list` renvoie les 9 outils ; `get_day_report` sur des données semées renvoie le même bilan que la route REST pour la même période ; `room` par nom insensible à la casse ; nom inconnu → erreur listant les pièces ; `get_history` ne dépasse jamais `points`.
+- **PR 3** : sans clé → 401 ; `tools/list` renvoie les 7 outils ; `get_day_report` sur des données semées renvoie le même bilan que la route REST pour la même période ; `room` par nom insensible à la casse ; nom inconnu → erreur listant les pièces ; `get_history` ne dépasse jamais `points`.
 - **Bout en bout (manuel)** : depuis le LXC AQA, un webhook de test passe par l'extérieur et arrive sur la vraie route Hermes (signature acceptée) ; Hermes appelle `list_rooms` par `PUBLIC_URL/mcp` à travers Cloudflare. L'auteur fournira les routes.
 
 ## Laissé au constructeur
