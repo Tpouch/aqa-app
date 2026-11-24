@@ -1,0 +1,19 @@
+# Releases this repo when a `release(major|minor|patch): ...` PR is merged into main.
+# The logic lives in the reusable workflow release.yml.
+
+name: Release on merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release.yml
+    # with:
+    #   initial-version: 1.0.0   # used when the repo has no tag yet
+    #   tag-prefix: v
