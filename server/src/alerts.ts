@@ -10,6 +10,13 @@ export type Decision =
   | { action: "update"; peak_value: number }
   | { action: "close"; end_value: number | null };
 
+// What openAlert / closeAlert report, handed to the notifier after the commit.
+export type AlertEvent =
+  | { type: "opened"; device_name: string; kind: AlertKind; threshold: number | null;
+      value: number | null; started_at: number; at: number }
+  | { type: "closed"; device_name: string; kind: AlertKind; started_at: number; at: number;
+      end_value: number | null; reason: "normal" | "disabled" };
+
 export const CLOSE_AFTER_S = 120;
 export const COVERAGE_S = 60;
 export const CHECK_EVERY_S = 30;

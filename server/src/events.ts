@@ -12,7 +12,7 @@ export function logEvent(db: Db, deviceId: string, ts: number, kind: EventKind, 
       deviceId, ts, kind, level, message);
 }
 
-function span(seconds: number): string {
+export function span(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ${Math.round((seconds % 3600) / 60)} min`;
   return `${Math.floor(seconds / 86400)} j ${Math.round((seconds % 86400) / 3600)} h`;
