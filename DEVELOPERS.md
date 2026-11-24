@@ -46,6 +46,7 @@ Node ≥ 24 (Node 26 recommended).
 npm install
 cp .env.example .env          # fill in ADMIN_PASSWORD and SESSION_SECRET
 npm run dev                   # API on :3000, Vite front end on :5173 (proxies /api)
+PORT=3100 npm run dev         # API on another port: the front end's proxy follows PORT
 npm test                      # server tests (board contract + app routes) and web tests (Vitest)
 npm run typecheck
 npm run build                 # web/dist + server/dist; `npm start` serves everything on :3000
@@ -161,7 +162,7 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `PUBLIC_URL` | `https://sensor.devgoblin.fr` | Base of the OTA links sent to the boards |
 | `RETENTION_DAYS` | `0` | Delete older measurements (0 = never) |
 | `DATA_DIR` | `./data` (`/data` in Docker) | SQLite and firmware images |
-| `PORT`, `HOST` | `3000`, `0.0.0.0` | |
+| `PORT`, `HOST` | `3000`, `0.0.0.0` | In dev, Vite's proxy also follows `PORT` (shell or `.env`) |
 | `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
 | `LOG_LEVEL` | `info` | |
 
