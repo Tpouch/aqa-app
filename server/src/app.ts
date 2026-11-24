@@ -47,6 +47,8 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
 
   const notifier = new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log });
 
+  app.decorateRequest("apiKeyId", null);
+
   app.get("/healthz", async () => ({ ok: true }));
   sessionRoutes(app, cfg);
   deviceRoutes(app, db);
