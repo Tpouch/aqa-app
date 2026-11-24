@@ -91,6 +91,22 @@ describe("/mcp auth", () => {
     expect(res.headers.get("x-ratelimit-limit")).toBe("120");
     expect(await res.text()).toContain('"serverInfo":{"name":"aqa","version":"1.0.0"}');
   });
+  it("refuses JSON-RPC batches, which would dodge the rate limit", async () => {
+    const res = await fetch(base + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json", accept: "application/json, text/event-stream",
+        authorization: "Bearer " + key,
+      },
+      body: JSON.stringify([
+        { jsonrpc: "2.0", id: 1, method: "tools/list" },
+        { jsonrpc: "2.0", id: 2, method: "tools/list" },
+      ]),
+    });
+    expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toMatch(/^application\/json/);
+    expect(await res.json()).toEqual({ error: "batch requests are not supported" });
+  });
 });
 
 describe("/mcp tools", () => {

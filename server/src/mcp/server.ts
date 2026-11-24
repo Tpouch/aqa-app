@@ -110,6 +110,9 @@ export function mcpRoutes(app: FastifyInstance, deps: { db: Db; cfg: Config }): 
   const hooks = { onRequest: app.agentRateLimit, preHandler: requireKey };
 
   app.post("/mcp", hooks, async (request, reply) => {
+    // The SDK accepts up to 100 messages per batch, which would cost one rate-limit
+    // token; MCP 2025-06-18 dropped batching and the SDK client never sends it.
+    if (Array.isArray(request.body)) return reply.code(400).send({ error: "batch requests are not supported" });
     const server = buildMcpServer({
       db, tz: cfg.AQA_TZ, publicUrl: cfg.PUBLIC_URL, allowedHosts: cfg.WEBHOOK_ALLOWED_HOSTS, now,
     });
