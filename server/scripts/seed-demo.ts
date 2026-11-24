@@ -1,5 +1,7 @@
-// Fills a running server with demo data: one board "démo", 7 days of frames
-// (every 5 min, then every minute over the last day, every 15 s over the last 8 h).
+// Fills a running server with demo data: one board "démo", 35 days of frames
+// (every 5 min, then every minute over the last day, every 15 s over the last 8 h),
+// enough for the Bilan of this week, the last one and the last month. Habits
+// change with the day of the week, and the board was off for half a day.
 // Usage: npx tsx --env-file=.env server/scripts/seed-demo.ts [baseUrl]
 import { loadConfig } from "../src/config.js";
 
@@ -44,29 +46,38 @@ await call(`/api/v1/devices/${DEVICE}/status`, {
 });
 
 const end = Math.floor(Date.now() / 1000);
-const start = end - 7 * DAY;
+const start = end - 35 * DAY;
 const recent = end - DAY;
 const live = end - 8 * 3600; // like a real board: one frame every 15 s
 const noPm25From = end - 3 * DAY; // one whole day without PM2.5
 const noPm25To = noPm25From + DAY;
-const holes = [end - 5.5 * DAY, end - 4.2 * DAY, end - 2.1 * DAY, end - 0.6 * DAY].map(Math.floor);
+const holes = [end - 5.5 * DAY, end - 4.2 * DAY, end - 2.1 * DAY, end - 0.6 * DAY, end - 16.3 * DAY].map(Math.floor);
+const outage = { from: Math.floor(end - 9.6 * DAY), to: Math.floor(end - 9.1 * DAY) }; // board unplugged
 
 type Frame = { t: number; age_s: 0; snd: number; co2: number; pm25: number | null; hum: number; temp: number; stale: false };
 
 function frameAt(t: number): Frame {
-  const h = ((t % DAY) / 3600 + 1) % 24; // hour of day (UTC+1 ish)
-  const day = Math.floor(t / DAY);
-  // Two CO2 peaks a day (morning and evening), above 1200 at their top.
+  const local = t + 3600; // roughly Paris time
+  const h = (local % DAY) / 3600; // hour of day
+  const day = Math.floor(local / DAY);
+  const weekday = (day + 3) % 7; // 0 = Monday (1 Jan 1970 was a Thursday)
+  const weekend = weekday >= 5;
+  const older = t < end - 7 * DAY; // the weeks before this one: windows opened less often
+  // Morning and evening CO₂ peaks; at the weekend a late-morning one instead of
+  // the early one. Wednesday and Thursday evenings stay crowded.
   const peak = (c: number, w: number) => Math.exp(-((h - c) ** 2) / (2 * w * w));
-  const co2 = 450 + 800 * Math.max(peak(8, 1.2), peak(20.5, 1.5)) + rnd(-25, 25) + (day % 3) * 10;
+  const crowd = weekday === 2 || weekday === 3 ? 1.15 : 1;
+  const co2 = 450 + (older ? 900 : 800) * crowd * Math.max(peak(weekend ? 11 : 7.5, 1.2), peak(21.5, 1.5))
+    + rnd(-25, 25) + (day % 3) * 10;
   const pm25 = 8 + 25 * peak(19, 1.5) + 5 * Math.sin(t / 7200) + rnd(-2, 2);
-  const temp = 21.5 + 3.5 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + rnd(-0.3, 0.3);
-  const hum = 50 - 12 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + rnd(-1.5, 1.5);
+  // Slightly cold at night, colder in the weeks before; a bit dry in the afternoon.
+  const temp = 21.2 + 2.4 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + (older ? -0.8 : 0) + rnd(-0.3, 0.3);
+  const hum = 48 - 9 * Math.sin(((h - 9) / 24) * 2 * Math.PI) + rnd(-1.5, 1.5);
   const snd = 30 + 300 * Math.max(peak(8, 1), peak(13, 1.2), peak(20, 2)) + rnd(0, 60);
   return {
     t, age_s: 0,
     snd: Math.round(clamp(snd, 10, 400)),
-    co2: Math.round(clamp(co2, 450, 1300)),
+    co2: Math.round(clamp(co2, 450, 1600)),
     pm25: t >= noPm25From && t < noPm25To ? null : Math.round(clamp(pm25, 3, 40)),
     hum: +clamp(hum, 35, 65).toFixed(1),
     temp: +clamp(temp, 17, 26).toFixed(1),
@@ -76,7 +87,7 @@ function frameAt(t: number): Frame {
 
 const frames: Frame[] = [];
 for (let t = start; t <= end; t += t < recent ? 300 : t < live ? 60 : 15) {
-  if (holes.some((h) => t >= h && t < h + 3600)) continue;
+  if (holes.some((h) => t >= h && t < h + 3600) || (t >= outage.from && t < outage.to)) continue;
   frames.push(frameAt(t));
 }
 
