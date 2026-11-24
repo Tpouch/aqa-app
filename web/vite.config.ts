@@ -17,6 +17,15 @@ export default defineConfig(({ mode }) => {
       },
     },
     // Local-time tests (Bilan week bounds, clock changes) assume one fixed zone.
-    test: { env: { TZ: "Europe/Paris" } },
+    test: {
+      env: { TZ: "Europe/Paris" },
+      coverage: {
+        provider: "v8",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: ["src/**/*.test.{ts,tsx}"],
+        // lcov paths relative to the repo root, where sonar-scanner runs.
+        reporter: ["text-summary", ["lcov", { projectRoot: ".." }]],
+      },
+    },
   };
 });
