@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
+  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -52,6 +52,10 @@ export const api = {
   aggregate: (id: string, from: number, to: number, step: number) =>
     request<{ step: number; buckets: AggregateRow[] }>(
       "GET", `/api/v1/devices/${id}/frames/aggregate?from=${from}&to=${to}&step=${step}`),
+
+  report: (id: string, p: { from: number; to: number; prevFrom: number; kind: "week" | "month" }, tz: string) =>
+    request<DeviceReport>("GET", `/api/v1/devices/${id}/report?from=${p.from}&to=${p.to}&prev_from=${p.prevFrom}` +
+      `&kind=${p.kind}&tz=${encodeURIComponent(tz)}`),
 
   events: (id: string, limit = 200) => request<{ events: EventRow[] }>("GET", `/api/v1/devices/${id}/events?limit=${limit}`),
 
