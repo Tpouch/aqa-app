@@ -12,6 +12,8 @@ import { CHECK_EVERY_S, checkAlerts } from "./alerts.js";
 import { now, openDb, run, type Db } from "./db.js";
 import { FirmwareStore } from "./firmware.js";
 import { Notifier } from "./notify.js";
+import { Webhook } from "./webhook.js";
+import type { AlertEvent } from "./alerts.js";
 import { appRoutes } from "./routes/app.js";
 import { deviceRoutes } from "./routes/device.js";
 import { sessionRoutes } from "./routes/session.js";
@@ -21,6 +23,13 @@ export interface Built {
   db: Db;
   firmware: FirmwareStore;
   notifier: Notifier;
+  webhook: Webhook;
+}
+
+/** Hands one tick of alert events to every channel; neither is awaited, so a slow one never delays the other. */
+export function dispatchAlerts(notifier: Notifier, webhook: Webhook, events: AlertEvent[]): void {
+  void notifier.alerts(events);
+  void webhook.alerts(events);
 }
 
 export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Promise<Built> {
@@ -49,12 +58,14 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
 
   const notifier = new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log });
 
+  const webhook = new Webhook(db, { publicUrl: cfg.PUBLIC_URL, log: app.log });
+
   app.decorateRequest("apiKeyId", null);
 
   app.get("/healthz", async () => ({ ok: true }));
   sessionRoutes(app, cfg);
   deviceRoutes(app, db);
-  appRoutes(app, db, cfg, firmware, notifier);
+  appRoutes(app, db, cfg, firmware, notifier, webhook);
 
   const webIndex = cfg.WEB_DIR ? path.join(cfg.WEB_DIR, "index.html") : "";
   if (webIndex && fs.existsSync(webIndex)) {
@@ -89,7 +100,7 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
   const alertTimer = setInterval(() => {
     try {
       // Sent after the commit, not awaited: a slow ntfy never delays detection.
-      void notifier.alerts(checkAlerts(db, now(), serverStart));
+      dispatchAlerts(notifier, webhook, checkAlerts(db, now(), serverStart));
     } catch (err) {
       app.log.error({ err }, "alerts check failed");
     }
@@ -100,5 +111,5 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
     clearInterval(alertTimer);
     db.close();
   });
-  return { app, db, firmware, notifier };
+  return { app, db, firmware, notifier, webhook };
 }

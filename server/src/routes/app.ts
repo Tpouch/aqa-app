@@ -15,6 +15,7 @@ import { isTimeZone } from "../localtime.js";
 import { buildReport, REPORT_STEP } from "../report.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
+import { readWebhook, testPayload, type Webhook } from "../webhook.js";
 import type {
   AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
 } from "../types.js";
@@ -82,6 +83,13 @@ const notifyBody = z.object({
   notify_close: z.boolean().optional(),
 }).strict().refine((b) => Object.keys(b).length > 0, "nothing to update");
 
+const webhookBody = z.object({
+  enabled: z.boolean().optional(),
+  url: z.string().trim().max(500).pipe(z.url({ protocol: /^https?$/, error: "url must be an http(s) URL" })).optional(),
+  secret: z.string().min(16, "secret: 16 to 200 characters").max(200, "secret: 16 to 200 characters").nullable().optional(),
+  notify_close: z.boolean().optional(),
+}).strict().refine((b) => Object.keys(b).length > 0, "nothing to update");
+
 const alertsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   before: z.coerce.number().int().default(2 ** 31),
@@ -139,7 +147,7 @@ function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): Com
   return { ...rest, params: redactParams(JSON.parse(params_json)) };
 }
 
-export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier) {
+export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier, webhook: Webhook) {
   function summary(d: DeviceDbRow): DeviceSummary {
     const latest = get<FrameDbRow>(db,
       `SELECT ts, ts_estimated, geohash, snd, co2, pm25, hum, temp, stale
@@ -259,6 +267,45 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (!readNotify(db).topic) return reply.code(422).send({ error: "no topic configured" });
       await notifier.publish(TEST_MESSAGE);
       return readNotify(db);
+    });
+
+    // ---- outgoing webhook (session or API key; keys only see a coarse error)
+
+    const agentRoute = { config: { agent: true }, onRequest: app.agentRateLimit };
+    const view = (request: { apiKeyId: number | null }) => readWebhook(db, { coarse: request.apiKeyId !== null });
+
+    scope.get("/api/v1/webhook", agentRoute, async (request) => view(request));
+
+    scope.patch("/api/v1/webhook", agentRoute, async (request, reply) => {
+      const body = webhookBody.safeParse(request.body);
+      if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
+      const b = body.data;
+      const hasSecret = b.secret !== undefined ? b.secret !== null : readWebhook(db).secret_set;
+      const enabled = b.secret === null ? false : (b.enabled ?? readWebhook(db).enabled);
+      const url = b.url ?? readWebhook(db).url;
+      if (enabled && (!url || !hasSecret)) {
+        return reply.code(422).send({ error: "a URL and a secret are required to enable the webhook" });
+      }
+      const sets: string[] = [];
+      const args: SQLInputValue[] = [];
+      // Removing the secret always switches the webhook off.
+      if (b.enabled !== undefined || b.secret === null) { sets.push("enabled = ?"); args.push(enabled ? 1 : 0); }
+      if (b.url !== undefined) { sets.push("url = ?"); args.push(b.url); }
+      if (b.secret !== undefined) { sets.push("secret = ?"); args.push(b.secret); }
+      if (b.notify_close !== undefined) { sets.push("notify_close = ?"); args.push(b.notify_close ? 1 : 0); }
+      run(db, `UPDATE webhook SET ${sets.join(", ")} WHERE id = 1`, ...args);
+      return view(request);
+    });
+
+    // Sends a test event with the saved settings, even when the webhook is off,
+    // and waits for the answer (5 s at most).
+    scope.post("/api/v1/webhook/test", agentRoute, async (request, reply) => {
+      const cur = readWebhook(db);
+      if (!cur.url || !cur.secret_set) {
+        return reply.code(422).send({ error: "a URL and a secret are required to send a test" });
+      }
+      await webhook.send(testPayload(cfg.PUBLIC_URL, now()));
+      return view(request);
     });
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
