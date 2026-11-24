@@ -5,3 +5,6 @@ data/
 *.sqlite3*
 *.log
 .superpowers/
+
+# superpowers design specs and plans stay local
+docs/superpowers/
