@@ -135,9 +135,15 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
             window.location.hash = "/mesures";
           }} />
         ) : (
-          <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
+          <DevicePage key={device.id} id={device.id} others={list.filter((d) => d.id !== device.id)} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
-                      onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
+                      onDeleted={() => {
+                        // Straight to the board the confirmation named (the first of the others).
+                        const next = list.find((d) => d.id !== device.id);
+                        if (next) onDevice(next.id); else storageRemove("aqa-device");
+                        devices.reload();
+                        window.location.hash = "/mesures";
+                      }} />
         )}
       </main>
     </div>

@@ -7,6 +7,7 @@ import { Button, Field, Skeleton, useConfirm, useToast } from "../../components/
 import type { DeviceSummary } from "../../../../server/src/types";
 import { fmt, nowS } from "../../util";
 import type { Send } from "../device/DevicePage";
+import { deleteBody, deletedToast } from "./deleteText";
 import { calibrationFrom } from "./calibration";
 
 const WIFI_MIN_FIRMWARE = "2.1.0";
@@ -19,8 +20,10 @@ function versionAtLeast(v: string | undefined, min: string): boolean {
   return true;
 }
 
-export function SettingsPage({ device, send, reloadDevice, onDeleted }: {
-  device: DeviceSummary | null; send: Send; reloadDevice: () => void; onDeleted: () => void;
+export function SettingsPage({ device, next, send, reloadDevice, onDeleted }: {
+  device: DeviceSummary | null;
+  next: string | null; // board shown once this one is deleted, null if it is the last
+  send: Send; reloadDevice: () => void; onDeleted: () => void;
 }) {
   if (!device) return <Skeleton height={400} />;
   return (
@@ -32,7 +35,7 @@ export function SettingsPage({ device, send, reloadDevice, onDeleted }: {
       <GeohashRow device={device} send={send} />
       <ParamsRow device={device} send={send} />
       <FirmwareSection />
-      <DangerZone device={device} onDeleted={onDeleted} />
+      <DangerZone device={device} next={next} onDeleted={onDeleted} />
     </div>
   );
 }
@@ -279,7 +282,7 @@ function ParamsRow({ device, send }: { device: DeviceSummary; send: Send }) {
 
 // ---------------------------------------------------------------- danger zone
 
-function DangerZone({ device, onDeleted }: { device: DeviceSummary; onDeleted: () => void }) {
+function DangerZone({ device, next, onDeleted }: { device: DeviceSummary; next: string | null; onDeleted: () => void }) {
   const confirm = useConfirm();
   const toast = useToast();
   const [token, setToken] = useState<string | null>(null);
@@ -300,12 +303,12 @@ function DangerZone({ device, onDeleted }: { device: DeviceSummary; onDeleted: (
   async function remove() {
     if (!await confirm({
       title: `Supprimer ${device.name} ?`,
-      body: "La carte et TOUTES ses mesures, commandes et entrées de journal seront effacées, et tu reviendras à l'écran d'ajout. C'est définitif : exporte les données (CSV) avant.",
+      body: deleteBody(next),
       confirmLabel: "Supprimer définitivement", danger: true,
     })) return;
     try {
       await api.deleteDevice(device.id);
-      toast("good", `${device.name} supprimée.`);
+      toast("good", deletedToast(device.name, next));
       onDeleted();
     } catch (err) {
       toast("bad", (err as Error).message);

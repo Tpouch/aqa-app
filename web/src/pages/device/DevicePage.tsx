@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../api";
 import { useToast } from "../../components/ui";
-import type { CommandRow, CommandType } from "../../../../server/src/types";
+import type { CommandRow, CommandType, DeviceSummary } from "../../../../server/src/types";
 import { TAB_LABEL, type Tab } from "../../routes";
 import type { Selection } from "../../selection";
 import { useNow, usePoll } from "../../util";
@@ -15,8 +15,9 @@ import { COMMAND_LABEL, useCommands } from "./shared";
 
 export type Send = (type: CommandType, params?: Record<string, unknown>) => Promise<boolean>;
 
-export function DevicePage({ id, tab, selection, onSelection, onPendingChange, onDeleted, onDeviceChanged }: {
+export function DevicePage({ id, others, tab, selection, onSelection, onPendingChange, onDeleted, onDeviceChanged }: {
   id: string;
+  others: DeviceSummary[]; // the other boards, in the column's order
   tab: Tab;
   selection: Selection;
   onSelection: (s: Selection) => void;
@@ -73,7 +74,7 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
       {tab === "alertes" && <AlertsPage key={id} id={id} device={d ?? null} />}
       {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} commandsError={commands.error} reload={commands.reload} send={send} now={now} />}
       {tab === "infos" && <InfosPage device={d} />}
-      {tab === "reglages" && <SettingsPage device={d} send={send} reloadDevice={() => { device.reload(); onDeviceChanged(); }} onDeleted={onDeleted} />}
+      {tab === "reglages" && <SettingsPage device={d} next={others[0]?.name ?? null} send={send} reloadDevice={() => { device.reload(); onDeviceChanged(); }} onDeleted={onDeleted} />}
     </div>
   );
 }
