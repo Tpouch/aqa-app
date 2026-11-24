@@ -474,6 +474,8 @@ select.input, .field select { background: var(--bg); }
 }
 .ms-range-actions { display: flex; gap: 8px; }
 .ms-range-error { flex-basis: 100%; color: var(--bad); }
+.ms-compare { align-items: center; }
+.ms-compare .seg > button { min-height: 34px; padding: 6px 11px; font-size: 13px; }
 
 .ms-stats {
   display: grid;
