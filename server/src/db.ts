@@ -110,6 +110,16 @@ const MIGRATIONS: string[] = [
   );
   INSERT INTO notify (id) VALUES (1);
   `,
+  `
+  CREATE TABLE api_keys (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    prefix       TEXT NOT NULL,
+    key_hash     TEXT NOT NULL UNIQUE,
+    created_at   INTEGER NOT NULL,
+    last_used_at INTEGER
+  );
+  `,
 ];
 
 export type Db = DatabaseSync;

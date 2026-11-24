@@ -179,25 +179,30 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 The board routes follow `docs/api.md`: `POST /api/v1/devices/{id}/status`,
 `/frames` and `/commands/{cid}/ack`, authenticated with a Bearer token. The app
-routes require the admin session cookie:
+routes require the admin session cookie. The 8 read routes marked **(key)**
+below also accept `Authorization: Bearer aqa_…`, an API key created in
+Réglages → Clés d'API, with a shared limit of 120 requests per minute per IP.
+Every other route refuses a key (401):
 
 | | |
 |---|---|
 | `POST/GET/DELETE /api/v1/session` | Log in (5 attempts per minute), state, log out |
-| `GET/POST /api/v1/devices` | List (+ unknown boards), add → token |
-| `GET/PATCH/DELETE /api/v1/devices/{id}` | Detail; update `name` and/or `sound_calibration` (`{ snd_ref, db_ref }` or `null`); delete (with its measurements) |
+| `GET/POST /api/v1/devices` (key: GET) | List (+ unknown boards), add → token |
+| `GET/PATCH/DELETE /api/v1/devices/{id}` (key: GET) | Detail; update `name` and/or `sound_calibration` (`{ snd_ref, db_ref }` or `null`); delete (with its measurements) |
 | `POST /api/v1/devices/{id}/token` | New token |
-| `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
-| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
-| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
-| `GET /api/v1/devices/{id}/events` | Journal |
+| `GET /api/v1/devices/{id}/frames?from&to&limit` (key) | Raw measurements |
+| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` (key) | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` (key) | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
+| `GET /api/v1/devices/{id}/events` (key) | Journal |
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
 | `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Download by the board, signed link |
-| `GET /api/v1/alert-rules`, `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
-| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` | Alerts of a board: `{ open, history }` |
+| `GET /api/v1/alert-rules` (key), `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
+| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` (key) | Alerts of a board: `{ open, history }` |
 | `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
 | `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
+| `GET/POST /api/v1/api-keys` | API keys: list (name, prefix, dates), create → the `aqa_…` key, returned only by this POST (only its sha256 is stored). Session only |
+| `DELETE /api/v1/api-keys/{id}` | Revoke a key (session only) |
 | `GET /healthz` | Health check |
 
 ## Alert notifications (ntfy)
@@ -227,6 +232,7 @@ its rule was switched off sends nothing.
 
 | | |
 |---|---|
+| `server/src/apikeys.ts` | API keys: generation, sha256 storage, lookup and revocation; `requireAdminOrKey` in `auth.ts` accepts them on routes flagged `config: { agent: true }` |
 | `server/src/zones.ts` | Zone bands of every measurement: the one definition, imported by the server and the web client |
 | `server/src/report.ts`, `reportText.ts` | The Bilan: numbers from one-minute averages, then its sentences (pure, tested; reusable for a weekly notification) |
 | `web/src/metrics.ts` | Zone words, dB conversion, y-axis range, period stats (pure, tested) |

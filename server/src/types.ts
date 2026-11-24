@@ -217,3 +217,11 @@ export interface DeviceReport {
   alerts: { current: number; previous: number; by_kind: { kind: AlertKind; label: string; count: number }[] };
   takeaways: string[];
 }
+
+export interface ApiKey {
+  id: number;
+  name: string;
+  prefix: string;
+  created_at: number;
+  last_used_at: number | null;
+}
