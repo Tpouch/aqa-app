@@ -108,5 +108,12 @@ export function useReorder(order: Metric[], onChange: (o: Metric[]) => void, ena
     },
   });
 
-  return { lifted, bind, gridRef };
+  // Reorder without a drag (↑ ↓): note where each gauge is right now, so the
+  // slide starts from there even if the page scrolled since the last change.
+  const reorder = (o: Metric[]) => {
+    for (const el of items()) rects.current.set(el.dataset.metric!, el.getBoundingClientRect());
+    onChange(o);
+  };
+
+  return { lifted, bind, gridRef, reorder };
 }

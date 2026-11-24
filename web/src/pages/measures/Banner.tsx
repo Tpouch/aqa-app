@@ -3,9 +3,18 @@ import { Button, Field } from "../../components/ui";
 import { isoLocal, PRESETS, shiftDay, type Range } from "../../range";
 import type { Selection } from "../../selection";
 
+// Room put next to the shown one (single chart, several boards).
+export interface CompareControl {
+  choices: { id: string; name: string }[];
+  current: { id: string; name: string } | null;
+  // Why some rooms are missing (sound needs two calibrated boards).
+  note: string | null;
+  onPick: (id: string | null) => void;
+}
+
 // Top of the Mesures page: what is shown, over which period, and the controls.
-// Same controls in both views; "plage…" opens the free-range fields underneath.
-export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled }: {
+// Same controls in both views; "plage…" and "comparer avec…" open their panel underneath.
+export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled, compare }: {
   headRef: RefObject<HTMLElement | null>;
   title: ReactNode;
   subtitle: string;
@@ -16,8 +25,10 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
   onView: (v: Selection["view"]) => void;
   onCsv: () => void;
   csvDisabled: boolean;
+  compare?: CompareControl;
 }) {
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<null | "range" | "compare">(null);
+  const toggle = (p: "range" | "compare") => setPanel(panel === p ? null : p);
   const day = range.kind === "day" ? range.date : today;
 
   return (
@@ -43,9 +54,17 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
                     onClick={() => onRange({ kind: "day", date: shiftDay(day, 1) })}>›</button>
           </div>
           <div className="seg">
-            <button type="button" aria-expanded={panel} aria-controls="ms-range"
-                    className={range.kind === "custom" ? "active" : undefined} onClick={() => setPanel(!panel)}>plage…</button>
+            <button type="button" aria-expanded={panel === "range"} aria-controls="ms-range"
+                    className={range.kind === "custom" ? "active" : undefined} onClick={() => toggle("range")}>plage…</button>
           </div>
+          {compare && (
+            <div className="seg">
+              <button type="button" aria-expanded={panel === "compare"} aria-controls="ms-compare"
+                      className={compare.current ? "active" : undefined} onClick={() => toggle("compare")}>
+                {compare.current ? `avec ${compare.current.name}…` : "comparer avec…"}
+              </button>
+            </div>
+          )}
           <div className="seg">
             <button type="button" disabled={csvDisabled} onClick={onCsv}>csv <span aria-hidden>↓</span></button>
           </div>
@@ -55,8 +74,30 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
           </div>
         </div>
       </div>
-      {panel && <RangePanel range={range} onRange={(r) => { onRange(r); setPanel(false); }} onClose={() => setPanel(false)} />}
+      {panel === "range" && <RangePanel range={range} onRange={(r) => { onRange(r); setPanel(null); }} onClose={() => setPanel(null)} />}
+      {panel === "compare" && compare && <ComparePanel control={compare} onDone={() => setPanel(null)} />}
     </header>
+  );
+}
+
+// One button per room; picking one (or stopping) closes the panel.
+export function ComparePanel({ control, onDone }: { control: CompareControl; onDone: () => void }) {
+  const pick = (id: string | null) => { control.onPick(id); onDone(); };
+  return (
+    <div id="ms-compare" className="ms-range ms-compare">
+      {control.choices.length > 0 && (
+        <div className="seg" role="group" aria-label="Pièce à comparer">
+          {control.choices.map((c) => (
+            <button key={c.id} type="button" aria-pressed={control.current?.id === c.id} onClick={() => pick(c.id)}>{c.name}</button>
+          ))}
+        </div>
+      )}
+      {control.note && <p className="muted small">{control.note}</p>}
+      <div className="ms-range-actions">
+        {control.current && <Button type="button" variant="ghost" onClick={() => pick(null)}>ne plus comparer</Button>}
+        <Button type="button" variant="ghost" onClick={onDone}>fermer</Button>
+      </div>
+    </div>
   );
 }
 

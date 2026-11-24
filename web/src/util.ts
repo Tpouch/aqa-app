@@ -48,6 +48,16 @@ export function usePoll<T>(fn: () => Promise<T>, intervalMs: number, deps: unkno
   const fnRef = useRef(fn);
   fnRef.current = fn;
 
+  // New deps (another board, another period): forget the previous answer during
+  // this very render, so the old data is never drawn while the new one loads.
+  const [prevDeps, setPrevDeps] = useState(deps);
+  if (deps.length !== prevDeps.length || deps.some((d, i) => !Object.is(d, prevDeps[i]))) {
+    setPrevDeps(deps);
+    setData(null);
+    setError(null);
+    setUpdatedAt(null);
+  }
+
   useEffect(() => {
     let alive = true;
     setError(null); // an error belongs to the previous deps, not to these

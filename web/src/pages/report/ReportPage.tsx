@@ -24,11 +24,12 @@ export function ReportPage({ id, device, compact = false }: {
   // late frame arrives, and a failed load is retried at the same pace.
   const report = usePoll(() => api.report(id, period, TZ), period.current ? 5 * 60_000 : 30 * 60_000,
                          [id, period.from, period.kind]);
-  // usePoll keeps the last answer while the next one loads: never show another period's numbers.
-  const data = report.data && report.data.from === period.from && report.data.kind === period.kind ? report.data : null;
+  const data = report.data;
   // Nothing to see before the board's first measurement (or its registration,
   // if older: a board's queue can hold frames from before it was added).
-  const firstTs = report.data?.first_ts ?? null;
+  // Kept while the next period loads, so ‹ does not flicker to disabled.
+  const [firstTs, setFirstTs] = useState<number | null>(null);
+  if (data && data.first_ts !== firstTs) setFirstTs(data.first_ts);
   const oldest = Math.min(device?.created_at ?? Infinity, firstTs ?? Infinity);
   const first = period.from <= oldest;
 

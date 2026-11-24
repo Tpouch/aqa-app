@@ -16,6 +16,8 @@ import { reading } from "./Gauge";
  */
 export function openGraph(metric: Metric): void {
   void enterLandscape();
+  // The page left behind keeps its scroll position, given back when ✕ or Back returns to it.
+  window.history.replaceState({ ...(window.history.state as object | null), aqaScroll: window.scrollY }, "");
   window.history.pushState({ aqaFromApp: true }, "", `#/graph/${metric}`);
   window.dispatchEvent(new HashChangeEvent("hashchange"));
 }

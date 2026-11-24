@@ -10,12 +10,12 @@ const n = (v: number) => new Intl.NumberFormat("fr-FR").format(v);
 const T = 100_000;
 
 const opened = (over: Partial<Extract<AlertEvent, { type: "opened" }>> = {}): Extract<AlertEvent, { type: "opened" }> => ({
-  type: "opened", device_name: "Salon", kind: "co2_high", threshold: 1200, value: 1340,
+  type: "opened", device_id: "aqa-24A160B3C8F0", device_name: "Salon", kind: "co2_high", threshold: 1200, value: 1340,
   started_at: T - 300, at: T, ...over,
 });
 const closed = (over: Partial<Extract<AlertEvent, { type: "closed" }>> = {}): Extract<AlertEvent, { type: "closed" }> => ({
-  type: "closed", device_name: "Salon", kind: "co2_high", started_at: T - 1380, at: T,
-  end_value: 640, reason: "normal", ...over,
+  type: "closed", device_id: "aqa-24A160B3C8F0", device_name: "Salon", kind: "co2_high", started_at: T - 1380, at: T,
+  threshold: 1200, end_value: 640, reason: "normal", ...over,
 });
 
 describe("messages", () => {

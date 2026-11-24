@@ -1,16 +1,22 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
-// In dev, the API runs on :3000 (npm run dev -w server).
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      "/api": "http://localhost:3000",
-      "/firmware": "http://localhost:3000",
+// In dev, /api and /firmware go to the API (npm run dev -w server). It listens on
+// PORT, read like the server does: the shell first, then the repo's .env, else 3000.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL("..", import.meta.url)), "");
+  const api = `http://localhost:${env.PORT || 3000}`;
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        "/api": api,
+        "/firmware": api,
+      },
     },
-  },
-  // Local-time tests (Bilan week bounds, clock changes) assume one fixed zone.
-  test: { env: { TZ: "Europe/Paris" } },
+    // Local-time tests (Bilan week bounds, clock changes) assume one fixed zone.
+    test: { env: { TZ: "Europe/Paris" } },
+  };
 });

@@ -297,7 +297,10 @@ describe("firmware and OTA", () => {
 
     // No link, tampered link, expired link: all 404, the image never leaks.
     expect((await built.app.inject({ method: "GET", url: "/firmware/2.0.1/firmware.bin" })).statusCode).toBe(404);
-    expect((await built.app.inject({ method: "GET", url: path(url).replace(/sig=./, "sig=A") })).statusCode).toBe(404);
+    // Change the signature's first character for another one (it may already be an A).
+    const tampered = path(url).replace(/sig=(.)/, (_, c: string) => `sig=${c === "A" ? "B" : "A"}`);
+    expect(tampered).not.toBe(path(url));
+    expect((await built.app.inject({ method: "GET", url: tampered })).statusCode).toBe(404);
     const past = Math.floor(Date.now() / 1000) - 10;
     const expired = built.firmware.signedUrls("", "2.0.1", past - 24 * 3600).url;
     expect((await built.app.inject({ method: "GET", url: expired })).statusCode).toBe(404);

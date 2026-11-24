@@ -1,10 +1,13 @@
-// Routes used by the web UI. All require the admin session cookie.
+// Routes used by the web UI. All require the admin session cookie, except the
+// routes flagged `agent: true` (the read routes and the webhook ones), which
+// also accept an API key.
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { DEVICE_ID_RE, newDeviceToken, requireAdmin, sha256Hex } from "../auth.js";
+import { DEVICE_ID_RE, newDeviceToken, requireAdminOrKey, sha256Hex } from "../auth.js";
 import type { Config } from "../config.js";
 import { CATALOG, readRules, toAlertRow, type AlertDbRow } from "../alerts.js";
+import { createKey, deleteKey, listKeys } from "../apikeys.js";
 import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
@@ -13,6 +16,7 @@ import { isTimeZone } from "../localtime.js";
 import { buildReport, REPORT_STEP } from "../report.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
+import { hostAllowed, readWebhook, testPayload, type Webhook } from "../webhook.js";
 import type {
   AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
 } from "../types.js";
@@ -80,6 +84,13 @@ const notifyBody = z.object({
   notify_close: z.boolean().optional(),
 }).strict().refine((b) => Object.keys(b).length > 0, "nothing to update");
 
+const webhookBody = z.object({
+  enabled: z.boolean().optional(),
+  url: z.string().trim().max(500).pipe(z.url({ protocol: /^https?$/, error: "url must be an http(s) URL" })).optional(),
+  secret: z.string().min(16, "secret: 16 to 200 characters").max(200, "secret: 16 to 200 characters").nullable().optional(),
+  notify_close: z.boolean().optional(),
+}).strict().refine((b) => Object.keys(b).length > 0, "nothing to update");
+
 const alertsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   before: z.coerce.number().int().default(2 ** 31),
@@ -137,7 +148,7 @@ function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): Com
   return { ...rest, params: redactParams(JSON.parse(params_json)) };
 }
 
-export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier) {
+export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier, webhook: Webhook) {
   function summary(d: DeviceDbRow): DeviceSummary {
     const latest = get<FrameDbRow>(db,
       `SELECT ts, ts_estimated, geohash, snd, co2, pm25, hum, temp, stale
@@ -164,11 +175,11 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
   }
 
   app.register(async (scope) => {
-    scope.addHook("preHandler", requireAdmin);
+    scope.addHook("preHandler", requireAdminOrKey(db));
 
     // ---- devices
 
-    scope.get("/api/v1/devices", async () => ({
+    scope.get("/api/v1/devices", { config: { agent: true }, onRequest: app.agentRateLimit }, async () => ({
       devices: all<DeviceDbRow>(db,
         "SELECT id, name, created_at, last_seen, status_json, status_at, snd_ref, db_ref FROM devices ORDER BY name")
         .map(summary),
@@ -178,7 +189,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // ---- alerts
 
-    scope.get("/api/v1/alert-rules", async () => ({ rules: readRules(db) }));
+    scope.get("/api/v1/alert-rules", { config: { agent: true }, onRequest: app.agentRateLimit }, async () => ({ rules: readRules(db) }));
 
     scope.post("/api/v1/alert-rules/reset", async () => {
       for (const kind of ALERT_KINDS) {
@@ -208,6 +219,24 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (body.data.duration_s !== undefined) { sets.push("duration_s = ?"); args.push(body.data.duration_s); }
       run(db, `UPDATE alert_rules SET ${sets.join(", ")} WHERE kind = ?`, ...args, kind);
       return readRules(db).find((r) => r.kind === kind);
+    });
+
+    // ---- API keys (session only: a key can never manage keys)
+
+    scope.get("/api/v1/api-keys", async () => ({ keys: listKeys(db) }));
+
+    scope.post("/api/v1/api-keys", async (request, reply) => {
+      const body = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(request.body);
+      if (!body.success) return reply.code(422).send({ error: "name: 1 to 60 characters" });
+      const { key, row } = createKey(db, body.data.name);
+      // The key is only ever shown here; the database keeps its hash.
+      return reply.code(201).send({ ...row, key });
+    });
+
+    scope.delete<{ Params: { id: string } }>("/api/v1/api-keys/:id", async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || !deleteKey(db, id)) return reply.code(404).send({ error: "unknown key" });
+      return reply.code(204).send();
     });
 
     // ---- notifications (ntfy)
@@ -241,7 +270,52 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       return readNotify(db);
     });
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", async (request, reply) => {
+    // ---- outgoing webhook: keys may only read (coarse error), writes and tests are session-only
+
+    const view = (request: { apiKeyId: number | null }) =>
+      readWebhook(db, { coarse: request.apiKeyId !== null, allowedHosts: cfg.WEBHOOK_ALLOWED_HOSTS });
+
+    scope.get("/api/v1/webhook", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request) => view(request));
+
+    scope.patch("/api/v1/webhook", async (request, reply) => {
+      const body = webhookBody.safeParse(request.body);
+      if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
+      const b = body.data;
+      const cur = readWebhook(db);
+      const hasSecret = b.secret !== undefined ? b.secret !== null : cur.secret_set;
+      // Removing the secret switches the webhook off, unless the same call asks to enable it (then 422 below).
+      const enabled = b.enabled ?? (b.secret === null ? false : cur.enabled);
+      const url = b.url ?? cur.url;
+      // A new URL must be allowed; so must the merged URL whenever the webhook ends up enabled.
+      if ((b.url !== undefined || enabled) && !hostAllowed(url, cfg.WEBHOOK_ALLOWED_HOSTS)) {
+        return reply.code(422).send({ error: "the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS" });
+      }
+      if (enabled && (!url || !hasSecret)) {
+        return reply.code(422).send({ error: "a URL and a secret are required to enable the webhook" });
+      }
+      const sets: string[] = [];
+      const args: SQLInputValue[] = [];
+      // Removing the secret always switches the webhook off.
+      if (b.enabled !== undefined || b.secret === null) { sets.push("enabled = ?"); args.push(enabled ? 1 : 0); }
+      if (b.url !== undefined) { sets.push("url = ?"); args.push(b.url); }
+      if (b.secret !== undefined) { sets.push("secret = ?"); args.push(b.secret); }
+      if (b.notify_close !== undefined) { sets.push("notify_close = ?"); args.push(b.notify_close ? 1 : 0); }
+      run(db, `UPDATE webhook SET ${sets.join(", ")} WHERE id = 1`, ...args);
+      return view(request);
+    });
+
+    // Sends a test event with the saved settings, even when the webhook is off,
+    // and waits for the answer (5 s at most).
+    scope.post("/api/v1/webhook/test", async (request, reply) => {
+      const cur = readWebhook(db);
+      if (!cur.url || !cur.secret_set) {
+        return reply.code(422).send({ error: "a URL and a secret are required to send a test" });
+      }
+      await webhook.send(testPayload(cfg.PUBLIC_URL, now()));
+      return view(request);
+    });
+
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       if (!findDevice(request.params.id)) return reply.code(404).send({ error: "unknown device" });
       const q = alertsQuery.safeParse(request.query);
       if (!q.success) return reply.code(422).send({ error: q.error.issues[0]?.message });
@@ -275,7 +349,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       return reply.code(201).send({ device: summary(findDevice(body.data.id)!), token });
     });
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id", async (request, reply) => {
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       const d = findDevice(request.params.id);
       return d ? summary(d) : reply.code(404).send({ error: "unknown device" });
     });
@@ -319,7 +393,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // ---- data
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/frames", async (request, reply) => {
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/frames", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       const q = rangeQuery.extend({
         limit: z.coerce.number().int().min(1).max(50000).default(10000),
       }).safeParse(request.query);
@@ -331,7 +405,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       return { frames: rows.map(toFrame) };
     });
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/frames/aggregate", async (request, reply) => {
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/frames/aggregate", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       const q = rangeQuery.extend({
         step: z.coerce.number().int().refine((s) => AGGREGATE_STEPS.includes(s),
           `step must be one of ${AGGREGATE_STEPS.join(", ")}`),
@@ -344,7 +418,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // ---- bilan
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/report", async (request, reply) => {
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/report", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       const d = findDevice(request.params.id);
       if (!d) return reply.code(404).send({ error: "unknown device" });
       const q = reportQuery.safeParse(request.query);
@@ -366,7 +440,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // ---- journal
 
-    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/events", async (request, reply) => {
+    scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/events", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
       const q = z.object({
         limit: z.coerce.number().int().min(1).max(1000).default(200),
         before: z.coerce.number().int().optional(),

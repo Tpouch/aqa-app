@@ -5,6 +5,7 @@ import { useNow } from "../../util";
 import { AlertJournal } from "./AlertJournal";
 import { useAlertJournal } from "./useAlertJournal";
 import { NotifySection } from "./NotifySection";
+import { WebhookSection } from "./WebhookSection";
 import { RuleList } from "./RuleList";
 
 // Rendered with key={id}: a card switch remounts the page, so the poll data,
@@ -32,6 +33,7 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
         <div className="al-side">
           <RuleList rules={rules} error={rulesError} calibrated={device?.sound_calibration != null} onChange={setRules} />
           <NotifySection now={now} />
+          <WebhookSection now={now} />
         </div>
         <AlertJournal open={journal.open} history={journal.history} error={journal.error} device={device} now={now}
                       hasMore={journal.hasMore} loadingMore={journal.loadingMore} onMore={journal.more} />

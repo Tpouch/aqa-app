@@ -46,6 +46,7 @@ Node ≥ 24 (Node 26 recommended).
 npm install
 cp .env.example .env          # fill in ADMIN_PASSWORD and SESSION_SECRET
 npm run dev                   # API on :3000, Vite front end on :5173 (proxies /api)
+PORT=3100 npm run dev         # API on another port: the front end's proxy follows PORT
 npm test                      # server tests (board contract + app routes) and web tests (Vitest)
 npm run typecheck
 npm run build                 # web/dist + server/dist; `npm start` serves everything on :3000
@@ -161,8 +162,9 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `PUBLIC_URL` | `https://sensor.devgoblin.fr` | Base of the OTA links sent to the boards |
 | `RETENTION_DAYS` | `0` | Delete older measurements (0 = never) |
 | `DATA_DIR` | `./data` (`/data` in Docker) | SQLite and firmware images |
-| `PORT`, `HOST` | `3000`, `0.0.0.0` | |
+| `PORT`, `HOST` | `3000`, `0.0.0.0` | In dev, Vite's proxy also follows `PORT` (shell or `.env`) |
 | `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
+| `WEBHOOK_ALLOWED_HOSTS` | empty | Hostnames the alert webhook may post to, comma-separated (bare hostnames). Empty = webhook off |
 | `LOG_LEVEL` | `info` | |
 
 Alert notifications (ntfy) are not configured here: they are set in the web UI
@@ -178,25 +180,35 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 The board routes follow `docs/api.md`: `POST /api/v1/devices/{id}/status`,
 `/frames` and `/commands/{cid}/ack`, authenticated with a Bearer token. The app
-routes require the admin session cookie:
+routes require the admin session cookie. The routes marked **(key)** below (the
+8 read routes, plus `GET /api/v1/webhook`)
+also accept `Authorization: Bearer aqa_…`, an API key created in
+Réglages → Clés d'API, with a shared limit of 120 requests per minute per IP.
+Every other route refuses a key (401), including changing or testing the webhook.
+On `GET /api/v1/webhook` a key never sees the failure detail of `last.error`,
+only `échec : vérifie l'URL et le secret`:
 
 | | |
 |---|---|
 | `POST/GET/DELETE /api/v1/session` | Log in (5 attempts per minute), state, log out |
-| `GET/POST /api/v1/devices` | List (+ unknown boards), add → token |
-| `GET/PATCH/DELETE /api/v1/devices/{id}` | Detail; update `name` and/or `sound_calibration` (`{ snd_ref, db_ref }` or `null`); delete (with its measurements) |
+| `GET/POST /api/v1/devices` (key: GET) | List (+ unknown boards), add → token |
+| `GET/PATCH/DELETE /api/v1/devices/{id}` (key: GET) | Detail; update `name` and/or `sound_calibration` (`{ snd_ref, db_ref }` or `null`); delete (with its measurements) |
 | `POST /api/v1/devices/{id}/token` | New token |
-| `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
-| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
-| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
-| `GET /api/v1/devices/{id}/events` | Journal |
+| `GET /api/v1/devices/{id}/frames?from&to&limit` (key) | Raw measurements |
+| `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` (key) | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` (key) | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
+| `GET /api/v1/devices/{id}/events` (key) | Journal |
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
 | `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Download by the board, signed link |
-| `GET /api/v1/alert-rules`, `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
-| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` | Alerts of a board: `{ open, history }` |
+| `GET /api/v1/alert-rules` (key), `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
+| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` (key) | Alerts of a board: `{ open, history }` |
 | `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
 | `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
+| `GET /api/v1/webhook` (key), `PATCH /api/v1/webhook` | Webhook settings: `enabled`, `url`, `secret` (string = replace, `null` = remove and switch off; never returned, only `secret_set`), `notify_close`; `last` = last send, `allowed_hosts` = `WEBHOOK_ALLOWED_HOSTS`. Enabling needs a URL and a secret (422 otherwise); a `url` whose host is not allowed is refused (422) |
+| `POST /api/v1/webhook/test` | Send a signed test event with the saved settings (even when disabled; 422 without URL or secret) and return them with `last` |
+| `GET/POST /api/v1/api-keys` | API keys: list (name, prefix, dates), create → the `aqa_…` key, returned only by this POST (only its sha256 is stored). Session only |
+| `DELETE /api/v1/api-keys/{id}` | Revoke a key (session only) |
 | `GET /healthz` | Health check |
 
 ## Alert notifications (ntfy)
@@ -222,16 +234,50 @@ is logged and stored as the "last send" shown in the UI.
 Clicking a notification opens `PUBLIC_URL/#/alertes`. An alert closed because
 its rule was switched off sends nothing.
 
+## Alert webhook
+
+`server/src/webhook.ts` sends the same events as ntfy to a URL of your choice
+(an agent such as Hermes), through `Webhook.alerts()`, next to the `Notifier` and
+also without waiting. A send happens when an alert opens, and when it closes
+(unless "prévenir à la fin" is off). A rule switched off by hand sends nothing,
+neither when it closes.
+
+The body is JSON: `event` (`alert.opened`, `alert.closed` or `test`), `sent_at`
+(unix seconds), `text` (title and message, as in ntfy), `device` (`id`, `name`),
+`alert` (`kind`, `label`, `tone`, `value`, `threshold`, `unit`, `started_at`,
+`ended_at`, `duration_s`, `end_value`, `advice`) and `url` (`PUBLIC_URL/#/alertes`).
+`test` carries only `event`, `sent_at`, `text` and `url`.
+
+The request is signed with Hermes' generic V2 scheme: `X-Webhook-Timestamp` is
+`sent_at` and `X-Webhook-Signature-V2` is the lowercase hex HMAC-SHA256, keyed
+with the secret, of `"<timestamp>.<raw body>"`. The secret is mandatory and
+never returned by the API (only `secret_set`). The timeout is 5 s, there is no
+retry, redirects are not followed (a 3xx is recorded as `HTTP 30x`, so the signed
+body never reaches another origin), and the answer body is never read.
+
+The webhook may only target the hostnames listed in `WEBHOOK_ALLOWED_HOSTS`
+(server `.env`): the match is on the exact hostname (case-insensitive, port
+ignored, no suffix or wildcard), and an empty list refuses every URL (fail
+closed). The host is checked when the URL is saved (422) and again before each
+send, so a host removed from `.env` stops receiving at once (the failure is
+recorded as `hôte non autorisé`). Only the session can change or test the
+webhook; API keys can only read it.
+
+If the receiver sits behind Cloudflare, add a WAF *Skip* rule for its
+`/webhooks/` path: otherwise Bot Fight Mode blocks AQA's POST.
+
 ## Code structure (front end and shared modules)
 
 | | |
 |---|---|
+| `server/src/apikeys.ts` | API keys: generation, sha256 storage, lookup and revocation; `requireAdminOrKey` in `auth.ts` accepts them on routes flagged `config: { agent: true }` |
 | `server/src/zones.ts` | Zone bands of every measurement: the one definition, imported by the server and the web client |
 | `server/src/report.ts`, `reportText.ts` | The Bilan: numbers from one-minute averages, then its sentences (pure, tested; reusable for a weekly notification) |
 | `web/src/metrics.ts` | Zone words, dB conversion, y-axis range, period stats (pure, tested) |
 | `web/src/components/ZoneChart.tsx` | uPlot chart with named zone bands; cursor synced across charts |
 | `web/src/components/Sidebar.tsx` | Left column: live readings (also metric selectors), navigation, theme |
 | `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
+| `web/src/compare.ts` | Comparing two rooms on the single chart: rooms offered (sound only between calibrated boards), both series merged on one time axis, tooltip values, end-of-curve labels (pure, tested). The compared room is kept per browser tab (`sessionStorage`, `aqa-compare`) |
 | `web/src/pages/report/` | Bilan: week / month bounds (`period.ts`), page and view, shared with the phone tab |
 | `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
 | `web/src/pages/alerts/` | Alertes: rules, ntfy notifications, journal |

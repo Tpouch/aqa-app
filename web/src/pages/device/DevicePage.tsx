@@ -69,7 +69,7 @@ export function DevicePage({ id, others, tab, selection, onSelection, onPendingC
   return (
     <div id={`panel-${tab}`} className="tab-panel">
       <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
-      {tab === "mesures" && <MeasuresPage id={id} device={d} multi={others.length > 0} selection={selection} onSelection={onSelection} />}
+      {tab === "mesures" && <MeasuresPage id={id} device={d} others={others} selection={selection} onSelection={onSelection} />}
       {tab === "bilan" && <ReportPage key={id} id={id} device={d ?? undefined} />}
       {tab === "alertes" && <AlertsPage key={id} id={id} device={d ?? null} />}
       {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} commandsError={commands.error} reload={commands.reload} send={send} now={now} />}
