@@ -129,6 +129,15 @@ from its `.env`, so build **one image per board**. The app never makes it
 public. The board downloads it through an HMAC-signed link valid for 24 h and
 checks the RSA signature before activating it.
 
+The server finds which board an image belongs to by looking for a registered
+board's token inside it. **Carte → Mettre à jour** only offers that board's
+images, and an `ota` command for another board's image is refused: the board
+would come back with the wrong token, be refused by the server and need a
+reflash by cable. An image that matches no board (token replaced since the
+build) is listed as *aucune carte* and cannot be installed. A version number
+already used by one board cannot be reused for another (for example
+`2.1.0-chambre` instead of `2.1.0`).
+
 ## Sound calibration
 
 The board reports noise as a raw peak-to-peak ADC amplitude (0–4095, averaged

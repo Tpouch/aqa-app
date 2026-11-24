@@ -39,7 +39,8 @@ export function FirmwareSection() {
   return (
     <Setting title="Firmwares"
              help={<>Dans le repo firmware : <code>pio run</code> puis <code>tools/sign_firmware.sh</code>. L'image contient le Wi-Fi et le jeton du
-               <code> .env</code> : compile-la pour la carte visée. Elle n'est jamais publique, la carte la télécharge par un lien signé valable 24 h.</>}>
+               <code> .env</code> : compile-la pour la carte visée. L'app reconnaît la carte à son jeton et ne propose l'image qu'à elle.
+               Elle n'est jamais publique, la carte la télécharge par un lien signé valable 24 h.</>}>
       <form className="st-stack" onSubmit={upload}>
         <Field label="Version"><input className="input mono" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="2.1.0" pattern="[A-Za-z0-9._\-]{1,32}" required /></Field>
         <Field label="Image firmware.bin" hint={bin ? `${Math.round(bin.size / 1024)} Ko` : undefined}>
@@ -54,11 +55,16 @@ export function FirmwareSection() {
         </div>
       </form>
       <table className="st-table">
-        <thead><tr><th>Version</th><th>Taille</th><th className="hide-sm">Envoyé</th><th><span className="sr-only">Actions</span></th></tr></thead>
+        <thead><tr><th>Version</th><th>Carte</th><th>Taille</th><th className="hide-sm">Envoyé</th><th><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>
           {list.data?.firmware.map((f) => (
             <tr key={f.version}>
               <td><code>{f.version}</code></td>
+              <td>{f.device_name ?? (
+                <span className="tone-bad" title="Le jeton de l'image ne correspond à aucune carte : jeton changé depuis la compilation ?">
+                  <span aria-hidden>▲ </span>aucune carte
+                </span>
+              )}</td>
               <td className="num">{Math.round(f.size / 1024)} Ko</td>
               <td className="hide-sm">{dateTime(f.uploaded_at)}</td>
               <td className="st-td-actions">
@@ -71,7 +77,7 @@ export function FirmwareSection() {
               </td>
             </tr>
           ))}
-          {list.data?.firmware.length === 0 && <tr><td colSpan={4} className="muted small">Aucun firmware envoyé.</td></tr>}
+          {list.data?.firmware.length === 0 && <tr><td colSpan={5} className="muted small">Aucun firmware envoyé.</td></tr>}
         </tbody>
       </table>
     </Setting>
