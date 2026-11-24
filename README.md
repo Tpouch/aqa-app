@@ -49,6 +49,8 @@ dates you choose. Under the chart: the lowest, the average, the highest, and
 
 With a box in several rooms, the list of rooms stays in view too, each with its
 worst reading and its alerts, so you never miss the room you aren't looking at.
+On a computer, you can also draw another room's curve on the same chart, dashed,
+to see which room needs airing first.
 
 Want everything at once? The grid puts all the measurements side by side. Point
 at a moment on one chart and every chart shows that same moment.

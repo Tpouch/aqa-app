@@ -232,6 +232,7 @@ its rule was switched off sends nothing.
 | `web/src/components/ZoneChart.tsx` | uPlot chart with named zone bands; cursor synced across charts |
 | `web/src/components/Sidebar.tsx` | Left column: live readings (also metric selectors), navigation, theme |
 | `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
+| `web/src/compare.ts` | Comparing two rooms on the single chart: rooms offered (sound only between calibrated boards), both series merged on one time axis, tooltip values, end-of-curve labels (pure, tested). The compared room is kept per browser tab (`sessionStorage`, `aqa-compare`) |
 | `web/src/pages/report/` | Bilan: week / month bounds (`period.ts`), page and view, shared with the phone tab |
 | `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
 | `web/src/pages/alerts/` | Alertes: rules, ntfy notifications, journal |

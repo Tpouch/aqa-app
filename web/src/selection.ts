@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { METRICS, type Metric } from "../../server/src/types";
 
-// What the Mesures page shows: one metric, or a grid of the checked ones.
+// What the Mesures page shows: one metric, or a grid of the checked ones, and the
+// room put next to the shown one on the single chart (board id, null = none).
 // Kept for the browser tab's lifetime, like the other view settings.
-export interface Selection { view: "single" | "grid"; metric: Metric; grid: Metric[] }
+export interface Selection { view: "single" | "grid"; metric: Metric; grid: Metric[]; compare: string | null }
 
-const KEYS = { view: "aqa-view", metric: "aqa-sensor-metric", grid: "aqa-grid-metrics" } as const;
+const KEYS = { view: "aqa-view", metric: "aqa-sensor-metric", grid: "aqa-grid-metrics", compare: "aqa-compare" } as const;
 
 const isMetric = (v: unknown): v is Metric => (METRICS as readonly unknown[]).includes(v);
 
@@ -21,11 +22,13 @@ export function readSelection(): Selection {
   const view = load(KEYS.view);
   const metric = load(KEYS.metric);
   const grid = load(KEYS.grid);
+  const compare = load(KEYS.compare);
   const checked = Array.isArray(grid) ? METRICS.filter((m) => grid.includes(m)) : [];
   return {
     view: view === "grid" ? "grid" : "single",
     metric: isMetric(metric) ? metric : "co2",
     grid: checked.length ? checked : [...METRICS],
+    compare: typeof compare === "string" ? compare : null,
   };
 }
 
@@ -34,6 +37,7 @@ function save(s: Selection) {
     sessionStorage.setItem(KEYS.view, JSON.stringify(s.view));
     sessionStorage.setItem(KEYS.metric, JSON.stringify(s.metric));
     sessionStorage.setItem(KEYS.grid, JSON.stringify(s.grid));
+    sessionStorage.setItem(KEYS.compare, JSON.stringify(s.compare));
   } catch {
     // Blocked storage: the selection still holds for this page view.
   }

@@ -116,6 +116,8 @@ La page Mesures est la seule dont le titre ne dit pas quelle pièce on regarde (
 
 ### A3. Comparer deux pièces sur un graphe
 
+**Fait** (branche `feat-compare-rooms`, plan : `docs/superpowers/plans/2026-11-24-comparer-pieces.md`). Écarts en fin de document.
+
 En vue 1 graphe, un bouton « comparer avec… » dans le bandeau. La courbe de l'autre pièce s'ajoute, en pointillé, avec son nom au bout comme la valeur actuelle. Les zones de fond restent celles de la mesure (identiques pour les deux pièces). L'infobulle donne les deux valeurs. Les stats MIN / MOY / MAX restent celles de la pièce affichée. Le son n'est comparable que si les deux cartes sont calibrées (sinon le bouton propose les autres pièces seulement pour les autres mesures).
 
 - Utile pour savoir quelle pièce aérer en premier ou comprendre un écart de température. Pas en grille, pas sur téléphone (la vue mobile n'a déjà qu'un graphe à la fois ; on pourra l'ajouter plus tard).
@@ -169,6 +171,7 @@ Fait, une branche par sujet (plan : `docs/superpowers/plans/2026-11-24-multicart
 | `feat-ota-par-carte` | B3 : carte d'une image retrouvée par son jeton, page Carte filtrée, OTA croisée et écrasement de version refusés | `main` |
 | `feat-liste-pieces` | A1 (et B2) : liste des pièces dans la colonne, feuille « Pièces » sur téléphone | `fix-ajout-carte` (la liste ramène de `#/ajouter` vers Mesures) |
 | `fix-multicarte-details` | B4, B5, B6, A2 | `feat-liste-pieces` (`rooms.ts`, barre mobile) |
+| `feat-compare-rooms` | A3 : « comparer avec… » en vue 1 graphe, courbe de l'autre pièce en pointillé (plan : `docs/superpowers/plans/2026-11-24-comparer-pieces.md`) | `DEV` |
 
 Écarts avec les propositions :
 
@@ -178,6 +181,7 @@ Fait, une branche par sujet (plan : `docs/superpowers/plans/2026-11-24-multicart
 - B5 : tri côté web (`sortDevices`, `Intl.Collator` français, nombres dans l'ordre).
 - B6 : la liste des pièces dit « en attente du 1er contact » (la colonne est étroite) ; ailleurs, « en attente du premier contact ».
 - A2 : le CSV prend le nom de la pièce même avec une seule carte ; le bandeau ne la nomme qu'à partir de deux.
+- A3 : le bouton ouvre un panneau sous le bandeau (comme « plage… »), une ligne de boutons, un par pièce, et « ne plus comparer » ; une fois choisie, il dit « avec Chambre… ». Le bout de la courbe comparée porte le nom de la pièce, pas sa valeur (l'infobulle la donne). Le CSV reste celui de la pièce affichée. Son : si une des deux cartes n'est pas calibrée, la comparaison s'efface et le panneau dit pourquoi ; la pièce reste retenue et revient sur les autres mesures. Passer sur la pièce comparée n'affiche rien de plus (pas d'échange automatique). Les deux cartes ne mesurent pas aux mêmes instants : les séries sont fusionnées sur un seul axe de temps sans couper les courbes (`web/src/compare.ts`), et l'infobulle prend la valeur de l'autre pièce à moins d'un pas du curseur, sinon « — ».
 
 ## Fichiers partagés avec les autres branches
 
