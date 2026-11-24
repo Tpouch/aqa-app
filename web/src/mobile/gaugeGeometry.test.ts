@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { metricDef } from "../metrics";
-import { gaugeAngle, gaugeScale, gaugeSegments } from "./gauge";
+import { gaugeAngle, gaugeScale, gaugeSegments } from "./gaugeGeometry";
 
 const co2 = metricDef("co2", null);
 const s = gaugeScale("co2", false);

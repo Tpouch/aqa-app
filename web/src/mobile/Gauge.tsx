@@ -1,7 +1,7 @@
 import { bandOf, metricDef, toDisplay } from "../metrics";
 import type { DeviceSummary, Metric } from "../../../server/src/types";
 import { fmt } from "../util";
-import { gaugeAngle, gaugeScale, gaugeSegments } from "./gauge";
+import { gaugeAngle, gaugeScale, gaugeSegments } from "./gaugeGeometry";
 
 const R = 34;
 const CX = 50;
