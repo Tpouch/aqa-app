@@ -9,6 +9,7 @@ import { DashboardPage } from "./DashboardPage";
 import { GraphPage, openGraph } from "./GraphPage";
 import { InfoPage } from "./InfoPage";
 import { MobileAlertsPage } from "./MobileAlertsPage";
+import { ReportPage } from "../pages/report/ReportPage";
 import { TabBar } from "./TabBar";
 
 // Current mobile tab from the hash. Web and legacy hashes are replaced by
@@ -74,6 +75,7 @@ export function MobileShell({ devices, device, onDevice, onLogout, now, error }:
 function Page({ route, device, now, onLogout }: { route: MobileRoute; device: DeviceSummary; now: number; onLogout: () => void }) {
   switch (route.tab) {
     case "dashboard": return <DashboardPage device={device} onOpen={openGraph} />;
+    case "bilan": return <ReportPage key={device.id} id={device.id} device={device} compact />;
     case "alertes": return <MobileAlertsPage key={device.id} id={device.id} device={device} />;
     case "infos": return <InfoPage device={device} now={now} onLogout={onLogout} />;
     case "graph": return <GraphPage key={device.id} id={device.id} device={device} metric={route.metric} />;

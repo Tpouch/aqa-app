@@ -95,6 +95,21 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX alerts_device ON alerts(device_id, started_at);
   `,
+  `
+  -- ntfy notifications: one global row, edited from the Alertes page.
+  CREATE TABLE notify (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled       INTEGER NOT NULL DEFAULT 0,
+    server        TEXT NOT NULL DEFAULT 'https://ntfy.sh',
+    topic         TEXT NOT NULL DEFAULT '',
+    token         TEXT,                     -- NULL = no token; never returned by the API
+    notify_close  INTEGER NOT NULL DEFAULT 1,
+    last_at       INTEGER,                  -- last send (alert or test)
+    last_ok       INTEGER,
+    last_error    TEXT
+  );
+  INSERT INTO notify (id) VALUES (1);
+  `,
 ];
 
 export type Db = DatabaseSync;

@@ -1,98 +1,121 @@
 # AQA — know what you're breathing
 
-AQA is a small air-quality station for a room (a living room, a bedroom, a
-classroom, an office), and this repository is the website that goes with it.
+AQA is a small box that watches the air in a room (a bedroom, a living room, a
+classroom, an office) and a website that tells you, in plain words, whether
+that air is good and what to do when it isn't.
 
-The station is an ESP32 board with four sensors. Every 15 seconds it measures
-the air and sends the numbers to this app. The app keeps the history and draws
-it as charts anyone can read at a glance. It also tells you plainly when it's
-time to open a window.
+Leave the box in the room. Open the website on your computer or your phone. You
+see right away whether the air is good, how it has been all day, and when it's
+time to open a window. You don't need to know what "1,200 ppm" means.
 
 ![The Measures page: live readings on the left, the CO₂ curve over 24 hours on the right, with good / ventilate / bad zones](docs/screenshots/measures.png)
 
-> Looking for the board itself? The firmware, the wiring and the build
-> instructions are in **[Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32)**.
+*The interface is in French.*
 
 ## What it measures
 
 | | What it tells you |
 |---|---|
-| **CO₂** | How stale the air is. It rises when people stay in a closed room, and it's the clearest sign you need to ventilate. |
-| **Fine particles (PM2.5)** | Smoke, dust and pollution: tiny particles that get deep into the lungs. |
+| **CO₂** | How stale the air is. It rises when people stay in a closed room, and it's the clearest sign you need to air the room. |
+| **Fine particles** | Smoke, dust and pollution: tiny particles that get deep into the lungs. |
 | **Temperature** | Whether the room is comfortable, too cold or too warm. |
 | **Humidity** | Whether the air is too dry (sore throat, static) or too damp (mould). |
-| **Noise** | How loud the room is, in estimated decibels once the board is calibrated. |
+| **Noise** | How loud the room is. |
 
 ## Reading it at a glance
 
-Every value falls in a **zone**, and each zone has a word, so you never need to
-know what "1,200 ppm" means:
+Every value falls in a **zone**, and each zone has a word and a colour:
 
 | | Good | Watch it | Bad |
 |---|---|---|---|
-| CO₂ | under 800 ppm (*bon*) | 800–1,200 (*aérer*, ventilate) | over 1,200 (*mauvais*) |
+| CO₂ | under 800 ppm (*bon*) | 800–1,200 (*aérer*, air the room) | over 1,200 (*mauvais*) |
 | Fine particles | under 15 µg/m³ | 15–35 | over 35 (WHO guideline) |
 | Temperature | 19–24 °C (*confort*) | | colder or warmer |
 | Humidity | 40–60 % (*confort*) | | drier or damper |
 | Noise | under 55 dB (*calme*) | 55–70 dB (*bruyant*) | over 70 dB (*fort*) |
 
-The charts use the same zones: green at the bottom, amber in the middle, red at
-the top, with each zone's name written on the side. One look shows where the air
-is now and where it has been all day.
+The charts use the same colours: green at the bottom, amber in the middle, red
+at the top, with each zone's name written on the side. One look shows where the
+air is now and where it has been all day.
 
-*The interface itself is in French.*
+## What you can do with it
 
-## Features
+### See the air right now, and how it has been
 
-### Live readings, always in view
+The five current values stay in view on every page, each with its zone word.
+Click one to see its history over the last hour, the day, the month or any
+dates you choose. Under the chart: the lowest, the average, the highest, and
+**how long the air stayed in the bad zone**.
 
-The left column shows the five current values with their zone word, on every
-page. Click one to see its history.
-
-### One big chart, or all of them at once
-
-Pick a period: the last hour up to the last 30 days, a specific day, or any range
-you like. Below the chart you get the minimum, the average, the maximum and
-**how long the air spent in the bad zone**. Switch to the grid to compare every
-measurement side by side on one screen. Hover over one chart and all of them
-show the same moment.
+Want everything at once? The grid puts all the measurements side by side. Point
+at a moment on one chart and every chart shows that same moment.
 
 ![Grid view: the five measurements side by side, with a summary of the time spent outside the comfort zone](docs/screenshots/grid.png)
 
-You can download everything as a spreadsheet (CSV).
+You can also download all the measurements as a spreadsheet.
 
-### Look after the board from your browser
+### Your week in one sentence
 
-The **Board** page (*Carte*) shows:
+The **Report** tab (*Bilan*) answers "was my week good, and what should I
+change?":
 
-- whether the station is online,
-- its Wi-Fi signal,
-- which sensors are working,
-- a log of what happened: restarts, lost connections, sensors that stopped answering.
+- one sentence first, such as *"Bonne semaine : l'air a été bon 86 % du temps"*
+  (good week: the air was good 86 % of the time);
+- for each measurement, how long it spent in each zone, and whether it did
+  better or worse than the week before;
+- CO₂ hour by hour, one row per day, so habits jump out: the evening peak, the
+  stuffy morning;
+- two or three things to remember, in plain words: *"CO₂ goes over 1,200 ppm
+  almost every evening around 9 pm: air the room before going to bed."*
 
-From there you can restart the board or install a new firmware version without
-plugging in a cable.
+Switch between the week and the month, and go back to earlier ones.
+
+![The Report tab: a one-line verdict, time spent in each zone per measurement, CO₂ hour by hour over the week and three takeaways](docs/screenshots/bilan.png)
+
+### Get warned on your phone
+
+When the air stays bad for a while (too much CO₂, too cold, too damp, the box
+unplugged…), an **alert** opens with a concrete tip such as *"open a window wide
+for 5 to 10 minutes"*. The Alerts page (*Alertes*) keeps the list of past
+alerts. You choose which ones you want and how sensitive they are.
+
+To receive them on your phone even when the website is closed, install the free
+[ntfy](https://ntfy.sh) app and pick the same channel name in the app and in
+AQA. Each notification says which room it comes from, what's wrong and what to
+do, and another one tells you when things are back to normal.
+
+![Alerts page: the rules on the left with their thresholds, the log of past alerts on the right, and the phone notification settings](docs/screenshots/alerts.png)
+
+### Understand what the numbers mean
+
+The **Info** tab (*Infos*) explains each measurement in everyday words: where it
+comes from, what each zone means, what to do about it, and from what level it
+becomes a real health concern, with its sources.
+
+![Info tab: what CO₂ is, its zones, what to do and when it becomes dangerous](docs/screenshots/infos.png)
+
+### Look after the box from anywhere
+
+The **Board** page (*Carte*) tells you whether the box is online, how good its
+Wi-Fi signal is, whether each sensor is working, and what happened recently
+(restarts, lost connection, a sensor that stopped answering). From there you can
+restart it or update it without unplugging anything.
 
 ![Board page: status, Wi-Fi, sensors, actions and log](docs/screenshots/board.png)
 
-### Settings
-
-From the Settings page you can:
-
-- rename the board,
-- move it to another Wi-Fi network,
-- set its location,
-- calibrate the noise sensor with a sound-meter app on your phone,
-- upload new firmware versions.
+In **Settings** (*Réglages*) you can rename the box, move it to another Wi-Fi
+network, and tune the noise sensor in a minute with a free sound-meter app on
+your phone.
 
 ![Settings page](docs/screenshots/settings.png)
 
-### Dark or light, desktop or phone
+### On your phone, in the dark or in the light
 
-The app opens in dark mode and switches to light in one click. On a phone it
-has its own layout: a dashboard of gauges you can reorder (long press, then
-drag), the alerts, the board's state (read only) and a full-screen chart to view
-in landscape. Board commands and settings stay on the desktop.
+The website opens in dark mode and switches to light in one click. On a phone
+it has its own layout: one gauge per measurement (press and hold to reorder
+them), the report, the alerts, the state of the box, and a full-screen chart
+when you turn the phone sideways. Controlling the box and changing settings
+stay on the computer.
 
 <p>
   <img src="docs/screenshots/measures-light.png" alt="Light theme" width="68%">
@@ -100,20 +123,16 @@ in landscape. Board commands and settings stay on the desktop.
   <img src="docs/screenshots/phone.png" alt="Phone dashboard: one gauge per measure" width="27%">
 </p>
 
-## Getting started
+## Your data stays yours
 
-1. **Build the station** by following the
-   [EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32) repository.
-2. **Run this app** on a server and choose an admin password. It ships as a
-   single Docker container.
-3. **Register the board** in the app. It gives you a secret key to put in the
-   board's settings before you flash it. Boards that are already trying to
-   connect show up in the list on their own.
+Everything stays on your own server, behind your own password. Nothing is sent
+to anyone else, except the phone notifications if you turn them on.
 
-Step-by-step instructions, configuration and the API are in
-**[DEVELOPERS.md](DEVELOPERS.md)**.
+## Make your own
 
-## Privacy
+You need two things: the box, and somewhere to run the website.
 
-Everything stays on your own server. There is one admin account, each board
-signs in with its own secret key, and nothing is sent to anyone else.
+- **The box**: its parts, wiring and software are in
+  [Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32).
+- **The website**: how to install it, connect a box to it and everything
+  technical is in **[DEVELOPERS.md](DEVELOPERS.md)**.

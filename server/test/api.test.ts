@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp, type Built } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -403,6 +405,113 @@ describe("alertes", () => {
 
   it("refuse sans session", async () => {
     expect((await built.app.inject({ method: "GET", url: "/api/v1/alert-rules" })).statusCode).toBe(401);
+  });
+});
+
+describe("bilan", () => {
+  // The frames sent above sit at 1795201200 and 1795201260 (CO₂ 400 and 600).
+  const from = 1795201200 - 86400;
+  const url = (q: string) => `/api/v1/devices/${DEVICE}/report?${q}`;
+
+  it("calcule le bilan d'une période", async () => {
+    run(built.db, "INSERT INTO alerts (device_id, kind, threshold, started_at) VALUES (?, 'co2_high', 1200, ?)", DEVICE, from + 3600);
+    const res = await admin("GET", url(`from=${from}&to=${from + 7 * 86400}&kind=week&tz=Europe/Paris`));
+    expect(res.statusCode).toBe(200);
+    const r = res.json();
+    expect(r).toMatchObject({ device_id: DEVICE, kind: "week", tz: "Europe/Paris", prev_from: from - 7 * 86400 });
+    expect(r.metrics).toHaveLength(5);
+    expect(r.heatmap.rows).toHaveLength(7);
+    expect(r.measured_s).toBeGreaterThanOrEqual(120);
+    expect(r.metrics[0].current.zones[0]).toMatchObject({ word: "bon" });
+    expect(r.alerts.current).toBe(1);
+    expect(typeof r.verdict.head).toBe("string");
+    expect(r.first_ts).toBe(1795200000); // oldest frame stored for the board
+    run(built.db, "DELETE FROM alerts");
+  });
+
+  it("accepte une période précédente explicite", async () => {
+    const r = (await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=${from - 3 * 86400}`))).json();
+    expect(r).toMatchObject({ kind: "custom", prev_from: from - 3 * 86400 });
+  });
+
+  it("refuse des paramètres invalides", async () => {
+    expect((await admin("GET", url(`from=${from}&to=${from}`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 33 * 86400}`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&tz=Mars/Olympus`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&kind=year`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=${from + 10}`))).statusCode).toBe(400);
+    expect((await admin("GET", url("to=5"))).statusCode).toBe(400);
+    // The previous period obeys the same 32-day cap, and dates stay in range.
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=0`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${1e15}&to=${1e15 + 86400}&kind=week`))).statusCode).toBe(400);
+  });
+
+  it("répond 404 pour une carte inconnue et 401 sans session", async () => {
+    expect((await admin("GET", `/api/v1/devices/aqa-000000000000/report?from=${from}&to=${from + 86400}`)).statusCode).toBe(404);
+    expect((await built.app.inject({ method: "GET", url: url(`from=${from}&to=${from + 86400}`) })).statusCode).toBe(401);
+  });
+});
+
+describe("notifications", () => {
+  const received: { url: string; auth?: string; body: any }[] = [];
+  let ntfy: http.Server;
+  let ntfyUrl = "";
+  beforeAll(async () => {
+    ntfy = http.createServer((req, res) => {
+      let data = "";
+      req.on("data", (c) => (data += c));
+      req.on("end", () => {
+        received.push({ url: req.url!, auth: req.headers.authorization, body: JSON.parse(data) });
+        res.end("{}");
+      });
+    });
+    await new Promise<void>((r) => ntfy.listen(0, "127.0.0.1", r));
+    ntfyUrl = `http://127.0.0.1:${(ntfy.address() as AddressInfo).port}`;
+  });
+  afterAll(() => { ntfy.closeAllConnections(); ntfy.close(); });
+
+  it("exige la session", async () => {
+    expect((await built.app.inject({ method: "GET", url: "/api/v1/notify" })).statusCode).toBe(401);
+  });
+  it("défauts", async () => {
+    expect((await admin("GET", "/api/v1/notify")).json()).toEqual({
+      enabled: false, server: "https://ntfy.sh", topic: "", token_set: false, notify_close: true, last: null,
+    });
+  });
+  it("valide", async () => {
+    expect((await admin("PATCH", "/api/v1/notify", { topic: "a b" })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { server: "ftp://x" })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { enabled: true })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { nope: 1 })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", {})).statusCode).toBe(422);
+    const res = await admin("PATCH", "/api/v1/notify", { server: " https://ntfy.example/ " });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().server).toBe("https://ntfy.example");
+  });
+  it("ne renvoie jamais le jeton", async () => {
+    const set = await admin("PATCH", "/api/v1/notify", { token: "tk_secret" });
+    expect(set.json().token_set).toBe(true);
+    expect(set.body).not.toContain("tk_secret");
+    expect((await admin("GET", "/api/v1/notify")).body).not.toContain("tk_secret");
+    expect((await admin("PATCH", "/api/v1/notify", { token: null })).json().token_set).toBe(false);
+  });
+  it("test sans sujet", async () => {
+    expect((await admin("POST", "/api/v1/notify/test")).statusCode).toBe(422);
+  });
+  it("envoie un test, même désactivé", async () => {
+    const set = await admin("PATCH", "/api/v1/notify", { server: ntfyUrl, topic: "aqa-test", token: "tk_x" });
+    expect(set.json()).toMatchObject({ enabled: false, topic: "aqa-test", token_set: true });
+    const res = await admin("POST", "/api/v1/notify/test");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().last).toMatchObject({ ok: true, error: null });
+    expect(res.body).not.toContain("tk_x");
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ url: "/", auth: "Bearer tk_x", body: { topic: "aqa-test", title: "Test · AQA" } });
+  });
+  it("active et coupe la fin", async () => {
+    const res = await admin("PATCH", "/api/v1/notify", { enabled: true, notify_close: false });
+    expect(res.json()).toMatchObject({ enabled: true, notify_close: false });
+    expect((await admin("PATCH", "/api/v1/notify", { topic: "" })).statusCode).toBe(422);
   });
 });
 

@@ -3,9 +3,30 @@
 Technical documentation for the AQA app. For what the project does, see the
 [README](README.md).
 
-The boards send their measurements over HTTPS. The app stores them, charts them
-over hours or weeks, and sends commands back to the boards: restart, geohash,
-config, Wi-Fi, signed OTA update.
+The station is an ESP32 board with four sensors (firmware, wiring and build
+instructions: [Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32)).
+Every 15 seconds it measures the air and sends the readings to this app over
+HTTPS. The app stores them, charts them over hours or weeks, and sends commands
+back to the boards: restart, geohash, config, Wi-Fi, signed OTA update.
+
+## Getting started
+
+1. **Build the station** by following the
+   [EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32) repository.
+2. **Deploy this app** on a server with an admin password: one Docker container
+   (see [Deployment](#deployment-docker-compose)).
+3. **Register the board** in the app: it gives you a secret token to put in the
+   firmware's `.env` before you flash it (see [Adding a board](#adding-a-board)).
+   Boards already trying to connect show up in the list on their own.
+
+## Security and privacy
+
+- One admin account (`ADMIN_PASSWORD`), with a signed session cookie.
+- Each board signs in with its own token; the database keeps only its hash.
+- Firmware images are never public: boards download them through signed,
+  time-limited links (see [OTA updates](#ota-updates)).
+- Nothing leaves the server, except alert notifications when they are turned
+  on: they go to the ntfy server chosen in the UI (ntfy.sh by default).
 
 The board ↔ server contract is defined in the firmware repository,
 [`EPITECH_ESP32/docs/api.md`](https://github.com/Tpouch/EPITECH_ESP32/blob/main/docs/api.md),
@@ -30,7 +51,7 @@ npm run typecheck
 npm run build                 # web/dist + server/dist; `npm start` serves everything on :3000
 ```
 
-To fill a local database with a demo board and a week of fake measurements:
+To fill a local database with a demo board and five weeks of fake measurements:
 
 ```bash
 npx tsx --env-file=.env server/scripts/seed-demo.ts http://localhost:3000
@@ -132,6 +153,9 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
 | `LOG_LEVEL` | `info` | |
 
+Alert notifications (ntfy) are not configured here: they are set in the web UI
+(**Alertes → Notifications**) and stored in the database.
+
 Generate a `SESSION_SECRET` with:
 
 ```bash
@@ -152,24 +176,56 @@ routes require the admin session cookie:
 | `POST /api/v1/devices/{id}/token` | New token |
 | `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
 | `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
 | `GET /api/v1/devices/{id}/events` | Journal |
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
 | `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Download by the board, signed link |
+| `GET /api/v1/alert-rules`, `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
+| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` | Alerts of a board: `{ open, history }` |
+| `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
+| `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
 | `GET /healthz` | Health check |
 
-## Front-end structure
+## Alert notifications (ntfy)
+
+`server/src/alerts.ts` checks the rules every 30 s. `openAlert` and
+`closeAlert` report an event, and `checkAlerts` returns these events after its
+SQLite transaction commits. `buildApp` hands them to the `Notifier`
+(`server/src/notify.ts`) without waiting, so a slow or unreachable ntfy server
+never delays detection, and no notification goes out for a rolled-back
+transaction.
+
+`Notifier.publish()` is the only way out: a `POST` of JSON to the root of the
+ntfy server (`topic`, `title`, `message`, `priority`, `tags`, `click`), with
+`Authorization: Bearer <token>` when a token is set and a 5 s timeout. It never
+throws. Each result (success or a short error such as `HTTP 403 : forbidden`)
+is logged and stored as the "last send" shown in the UI.
+
+| Event | Title | Priority |
+|---|---|---|
+| Alert opens | `<label> · <board name>`, body = value, threshold and tip | `high` for red alerts, `default` for amber ones |
+| Alert ends (optional) | `Retour à la normale · <board name>`, body = duration | `low` |
+
+Clicking a notification opens `PUBLIC_URL/#/alertes`. An alert closed because
+its rule was switched off sends nothing.
+
+## Code structure (front end and shared modules)
 
 | | |
 |---|---|
-| `web/src/metrics.ts` | Zones, zone words, dB conversion, y-axis range, period stats (pure, tested) |
+| `server/src/zones.ts` | Zone bands of every measurement: the one definition, imported by the server and the web client |
+| `server/src/report.ts`, `reportText.ts` | The Bilan: numbers from one-minute averages, then its sentences (pure, tested; reusable for a weekly notification) |
+| `web/src/metrics.ts` | Zone words, dB conversion, y-axis range, period stats (pure, tested) |
 | `web/src/components/ZoneChart.tsx` | uPlot chart with named zone bands; cursor synced across charts |
 | `web/src/components/Sidebar.tsx` | Left column: live readings (also metric selectors), navigation, theme |
 | `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
+| `web/src/pages/report/` | Bilan: week / month bounds (`period.ts`), page and view, shared with the phone tab |
 | `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
+| `web/src/pages/alerts/` | Alertes: rules, ntfy notifications, journal |
 | `web/src/pages/settings/` | Réglages, including sound calibration |
 | `web/src/styles.css` | Design tokens (dark default + light) and every style |
 
-Routes are hash-based (`#/mesures`, `#/carte`, `#/reglages`). Old links
+Routes are hash-based (`#/mesures`, `#/bilan`, `#/alertes`, `#/carte`, `#/reglages`, `#/infos`). Old links
 (`#/overview`, `#/sensor`, `#/commands`, `#/options`, `#/device/<id>/<tab>`)
 redirect to the new ones.
