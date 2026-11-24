@@ -16,3 +16,12 @@ describe("WEBHOOK_ALLOWED_HOSTS", () => {
     expect(() => loadConfig({ ...base, WEBHOOK_ALLOWED_HOSTS: "x.fr:8644" })).toThrow(/is not a hostname/);
   });
 });
+
+describe("AQA_TZ", () => {
+  it("defaults to Europe/Paris", () => {
+    expect(loadConfig(base).AQA_TZ).toBe("Europe/Paris");
+  });
+  it("rejects an unknown time zone", () => {
+    expect(() => loadConfig({ ...base, AQA_TZ: "Mars/Olympus" })).toThrow(/AQA_TZ/);
+  });
+});
