@@ -12,9 +12,9 @@ export type Decision =
 
 // What openAlert / closeAlert report, handed to the notifier after the commit.
 export type AlertEvent =
-  | { type: "opened"; device_name: string; kind: AlertKind; threshold: number | null;
+  | { type: "opened"; device_id: string; device_name: string; kind: AlertKind; threshold: number | null;
       value: number | null; started_at: number; at: number }
-  | { type: "closed"; device_name: string; kind: AlertKind; started_at: number; at: number;
+  | { type: "closed"; device_id: string; device_name: string; kind: AlertKind; started_at: number; at: number;
       end_value: number | null; reason: "normal" | "disabled" };
 
 export const CLOSE_AFTER_S = 120;
@@ -155,7 +155,7 @@ export function openAlert(
   run(db,
     "INSERT INTO alerts (device_id, kind, threshold, started_at, start_value, peak_value) VALUES (?, ?, ?, ?, ?, ?)",
     device.id, kind, threshold, d.started_at, d.start_value, d.peak_value);
-  out.push({ type: "opened", device_name: device.name, kind, threshold, value, started_at: d.started_at, at: now });
+  out.push({ type: "opened", device_id: device.id, device_name: device.name, kind, threshold, value, started_at: d.started_at, at: now });
 }
 
 export function closeAlert(
@@ -164,7 +164,7 @@ export function closeAlert(
 ): void {
   run(db, "UPDATE alerts SET ended_at = ?, end_value = ?, end_reason = ? WHERE id = ?", now, endValue, reason, alert.id);
   out.push({
-    type: "closed", device_name: device.name, kind: alert.kind, started_at: alert.started_at, at: now,
+    type: "closed", device_id: device.id, device_name: device.name, kind: alert.kind, started_at: alert.started_at, at: now,
     end_value: endValue, reason,
   });
 }
