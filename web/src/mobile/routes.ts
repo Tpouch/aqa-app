@@ -1,13 +1,13 @@
 import { METRICS, type Metric } from "../../../server/src/types";
 
-// Phone view: four tabs at the bottom. Any other hash (the web tabs, legacy
+// Phone view: five tabs at the bottom. Any other hash (the web tabs, legacy
 // links, nothing at all) lands on the dashboard; #/graph/<metric> is the
 // full-screen chart of one metric.
-export type MobileTab = "dashboard" | "alertes" | "infos" | "graph";
+export type MobileTab = "dashboard" | "bilan" | "alertes" | "infos" | "graph";
 
-export const MOBILE_TABS: MobileTab[] = ["dashboard", "alertes", "infos", "graph"];
+export const MOBILE_TABS: MobileTab[] = ["dashboard", "bilan", "alertes", "infos", "graph"];
 export const MOBILE_LABEL: Record<MobileTab, string> = {
-  dashboard: "Dashboard", alertes: "Alertes", infos: "Infos", graph: "Graph",
+  dashboard: "Dashboard", bilan: "Bilan", alertes: "Alertes", infos: "Infos", graph: "Graph",
 };
 
 // A touch screen whose short side is at most 720 px: a phone, in either
