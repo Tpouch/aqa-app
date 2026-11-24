@@ -86,7 +86,10 @@ export function CardPage({ id, device, commands, commandsError, reload, send, no
                 <Button type="submit" variant="primary" disabled={!otaVersion || busy !== null} loading={busy === "ota"}>Installer</Button>
                 {others > 0 && (
                   <p className="muted small cp-ota-others">
-                    {others === 1 ? "1 image pour une autre carte, non proposée ici." : `${others} images pour d'autres cartes, non proposées ici.`}
+                    {others === 1
+                      ? "1 autre image n'est pas proposée ici : compilée pour une autre carte, ou avec un jeton remplacé depuis"
+                      : `${others} autres images ne sont pas proposées ici : compilées pour une autre carte, ou avec un jeton remplacé depuis`}
+                    {" "}(voir <a href="#/reglages">Réglages</a>).
                   </p>
                 )}
               </form>
