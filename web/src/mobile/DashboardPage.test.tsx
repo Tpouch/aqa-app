@@ -68,3 +68,25 @@ describe("DashboardPage, organiser", () => {
     expect(onOpen).toHaveBeenCalledWith(first.dataset.metric);
   });
 });
+
+describe("DashboardPage, appui long", () => {
+  it("un appui long au doigt passe en mode organiser", () => {
+    pointer(gauges()[0]!, "pointerdown", { pointerType: "touch" });
+    act(() => vi.advanceTimersByTime(600));
+    expect(button("terminé")).toBeDefined();
+  });
+
+  it("un clic droit tenu ne passe pas en mode organiser", () => {
+    pointer(gauges()[0]!, "pointerdown", { pointerType: "mouse", button: 2 });
+    act(() => vi.advanceTimersByTime(600));
+    expect(button("terminé")).toBeUndefined();
+  });
+
+  it("un deuxième doigt annule l'appui long au lieu de le relancer", () => {
+    pointer(gauges()[0]!, "pointerdown", { pointerType: "touch" });
+    act(() => vi.advanceTimersByTime(200));
+    pointer(gauges()[1]!, "pointerdown", { pointerType: "touch", isPrimary: false, pointerId: 2 });
+    act(() => vi.advanceTimersByTime(600));
+    expect(button("terminé")).toBeUndefined();
+  });
+});

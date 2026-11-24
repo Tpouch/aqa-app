@@ -26,6 +26,8 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
     onPointerDown: (e: React.PointerEvent) => {
       swallowClick.current = false;
       cancelPress();
+      // One finger or the main mouse button only: a second finger (pinch) or a right click is not a long press.
+      if (!e.isPrimary || e.button !== 0) return;
       press.current = {
         x: e.clientX, y: e.clientY,
         timer: window.setTimeout(() => {
