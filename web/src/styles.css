@@ -376,7 +376,7 @@ select.input, .field select { background: var(--bg); }
   }
   .sb-head { grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
   .sb-ago { grid-column: 2; }
-  .sb-head .rooms, .sb-add, .sb-unknown { grid-column: 1 / -1; }
+  .sb-head .rooms, .rooms ~ .sb-ago, .sb-add, .sb-unknown { grid-column: 1 / -1; }
   .sb-readings {
     display: flex;
     overflow-x: auto;
@@ -829,9 +829,26 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-sel);
 .mb-device { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
 .mb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mb-switch {
-  font-size: 16px; /* under 16px iOS zooms the page on focus */
-  background: var(--bg); border: 1px solid var(--rule-strong); padding: 4px 6px; min-height: 44px; max-width: 45vw;
+  display: inline-flex; align-items: center; min-width: 0; max-width: 45vw; min-height: 44px; padding: 4px 6px;
+  border: 1px solid var(--rule-strong); border-radius: 0; background: var(--bg); color: var(--text);
+  font: inherit; font-size: 16px; cursor: pointer;
 }
+.mb-elsewhere { flex: none; font-size: 13px; }
+/* Rooms sheet: full screen above the tabs, the phone's board switcher. */
+.mb-sheet {
+  position: fixed; inset: 0; z-index: 20; overflow-y: auto;
+  padding: calc(env(safe-area-inset-top) + 12px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 16px) max(16px, env(safe-area-inset-left));
+  background: var(--bg);
+}
+.mb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mb-sheet-close {
+  min-width: 44px; min-height: 44px; border: 1px solid var(--rule-strong); border-radius: 0;
+  background: none; color: var(--text); font: inherit; font-size: 16px; cursor: pointer;
+}
+.mb-sheet .room { min-height: 56px; padding: 10px 0; }
+.mb-sheet .room-name { font-size: 16px; }
+.mb-sheet .room[aria-current] .room-name { font-size: 18px; }
+.mb-sheet .room-state { font-size: 14px; }
 .mb-ago { margin-left: auto; font-size: 12px; white-space: nowrap; }
 .mb-main:focus { outline: none; }
 
