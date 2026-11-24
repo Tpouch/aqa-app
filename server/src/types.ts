@@ -4,6 +4,9 @@
 export const METRICS = ["co2", "pm25", "snd", "temp", "hum"] as const;
 export type Metric = (typeof METRICS)[number];
 
+// How a value reads: inside the good zone, worth watching, or bad.
+export type Tone = "good" | "warn" | "bad";
+
 export const COMMAND_TYPES = ["status", "config", "geohash", "restart", "ota", "rollback", "wifi"] as const;
 export type CommandType = (typeof COMMAND_TYPES)[number];
 export type CommandState = "pending" | "sent" | "in_progress" | "completed" | "failed";

@@ -40,7 +40,7 @@ function stamp(ts: number, span: number) {
 }
 
 /** Lower and upper bounds of each band (null = unbounded). */
-function bandBounds(bands: Band[]) {
+function bandBounds(bands: readonly Band[]) {
   return bands.map((b, i) => ({ band: b, lo: i === 0 ? null : bands[i - 1]!.to, hi: b.to }));
 }
 
