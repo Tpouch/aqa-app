@@ -121,7 +121,7 @@ export function history(
   if (to <= from) return fail("La fin doit suivre le début.");
   const points = a.points ?? 48;
   if (!Number.isInteger(points) || points < 1 || points > 200) return fail("points doit être un entier entre 1 et 200.");
-  const step = AGGREGATE_STEPS.find((s) => Math.ceil((to - from) / s) <= points);
+  const step = AGGREGATE_STEPS.find((s) => Math.ceil((to - from) / s) + 1 <= points);
   if (step === undefined) return fail(`Période trop longue pour ${points} points : réduis-la ou demande moins de détail.`);
   const cal = calibrationOf(d);
   const toDb = a.metric === "snd" && cal !== null;
@@ -173,6 +173,9 @@ export function alertRules(ctx: ToolContext): ToolResult {
   return ok({ rules: readRules(ctx.db).map((r) => ({ ...r, label: CATALOG[r.kind].label, unit: CATALOG[r.kind].unit })) });
 }
 
-export function getWebhook(ctx: ToolContext): ToolResult {
-  return ok(readWebhook(ctx.db, { coarse: true, allowedHosts: ctx.allowedHosts }));
+export function getWebhook(ctx: ToolContext, a: { tz?: string } = {}): ToolResult {
+  const tz = zoneTz(ctx, a.tz);
+  if (!tz) return fail(`Fuseau horaire inconnu : « ${a.tz} ».`);
+  const w = readWebhook(ctx.db, { coarse: true, allowedHosts: ctx.allowedHosts });
+  return ok({ ...w, last: w.last ? { ...w.last, at: isoLocal(w.last.at, tz) } : null });
 }

@@ -108,6 +108,14 @@ describe("history", () => {
     expect(r.data.unit).toBe("ppm");
     expect(typeof r.data.points[0].at).toBe("string");
   });
+  it("ne dépasse jamais le nombre de points demandé, même avec un début non aligné", () => {
+    const { db, ctx } = setup();
+    board(db, SALON, "Salon");
+    const from = NOW - 86400 + 1234;
+    for (let i = 0; i < 24 * 60; i += 5) frame(db, SALON, from + i * 60, 600);
+    const r = history(ctx, { room: SALON, metric: "co2", from: new Date(from * 1000).toISOString(), to: new Date((from + 86400) * 1000).toISOString(), points: 24 }) as { ok: true; data: any };
+    expect(r.data.points.length).toBeLessThanOrEqual(24);
+  });
   it("refuse une période trop longue", () => {
     const { db, ctx } = setup();
     board(db, SALON, "Salon");
@@ -142,5 +150,11 @@ describe("alertRules / getWebhook", () => {
     const r = getWebhook(ctx) as { ok: true; data: any };
     expect(r.data.allowed_hosts).toEqual(["hermes.local"]);
     expect("secret" in r.data).toBe(false);
+  });
+  it("donne l'heure du dernier envoi en ISO", () => {
+    const { db, ctx } = setup();
+    run(db, "UPDATE webhook SET last_at = ?, last_ok = 1 WHERE id = 1", NOW);
+    const r = getWebhook(ctx) as { ok: true; data: any };
+    expect(r.data.last.at).toBe("2026-11-24T12:00:00+00:00");
   });
 });
