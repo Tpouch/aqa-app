@@ -107,7 +107,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
         </a>
         <div className="setup-tools"><SessionTools onLogout={onLogout} /></div>
         <main id="main" tabIndex={-1} className="setup">
-          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
+          <Setup unknown={devices.data.unknown} first onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
         </main>
       </>
     );
@@ -119,13 +119,20 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
         Aller au contenu
       </a>
       <Sidebar devices={list} device={device} onDevice={onDevice} tab={tab} selection={selection} onSelection={setSelection}
-               pending={pending} alerts={device?.open_alerts ?? 0} now={now} onLogout={onLogout} />
+               pending={pending} alerts={device?.open_alerts ?? 0} unknown={devices.data?.unknown.length ?? 0}
+               now={now} onLogout={onLogout} />
       <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
           <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>
         ) : !devices.data ? (
           <Skeleton height={400} />
-        ) : !device ? null : (
+        ) : !device ? null : tab === "ajouter" ? (
+          <Setup unknown={devices.data.unknown} first={false} onDone={(id) => {
+            devices.reload();
+            if (id) onDevice(id);
+            window.location.hash = "/mesures";
+          }} />
+        ) : (
           <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
                       onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
