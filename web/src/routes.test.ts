@@ -10,6 +10,10 @@ describe("parseRoute", () => {
     ["#/dashboard", "mesures", "#/mesures"], ["#/graph/co2", "mesures", "#/mesures"],
   ])("%s → %s", (h, tab, redirect) => expect(parseRoute(h)).toMatchObject({ tab, redirect }));
   it("place Bilan juste après Mesures", () => expect(TAB_ORDER.slice(0, 2)).toEqual(["mesures", "bilan"]));
+  it("#/ajouter ouvre l'ajout d'une carte, hors de la navigation", () => {
+    expect(parseRoute("#/ajouter")).toMatchObject({ tab: "ajouter", redirect: null });
+    expect(TAB_ORDER).not.toContain("ajouter");
+  });
   it("reprend la carte des anciens liens", () =>
     expect(parseRoute("#/device/aqa-24A160B3C8F0/commands")).toEqual({ tab: "carte", redirect: "#/carte", device: "aqa-24A160B3C8F0" }));
 });

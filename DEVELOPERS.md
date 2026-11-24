@@ -112,6 +112,9 @@ Without it, the ESP32 gets HTML 403 pages instead of the API.
    A board that calls the API before it is registered also appears on its own in
    the app's add-a-board screen.
 2. On the add-a-board screen, register the id. The app shows a token **once**.
+   The screen opens by itself while no board is registered; afterwards, use
+   **+ ajouter une carte** in the left column (`#/ajouter`, desktop only). The
+   column also warns when an unregistered board keeps calling the API.
 3. In the firmware's `.env`, set `DEVICE_TOKEN=<token>` (and
    `API_URL=https://sensor.devgoblin.fr`), then rebuild and flash.
 

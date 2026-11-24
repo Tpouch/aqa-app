@@ -7,8 +7,9 @@ import { ago, useNow } from "../util";
 
 const ID_RE = /^aqa-[0-9A-F]{12}$/;
 
-// First run: no board registered yet. Registers it and shows its token once.
-export function Setup({ unknown, onDone }: { unknown: UnknownDevice[]; onDone: () => void }) {
+// Registers a board and shows its token once: on first run (no board yet,
+// full screen), or from the column's "+ ajouter une carte" link.
+export function Setup({ unknown, first, onDone }: { unknown: UnknownDevice[]; first: boolean; onDone: (id: string | null) => void }) {
   const toast = useToast();
   const now = useNow();
   const [newId, setNewId] = useState(unknown[0]?.id ?? "");
@@ -40,9 +41,10 @@ export function Setup({ unknown, onDone }: { unknown: UnknownDevice[]; onDone: (
   return (
     <div className="setup-panel">
       <header>
-        <div className="label-caps login-brand">AQA</div>
-        <h1>Ajoute ta carte</h1>
-        <p className="muted small">Une étape, puis les mesures arrivent toutes seules.</p>
+        {first ? <div className="label-caps login-brand">AQA</div> : <a className="sb-link setup-back" href="#/mesures">← retour</a>}
+        <h1>{first ? "Ajoute ta carte" : "Ajoute une carte"}</h1>
+        <p className="muted small">{first ? "Une étape, puis les mesures arrivent toutes seules."
+          : "Une autre pièce : même étape que pour la première carte."}</p>
       </header>
 
       {unknown.length > 0 && (
@@ -87,7 +89,7 @@ export function Setup({ unknown, onDone }: { unknown: UnknownDevice[]; onDone: (
         <li>Recompile et flashe la carte (<code>pio run -t upload</code>, ou le TUI).</li>
         <li>Les premières mesures apparaissent ici en moins d'une minute.</li>
       </ol>
-      <TokenReveal deviceId={secret?.id ?? ""} token={secret?.token ?? null} onClose={() => { setSecret(null); onDone(); }} />
+      <TokenReveal deviceId={secret?.id ?? ""} token={secret?.token ?? null} onClose={() => { const id = secret?.id ?? null; setSecret(null); onDone(id); }} />
     </div>
   );
 }

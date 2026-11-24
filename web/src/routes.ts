@@ -1,12 +1,13 @@
-// Six tabs. Every older hash (#/overview, #/sensor, #/commands, #/options,
+// Six tabs, plus "ajouter" (add a board), reached from the column rather than the
+// navigation. Every older hash (#/overview, #/sensor, #/commands, #/options,
 // #/device/<id>/<tab>) maps onto one of them and is replaced by its canonical form.
-export type Tab = "mesures" | "bilan" | "alertes" | "carte" | "reglages" | "infos";
+export type Tab = "mesures" | "bilan" | "alertes" | "carte" | "reglages" | "infos" | "ajouter";
 
-export const TAB_LABEL: Record<Tab, string> = { mesures: "Mesures", bilan: "Bilan", alertes: "Alertes", carte: "Carte", reglages: "Réglages", infos: "Infos" };
+export const TAB_LABEL: Record<Tab, string> = { mesures: "Mesures", bilan: "Bilan", alertes: "Alertes", carte: "Carte", reglages: "Réglages", infos: "Infos", ajouter: "Ajouter une carte" };
 export const TAB_ORDER: Tab[] = ["mesures", "bilan", "alertes", "carte", "reglages", "infos"];
 
 const ALIASES = new Map<string, Tab>([
-  ["mesures", "mesures"], ["bilan", "bilan"], ["alertes", "alertes"], ["carte", "carte"], ["reglages", "reglages"], ["infos", "infos"],
+  ["mesures", "mesures"], ["bilan", "bilan"], ["alertes", "alertes"], ["carte", "carte"], ["reglages", "reglages"], ["infos", "infos"], ["ajouter", "ajouter"],
   ["overview", "mesures"], ["sensor", "mesures"], ["commands", "carte"], ["options", "reglages"],
 ]);
 

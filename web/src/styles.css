@@ -286,6 +286,9 @@ select.input, .field select { background: var(--bg); }
 }
 .sb-switch:hover { color: var(--text); }
 .sb-ago { color: var(--muted); font-size: 11px; }
+.sb-add { justify-self: start; margin-top: 4px; font-size: 11px; }
+.sb-add[aria-current="page"] { color: var(--text); }
+.sb-unknown { justify-self: start; margin-top: 4px; font-size: 11px; text-underline-offset: 3px; }
 
 .sb-readings { border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
 .sb-readings > li + li { border-top: 1px solid var(--rule); }
@@ -776,6 +779,7 @@ select.input, .field select { background: var(--bg); }
 .setup-panel header { display: grid; gap: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--rule-strong); }
 .setup-panel section { display: grid; gap: 6px; }
 .setup-panel .steps { display: grid; gap: 4px; padding-left: 18px; list-style: decimal; }
+.setup-back { justify-self: start; font-size: 12px; }
 
 .callout { display: flex; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--rule-strong); border-left-width: 3px; font-size: 13px; }
 .callout.warn { border-left-color: var(--warn); color: var(--warn); }
