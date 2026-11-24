@@ -152,6 +152,7 @@ routes require the admin session cookie:
 | `POST /api/v1/devices/{id}/token` | New token |
 | `GET /api/v1/devices/{id}/frames?from&to&limit` | Raw measurements |
 | `GET /api/v1/devices/{id}/frames/aggregate?from&to&step` | Averages (`step`: 60, 300, 900, 3600, 10800, 21600, 86400) |
+| `GET /api/v1/devices/{id}/report?from&to[&prev_from][&kind][&tz]` | Report (*Bilan*) of the period [from, to), at most 32 days, compared with [prev_from, from) (default: the same length just before). `kind` = `week`, `month` or `custom` (only changes the wording), `tz` = IANA time zone for the heat map hours (default: the server's) |
 | `GET /api/v1/devices/{id}/events` | Journal |
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |

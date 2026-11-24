@@ -406,6 +406,46 @@ describe("alertes", () => {
   });
 });
 
+describe("bilan", () => {
+  // The frames sent above sit at 1795201200 and 1795201260 (CO₂ 400 and 600).
+  const from = 1795201200 - 86400;
+  const url = (q: string) => `/api/v1/devices/${DEVICE}/report?${q}`;
+
+  it("calcule le bilan d'une période", async () => {
+    run(built.db, "INSERT INTO alerts (device_id, kind, threshold, started_at) VALUES (?, 'co2_high', 1200, ?)", DEVICE, from + 3600);
+    const res = await admin("GET", url(`from=${from}&to=${from + 7 * 86400}&kind=week&tz=Europe/Paris`));
+    expect(res.statusCode).toBe(200);
+    const r = res.json();
+    expect(r).toMatchObject({ device_id: DEVICE, kind: "week", tz: "Europe/Paris", prev_from: from - 7 * 86400 });
+    expect(r.metrics).toHaveLength(5);
+    expect(r.heatmap.rows).toHaveLength(7);
+    expect(r.measured_s).toBeGreaterThanOrEqual(120);
+    expect(r.metrics[0].current.zones[0]).toMatchObject({ word: "bon" });
+    expect(r.alerts.current).toBe(1);
+    expect(typeof r.verdict.head).toBe("string");
+    run(built.db, "DELETE FROM alerts");
+  });
+
+  it("accepte une période précédente explicite", async () => {
+    const r = (await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=${from - 3 * 86400}`))).json();
+    expect(r).toMatchObject({ kind: "custom", prev_from: from - 3 * 86400 });
+  });
+
+  it("refuse des paramètres invalides", async () => {
+    expect((await admin("GET", url(`from=${from}&to=${from}`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 33 * 86400}`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&tz=Mars/Olympus`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&kind=year`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=${from + 10}`))).statusCode).toBe(400);
+    expect((await admin("GET", url("to=5"))).statusCode).toBe(400);
+  });
+
+  it("répond 404 pour une carte inconnue et 401 sans session", async () => {
+    expect((await admin("GET", `/api/v1/devices/aqa-000000000000/report?from=${from}&to=${from + 86400}`)).statusCode).toBe(404);
+    expect((await built.app.inject({ method: "GET", url: url(`from=${from}&to=${from + 86400}`) })).statusCode).toBe(401);
+  });
+});
+
 describe("logout", () => {
   it("clears the session", async () => {
     const res = await admin("DELETE", "/api/v1/session");
