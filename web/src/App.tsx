@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
 import { Sidebar, SessionTools } from "./components/Sidebar";
 import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
@@ -7,6 +7,7 @@ import { MobileEmpty, MobileShell } from "./mobile/MobileShell";
 import { usePhone } from "./mobile/usePhone";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
+import { sortDevices } from "./rooms";
 import { parseRoute, TAB_LABEL, type Tab } from "./routes";
 import { useSelection } from "./selection";
 import { storageGet, storageRemove, storageSet } from "./storage";
@@ -63,7 +64,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const phone = usePhone();
   const now = useNow();
 
-  const list = devices.data?.devices ?? [];
+  // Sorted once: the column, the phone's sheet and the default board all follow this order.
+  const list = useMemo(() => sortDevices(devices.data?.devices ?? []), [devices.data]);
   const device = list.find((d) => d.id === chosen) ?? list[0];
   const logout = () => { api.logout().finally(onLogout); };
 

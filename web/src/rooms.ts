@@ -25,3 +25,10 @@ export function roomState(d: DeviceSummary): RoomState {
 export function otherAlerts(devices: DeviceSummary[], currentId: string): number {
   return devices.reduce((n, d) => (d.id === currentId ? n : n + d.open_alerts), 0);
 }
+
+const byName = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
+
+/** Boards by name as a French reader expects ("Étage" next to "étage", "bureau 9" before "bureau 10"). */
+export function sortDevices(list: DeviceSummary[]): DeviceSummary[] {
+  return [...list].sort((a, b) => byName.compare(a.name, b.name) || a.id.localeCompare(b.id));
+}
