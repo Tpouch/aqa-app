@@ -9,6 +9,7 @@ import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
+import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
 import type {
   AggregateRow, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
@@ -96,7 +97,7 @@ function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): Com
   return { ...rest, params: redactParams(JSON.parse(params_json)) };
 }
 
-export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore) {
+export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier) {
   function summary(d: DeviceDbRow): DeviceSummary {
     const latest = get<FrameDbRow>(db,
       `SELECT ts, ts_estimated, geohash, snd, co2, pm25, hum, temp, stale
