@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, ApiKey, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice,
+  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, ApiKey, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice, WebhookSettings,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -77,6 +77,10 @@ export const api = {
   updateNotify: (patch: Partial<Pick<NotifySettings, "enabled" | "server" | "topic" | "notify_close">> & { token?: string | null }) =>
     request<NotifySettings>("PATCH", "/api/v1/notify", patch),
   testNotify: () => request<NotifySettings>("POST", "/api/v1/notify/test"),
+  webhook: () => request<WebhookSettings>("GET", "/api/v1/webhook"),
+  updateWebhook: (patch: Partial<Pick<WebhookSettings, "enabled" | "url" | "notify_close">> & { secret?: string | null }) =>
+    request<WebhookSettings>("PATCH", "/api/v1/webhook", patch),
+  testWebhook: () => request<WebhookSettings>("POST", "/api/v1/webhook/test"),
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),

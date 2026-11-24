@@ -17,3 +17,11 @@ export function randomTopic(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(10));
   return "aqa-" + Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
+
+const B64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/** Shared secret for the webhook signature: 32 base64url characters (192 bits). */
+export function randomSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => B64URL[b % 64]).join("");
+}
