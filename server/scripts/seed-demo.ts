@@ -7,7 +7,16 @@ import { loadConfig } from "../src/config.js";
 
 const cfg = loadConfig();
 const base = (process.argv[2] ?? `http://localhost:${cfg.PORT}`).replace(/\/$/, "");
-const DEVICE = "aqa-DE0000000001";
+// A second argument seeds another room, to try the app with several boards:
+//   seed-demo.ts http://localhost:3000 chambre
+const ROOMS = {
+  demo: { id: "aqa-DE0000000001", name: "démo", ip: "192.168.1.50", rssi: -58 },
+  chambre: { id: "aqa-DE0000000002", name: "Chambre", ip: "192.168.1.51", rssi: -71 },
+};
+const roomArg = process.argv[3] ?? "demo";
+if (!(roomArg in ROOMS)) throw new Error(`room must be one of: ${Object.keys(ROOMS).join(", ")}`);
+const ROOM = ROOMS[roomArg as keyof typeof ROOMS];
+const DEVICE = ROOM.id;
 const DAY = 86400;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -28,7 +37,7 @@ const login = await call("/api/v1/session", { method: "POST", json: { password: 
 const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0]!;
 const admin = { cookie };
 
-const reg = await call("/api/v1/devices", { method: "POST", headers: admin, json: { id: DEVICE, name: "démo" } });
+const reg = await call("/api/v1/devices", { method: "POST", headers: admin, json: { id: DEVICE, name: ROOM.name } });
 const tokenRes = reg.status === 409
   ? await call(`/api/v1/devices/${DEVICE}/token`, { method: "POST", headers: admin })
   : reg;
@@ -39,7 +48,7 @@ await call(`/api/v1/devices/${DEVICE}/status`, {
   method: "POST", headers: dev,
   json: {
     t: null, uptime_s: 3600, boot_count: 1, firmware_version: "2.0.0", hardware_version: 14,
-    ip: "192.168.1.50", rssi: -58, ssid: "demo", geohash: "u09tvw", free_heap: 150000,
+    ip: ROOM.ip, rssi: ROOM.rssi, ssid: "demo", geohash: "u09tvw", free_heap: 150000,
     sensors: { temperature: true, co2: "MH-Z19", pm: true, sound: true },
     queue: { pending: 0, dropped: 0 }, parameters: {}, last_command_id: null,
   },
@@ -90,6 +99,22 @@ for (let t = start; t <= end; t += t < recent ? 300 : t < live ? 60 : 15) {
   if (holes.some((h) => t >= h && t < h + 3600) || (t >= outage.from && t < outage.to)) continue;
   frames.push(frameAt(t));
 }
+
+// The bedroom, on top of the profile above: quiet and cooler by day, CO₂ that
+// climbs all night with the door shut (from 23 h until 7 h), damper air.
+function asBedroom(f: Frame): Frame {
+  const sinceBed = (((f.t % DAY) / 3600 + 1) % 24 + 1) % 24; // 0 at 23 h
+  const night = sinceBed < 8 ? 115 * sinceBed : 0;
+  return {
+    ...f,
+    co2: Math.round(clamp(450 + (f.co2 - 450) * 0.35 + night + rnd(-20, 20), 430, 1600)),
+    pm25: f.pm25 === null ? null : Math.round(clamp(f.pm25 * 0.5, 2, 40)),
+    temp: +(f.temp - 2.2).toFixed(1),
+    hum: +clamp(f.hum + 7, 35, 75).toFixed(1),
+    snd: Math.round(clamp(f.snd * 0.45, 10, 400)),
+  };
+}
+if (roomArg === "chambre") frames.splice(0, frames.length, ...frames.map(asBedroom));
 
 let sent = 0;
 for (let i = 0; i < frames.length; i += 100) {
