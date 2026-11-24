@@ -13,16 +13,18 @@ import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, tokenCandidates, VERSION_RE } from "../firmware.js";
 import { isTimeZone } from "../localtime.js";
-import { buildReport, REPORT_STEP } from "../report.js";
+import {
+  AGGREGATE_STEPS, aggregateRows, deviceReport, deviceSummary, findDevice, listDeviceRows, ONLINE_WINDOW_S,
+  toFrame, type FrameDbRow,
+} from "../queries.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
 import { hostAllowed, readWebhook, testPayload, type Webhook } from "../webhook.js";
 import type {
-  AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
+  CommandRow, EventRow, FirmwareRow, UnknownDevice,
 } from "../types.js";
 
-export const ONLINE_WINDOW_S = 180;
-const AGGREGATE_STEPS = [60, 300, 900, 3600, 10800, 21600, 86400];
+export { ONLINE_WINDOW_S };
 
 const deviceIdParam = z.object({ id: z.string().regex(DEVICE_ID_RE, "id must look like aqa-24A160B3C8F0") });
 const rangeQuery = z.object({
@@ -43,20 +45,6 @@ const reportQuery = z.object({
   .refine((q) => q.prev_from === undefined || q.prev_from < q.from, "prev_from must be before from")
   .refine((q) => q.prev_from === undefined || q.from - q.prev_from <= MAX_REPORT_S,
     "the previous period must not exceed 32 days");
-
-// Averages per bucket of `step` seconds over [from, to].
-// Not aliased "ts": SQLite would resolve GROUP BY ts to the alias. The CAST
-// matters: node:sqlite binds JS numbers as REAL, and ts / 3600.0 would be a
-// float division putting every frame in its own bucket.
-function aggregateRows(db: Db, id: string, from: number, to: number, step: number): AggregateRow[] {
-  const rows = all<Omit<AggregateRow, "ts"> & { bucket: number }>(db,
-    `SELECT (ts / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket, COUNT(*) AS n,
-            AVG(snd) AS snd, AVG(co2) AS co2, AVG(pm25) AS pm25, AVG(hum) AS hum, AVG(temp) AS temp
-     FROM frames WHERE device_id = ? AND ts BETWEEN ? AND ?
-     GROUP BY bucket ORDER BY bucket`,
-    step, step, id, from, to);
-  return rows.map(({ bucket, ...r }) => ({ ts: bucket, ...r }));
-}
 
 const patchBody = z.object({
   name: z.string().trim().min(1).max(60).optional(),
@@ -130,18 +118,6 @@ const commandBody = z.discriminatedUnion("type", [
   }),
 ]);
 
-interface DeviceDbRow {
-  id: string; name: string; created_at: number; last_seen: number | null;
-  status_json: string | null; status_at: number | null;
-  snd_ref: number | null; db_ref: number | null;
-}
-
-interface FrameDbRow extends Omit<FrameRow, "ts_estimated" | "stale"> {
-  ts_estimated: number; stale: number;
-}
-
-const toFrame = (r: FrameDbRow): FrameRow => ({ ...r, ts_estimated: !!r.ts_estimated, stale: !!r.stale });
-
 // Params go back to the browser redacted: Wi-Fi passwords never leave the server.
 function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): CommandRow {
   const { params_json, ...rest } = r;
@@ -149,40 +125,13 @@ function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): Com
 }
 
 export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier, webhook: Webhook) {
-  function summary(d: DeviceDbRow): DeviceSummary {
-    const latest = get<FrameDbRow>(db,
-      `SELECT ts, ts_estimated, geohash, snd, co2, pm25, hum, temp, stale
-       FROM frames WHERE device_id = ? ORDER BY ts DESC LIMIT 1`, d.id);
-    return {
-      id: d.id,
-      name: d.name,
-      created_at: d.created_at,
-      last_seen: d.last_seen,
-      online: d.last_seen !== null && now() - d.last_seen < ONLINE_WINDOW_S,
-      status: d.status_json ? JSON.parse(d.status_json) : null,
-      status_at: d.status_at,
-      latest: latest ? toFrame(latest) : null,
-      sound_calibration: d.snd_ref !== null && d.db_ref !== null
-        ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
-      open_alerts: get<{ n: number }>(db,
-        "SELECT COUNT(*) AS n FROM alerts WHERE device_id = ? AND ended_at IS NULL", d.id)!.n,
-    };
-  }
-
-  function findDevice(id: string) {
-    return get<DeviceDbRow>(db,
-      "SELECT id, name, created_at, last_seen, status_json, status_at, snd_ref, db_ref FROM devices WHERE id = ?", id);
-  }
-
   app.register(async (scope) => {
     scope.addHook("preHandler", requireAdminOrKey(db));
 
     // ---- devices
 
     scope.get("/api/v1/devices", { config: { agent: true }, onRequest: app.agentRateLimit }, async () => ({
-      devices: all<DeviceDbRow>(db,
-        "SELECT id, name, created_at, last_seen, status_json, status_at, snd_ref, db_ref FROM devices ORDER BY name")
-        .map(summary),
+      devices: listDeviceRows(db).map((d) => deviceSummary(db, d)),
       unknown: all<UnknownDevice>(db,
         "SELECT * FROM unknown_devices ORDER BY last_seen DESC LIMIT 20"),
     }));
@@ -316,7 +265,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
     });
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
-      if (!findDevice(request.params.id)) return reply.code(404).send({ error: "unknown device" });
+      if (!findDevice(db, request.params.id)) return reply.code(404).send({ error: "unknown device" });
       const q = alertsQuery.safeParse(request.query);
       if (!q.success) return reply.code(422).send({ error: q.error.issues[0]?.message });
       const cols = `id, kind, threshold, started_at, ended_at, start_value, peak_value, end_value, end_reason`;
@@ -340,18 +289,18 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
         name: z.string().trim().min(1).max(60),
       }).safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
-      if (findDevice(body.data.id)) return reply.code(409).send({ error: "device already registered" });
+      if (findDevice(db, body.data.id)) return reply.code(409).send({ error: "device already registered" });
       const token = newDeviceToken();
       run(db, "INSERT INTO devices (id, name, token_hash, created_at) VALUES (?, ?, ?, ?)",
           body.data.id, body.data.name, sha256Hex(token), now());
       run(db, "DELETE FROM unknown_devices WHERE id = ?", body.data.id);
       // The token is only ever shown here; the database keeps its hash.
-      return reply.code(201).send({ device: summary(findDevice(body.data.id)!), token });
+      return reply.code(201).send({ device: deviceSummary(db, findDevice(db, body.data.id)!), token });
     });
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
-      const d = findDevice(request.params.id);
-      return d ? summary(d) : reply.code(404).send({ error: "unknown device" });
+      const d = findDevice(db, request.params.id);
+      return d ? deviceSummary(db, d) : reply.code(404).send({ error: "unknown device" });
     });
 
     scope.patch<{ Params: { id: string } }>("/api/v1/devices/:id", async (request, reply) => {
@@ -370,7 +319,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       }
       const res = run(db, `UPDATE devices SET ${sets.join(", ")} WHERE id = ?`, ...args, request.params.id);
       if (res.changes === 0) return reply.code(404).send({ error: "unknown device" });
-      return summary(findDevice(request.params.id)!);
+      return deviceSummary(db, findDevice(db, request.params.id)!);
     });
 
     scope.post<{ Params: { id: string } }>("/api/v1/devices/:id/token", async (request, reply) => {
@@ -419,23 +368,13 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
     // ---- bilan
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/report", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request, reply) => {
-      const d = findDevice(request.params.id);
+      const d = findDevice(db, request.params.id);
       if (!d) return reply.code(404).send({ error: "unknown device" });
       const q = reportQuery.safeParse(request.query);
       if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message });
       const { from, to, kind, tz } = q.data;
       const prevFrom = q.data.prev_from ?? Math.max(0, from - (to - from));
-      const alertKinds = (lo: number, hi: number) => all<{ kind: AlertKind }>(db,
-        "SELECT kind FROM alerts WHERE device_id = ? AND started_at >= ? AND started_at < ?", d.id, lo, hi)
-        .map((a) => a.kind);
-      return buildReport({
-        deviceId: d.id, kind, tz, from, to, prevFrom, now: now(), step: REPORT_STEP,
-        firstTs: get<{ ts: number | null }>(db, "SELECT MIN(ts) AS ts FROM frames WHERE device_id = ?", d.id)!.ts,
-        cal: d.snd_ref !== null && d.db_ref !== null ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
-        current: aggregateRows(db, d.id, from, to - 1, REPORT_STEP),
-        previous: aggregateRows(db, d.id, prevFrom, from - 1, REPORT_STEP),
-        alerts: { current: alertKinds(from, to), previous: alertKinds(prevFrom, from) },
-      });
+      return deviceReport(db, d, { from, to, prevFrom, kind, tz, now: now() });
     });
 
     // ---- journal
@@ -464,7 +403,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     scope.post<{ Params: { id: string } }>("/api/v1/devices/:id/commands", async (request, reply) => {
       const p = deviceIdParam.safeParse(request.params);
-      if (!p.success || !findDevice(p.data.id)) return reply.code(404).send({ error: "unknown device" });
+      if (!p.success || !findDevice(db, p.data.id)) return reply.code(404).send({ error: "unknown device" });
       const body = commandBody.safeParse(request.body);
       if (!body.success) {
         const issue = body.error.issues[0];
@@ -480,7 +419,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
           return reply.code(422).send({ error: `${version} ne contient le jeton d'aucune carte (jeton changé depuis la compilation ?).` });
         }
         if (owner.id !== p.data.id) {
-          const target = findDevice(p.data.id)!;
+          const target = findDevice(db, p.data.id)!;
           return reply.code(422).send({ error: `${version} a été compilée pour ${owner.name}, pas pour ${target.name}.` });
         }
         params = { version, ...firmware.signedUrls(cfg.PUBLIC_URL, version, now()) };
