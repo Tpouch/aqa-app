@@ -8,13 +8,13 @@ import { CATALOG, readRules, toAlertRow, type AlertDbRow } from "../alerts.js";
 import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
-import { FirmwareStore, VERSION_RE } from "../firmware.js";
+import { FirmwareStore, tokenCandidates, VERSION_RE } from "../firmware.js";
 import { isTimeZone } from "../localtime.js";
 import { buildReport, REPORT_STEP } from "../report.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
 import type {
-  AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
+  AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
 } from "../types.js";
 
 export const ONLINE_WINDOW_S = 180;
@@ -400,6 +400,15 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (body.data.type === "ota") {
         const { version } = body.data.params;
         if (!firmware.exists(version)) return reply.code(422).send({ error: `no firmware ${version}` });
+        // The image carries its board's token: on any other board it would be refused by the server for good.
+        const owner = ownerOf(firmware.tokenHashes(version));
+        if (!owner) {
+          return reply.code(422).send({ error: `${version} ne contient le jeton d'aucune carte (jeton changé depuis la compilation ?).` });
+        }
+        if (owner.id !== p.data.id) {
+          const target = findDevice(p.data.id)!;
+          return reply.code(422).send({ error: `${version} a été compilée pour ${owner.name}, pas pour ${target.name}.` });
+        }
         params = { version, ...firmware.signedUrls(cfg.PUBLIC_URL, version, now()) };
       }
       const id = crypto.randomBytes(8).toString("hex");
@@ -425,7 +434,19 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // ---- firmware
 
-    scope.get("/api/v1/firmware", async () => ({ firmware: firmware.list() }));
+    // Board whose token hash is among the image's token candidates.
+    function ownerOf(hashes: Set<string>): { id: string; name: string } | null {
+      const boards = all<{ id: string; name: string; token_hash: string }>(db, "SELECT id, name, token_hash FROM devices");
+      const b = boards.find((d) => hashes.has(d.token_hash));
+      return b ? { id: b.id, name: b.name } : null;
+    }
+
+    scope.get("/api/v1/firmware", async () => ({
+      firmware: firmware.list().map((f): FirmwareRow => {
+        const owner = ownerOf(firmware.tokenHashes(f.version));
+        return { ...f, device_id: owner?.id ?? null, device_name: owner?.name ?? null };
+      }),
+    }));
 
     scope.post("/api/v1/firmware", async (request, reply) => {
       let version = "";
@@ -444,8 +465,18 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (!bin || bin.length < 1024) return reply.code(422).send({ error: "firmware: missing or too small" });
       if (bin[0] !== 0xe9) return reply.code(422).send({ error: "firmware: not an ESP32 image (bad magic byte)" });
       if (!sig || sig.length === 0 || sig.length > 1024) return reply.code(422).send({ error: "signature: missing or invalid size" });
+      const owner = ownerOf(tokenCandidates(bin));
+      if (firmware.exists(version)) {
+        const current = ownerOf(firmware.tokenHashes(version));
+        if (current && current.id !== owner?.id) {
+          const suffix = owner ? owner.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "2" : "2";
+          return reply.code(409).send({
+            error: `${version} existe déjà pour ${current.name} : choisis un autre numéro (par ex. ${version}-${suffix}).`,
+          });
+        }
+      }
       firmware.save(version, bin, sig);
-      return reply.code(201).send({ version, size: bin.length });
+      return reply.code(201).send({ version, size: bin.length, device_id: owner?.id ?? null, device_name: owner?.name ?? null });
     });
 
     scope.delete<{ Params: { version: string } }>("/api/v1/firmware/:version", async (request, reply) => {

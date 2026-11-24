@@ -144,6 +144,10 @@ export interface FirmwareRow {
   version: string;
   size: number;
   uploaded_at: number;
+  // Board whose DEVICE_TOKEN is in the image; null when none matches
+  // (token replaced since the build, or an image without a token).
+  device_id: string | null;
+  device_name: string | null;
 }
 
 // Device journal, derived server-side from what the board reports.
