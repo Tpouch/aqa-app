@@ -91,6 +91,47 @@ do, and another one tells you when things are back to normal.
 
 ![Alerts page: the rules on the left with their thresholds, the log of past alerts on the right, and the phone notification settings](docs/screenshots/alerts.png)
 
+### Plug in an AI agent (Hermes)
+
+If you run your own [Hermes Agent](https://hermes-agent.nousresearch.com), it
+can read your air and tell you about it, in your chat app. It can only look: it
+cannot change anything in AQA. Four steps:
+
+1. **Create a key.** In *Réglages → Clés d'API*, create a key named after your
+   agent. Copy it now, it is shown only once.
+2. **Tell Hermes where AQA is.** In `~/.hermes/config.yaml`, add AQA as an MCP
+   server (the key goes after `Bearer`):
+
+   ```yaml
+   mcp_servers:
+     aqa:
+       url: "https://<your AQA address>/mcp"
+       headers:
+         Authorization: "Bearer aqa_..."
+   ```
+
+   Hermes can now use seven read-only tools: `list_rooms`, `get_day_report`,
+   `get_report`, `get_history`, `list_alerts`, `get_alert_rules` and
+   `get_webhook`.
+3. **Get alerts pushed to Hermes.** Create a route in Hermes with a secret:
+
+   ```bash
+   hermes webhook subscribe aqa --secret <a long secret> \
+     --prompt "Une alerte qualité d'air vient de changer : {text}. Préviens-moi."
+   ```
+
+   (Hermes' webhook receiver must be switched on first, see its docs.)
+   Add Hermes' public hostname to `WEBHOOK_ALLOWED_HOSTS` in AQA's `.env`
+   (see [DEVELOPERS.md](DEVELOPERS.md)). Then, in AQA's *Alertes* page, enter
+   `https://<hermes-public>/webhooks/aqa` and the same secret, and press
+   *Envoyer un test*. This step is done by you in AQA: the agent can't change it.
+4. **Ask for an evening summary.** Create a daily job in Hermes:
+
+   ```bash
+   hermes cron create "0 21 * * *" --timezone Europe/Paris \
+     "Appelle list_rooms puis get_day_report pour chaque pièce et envoie-moi un compte rendu court."
+   ```
+
 ### Understand what the numbers mean
 
 The **Info** tab (*Infos*) explains each measurement in everyday words: where it
