@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import { Skeleton } from "../../components/ui";
 import { ZoneChart } from "../../components/ZoneChart";
-import { csvColumns } from "../../measures";
+import { bannerSubtitle, csvColumns, csvFileName } from "../../measures";
 import { metricDef, periodStats, soundDb, toDisplay } from "../../metrics";
 import { isoDay, periodLabel, resolveRange, useRange } from "../../range";
 import type { Selection } from "../../selection";
@@ -12,12 +12,12 @@ import { Banner } from "./Banner";
 import { Grid } from "./Grid";
 import { StatsRow } from "./StatsRow";
 
-const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Mesures: banner + stats + one zone chart, or a grid of the metrics checked in the column.
-export function MeasuresPage({ id, device, selection, onSelection }: {
+export function MeasuresPage({ id, device, multi, selection, onSelection }: {
   id: string;
   device: DeviceSummary | null;
+  multi: boolean; // several boards: the banner names the room
   selection: Selection;
   onSelection: (s: Selection) => void;
 }) {
@@ -64,13 +64,13 @@ export function MeasuresPage({ id, device, selection, onSelection }: {
       }),
     ]);
     const name = grid ? "grille" : selection.metric;
-    downloadCsv(`${id}-${name}-${isoDay(new Date(series.window[0] * 1000))}.csv`, header, lines);
+    downloadCsv(csvFileName(device?.name ?? "", id, name, isoDay(new Date(series.window[0] * 1000))), header, lines);
   };
 
   const title = grid
     ? `${shown.length} mesure${shown.length > 1 ? "s" : ""}`
     : <>{single.def.label} <span className="muted ms-unit">{single.def.unit}</span></>;
-  const subtitle = capital(r.title) + (series.step > 0 ? ` · moyennes sur ${stepLabel(series.step)}` : "");
+  const subtitle = bannerSubtitle(multi && device ? device.name : null, r.title, series.step > 0 ? stepLabel(series.step) : null);
 
   return (
     <div className="ms">

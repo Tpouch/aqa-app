@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { RoomList } from "../components/RoomList";
 import { SessionTools } from "../components/Sidebar";
 import { Skeleton } from "../components/ui";
 import { parseRoute } from "../routes";
 import type { DeviceSummary } from "../../../server/src/types";
+import { neverSeen, otherAlerts, WAITING } from "../rooms";
 import { ago } from "../util";
 import { MOBILE_LABEL, parseMobileRoute, type MobileRoute } from "./routes";
 import { DashboardPage } from "./DashboardPage";
@@ -82,32 +84,75 @@ function Page({ route, device, now, onLogout }: { route: MobileRoute; device: De
   }
 }
 
-function TopBar({ devices, device, onDevice, now }: {
+export function TopBar({ devices, device, onDevice, now }: {
   devices: DeviceSummary[];
   device: DeviceSummary | undefined;
   onDevice: (id: string) => void;
   now: number;
 }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const several = devices.length > 1;
+  const elsewhere = device ? otherAlerts(devices, device.id) : 0;
+  const close = () => { setOpen(false); trigger.current?.focus(); };
   return (
     <header className="mb-top">
       <span className="mb-brand" aria-hidden>AQA</span>
       {device && (
         <div className="mb-device">
           <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
-          {devices.length > 1 ? (
-            <select className="mb-switch" value={device.id} aria-label="Carte affichée" onChange={(e) => onDevice(e.target.value)}>
-              {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          {several ? (
+            <button ref={trigger} type="button" className="mb-switch" aria-haspopup="dialog"
+                    aria-label={`Changer de pièce, ${device.name} affichée`} onClick={() => setOpen(true)}>
+              <span className="mb-name">{device.name}</span><span aria-hidden> ▾</span>
+            </button>
           ) : (
             <span className="mb-name">{device.name}</span>
           )}
+          {elsewhere > 0 && (
+            <span className="tone-bad mb-elsewhere">
+              <span aria-hidden>▲ {elsewhere}</span>
+              <span className="sr-only">{elsewhere} alerte{elsewhere > 1 ? "s" : ""} dans une autre pièce</span>
+            </span>
+          )}
           <span className="mb-ago muted">
-            {device.online ? <span className="sr-only">en ligne, </span> : "hors ligne · "}
-            {device.latest ? ago(device.latest.ts, now) : "aucune mesure"}
+            {neverSeen(device) ? WAITING : <>
+              {device.online ? <span className="sr-only">en ligne, </span> : "hors ligne · "}
+              {device.latest ? ago(device.latest.ts, now) : "aucune mesure"}
+            </>}
           </span>
         </div>
       )}
+      {open && device && (
+        <RoomSheet devices={devices} current={device.id} onClose={close}
+                   onPick={(id) => { onDevice(id); close(); }} />
+      )}
     </header>
+  );
+}
+
+// Every room, full screen: the phone's way of switching boards.
+function RoomSheet({ devices, current, onPick, onClose }: {
+  devices: DeviceSummary[];
+  current: string;
+  onPick: (id: string) => void;
+  onClose: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="mb-sheet" role="dialog" aria-modal="true" aria-labelledby="mb-sheet-title">
+      <div className="mb-sheet-head">
+        <h2 id="mb-sheet-title" className="label-caps">Pièces</h2>
+        <button ref={closeRef} type="button" className="mb-sheet-close" aria-label="Fermer" onClick={onClose}>✕</button>
+      </div>
+      <RoomList devices={devices} current={current} onPick={onPick} />
+    </div>
   );
 }
 

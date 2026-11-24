@@ -6,6 +6,7 @@ import { firmwareFor } from "../../firmware";
 import { ago, dateTime, duration, usePoll } from "../../util";
 import type { Send } from "../device/DevicePage";
 import { COMMAND_LABEL, COMMAND_STATE } from "../device/shared";
+import { neverSeen, WAITING } from "../../rooms";
 
 interface Props {
   id: string;
@@ -41,7 +42,7 @@ export function CardPage({ id, device, commands, commandsError, reload, send, no
             {id}
             {device && <> · {device.online
               ? <span className="tone-good"><span aria-hidden>●</span> en ligne</span>
-              : <span><span aria-hidden>○</span> hors ligne</span>}
+              : <span><span aria-hidden>○</span> {neverSeen(device) ? WAITING : "hors ligne"}</span>}
               {device.last_seen !== null && <>, contact {ago(device.last_seen, now)}</>}</>}
           </p>
         </div>
@@ -155,6 +156,19 @@ function LoadError({ message }: { message: string }) {
 
 function StatusBlocks({ device: d }: { device: DeviceSummary }) {
   const s = d.status;
+  if (!s && neverSeen(d)) {
+    return (
+      <div className="cp-empty small">
+        <p>La carte n'a encore jamais contacté le serveur. Pour qu'elle le fasse :</p>
+        <ol className="steps muted">
+          <li>Mets son jeton dans <code>DEVICE_TOKEN</code> du <code>.env</code> du firmware.</li>
+          <li>Recompile et flashe la carte (<code>pio run -t upload</code>, ou le TUI).</li>
+          <li>Les premières mesures arrivent en moins d'une minute.</li>
+        </ol>
+        <p className="muted">Jeton perdu ? <a href="#/reglages">Réglages</a> → Nouveau jeton.</p>
+      </div>
+    );
+  }
   if (!s) return <p className="muted small cp-empty">Aucun rapport d'état reçu. La carte en envoie un au démarrage puis chaque minute.</p>;
   const signal = s.rssi < -80 ? ["faible", "tone-warn"] : s.rssi < -70 ? ["moyen", "muted"] : ["bon", "tone-good"];
   const sensors: [boolean, string][] = [
