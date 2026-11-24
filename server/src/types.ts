@@ -142,3 +142,57 @@ export interface EventRow {
   level: "info" | "warn" | "error";
   message: string;
 }
+
+// ---- Bilan (GET /api/v1/devices/:id/report), computed by server/src/report.ts
+
+export type ReportKind = "week" | "month" | "custom";
+
+export interface ZoneTime { word: string; tone: Tone; seconds: number }
+
+export interface MetricPeriod {
+  measured_s: number;
+  zones: ZoneTime[] | null; // null: sound without calibration
+  avg: number | null; // sound in dB when calibrated, raw amplitude otherwise
+  min: { v: number; ts: number } | null;
+  max: { v: number; ts: number } | null;
+}
+
+export interface Comparison { trend: "better" | "worse" | "same" | null; text: string }
+
+export interface MetricReport {
+  metric: Metric;
+  current: MetricPeriod;
+  previous: MetricPeriod;
+  comparison: Comparison | null;
+}
+
+// Air = the worse of CO₂ and PM2.5 at each minute.
+export interface AirTime { measured_s: number; good_s: number; warn_s: number; bad_s: number }
+
+export interface HeatRow {
+  weekday: number; // 0 = Monday
+  date: string | null; // YYYY-MM-DD when one row is one day; null when averaged by weekday
+  cells: (number | null)[]; // 24 hourly CO₂ means, local time; null = no measurement
+}
+
+export interface DeviceReport {
+  device_id: string;
+  kind: ReportKind;
+  tz: string;
+  from: number;
+  to: number;
+  prev_from: number; // the previous period is [prev_from, from)
+  now: number;
+  in_progress: boolean;
+  elapsed_s: number; // from → min(to, now)
+  measured_s: number;
+  prev_elapsed_s: number;
+  prev_measured_s: number;
+  sound_calibrated: boolean;
+  verdict: { tone: Tone | null; head: string; rest: string };
+  air: { current: AirTime; previous: AirTime };
+  metrics: MetricReport[];
+  heatmap: { metric: "co2"; by: "day" | "weekday"; rows: HeatRow[] };
+  alerts: { current: number; previous: number; by_kind: { kind: AlertKind; label: string; count: number }[] };
+  takeaways: string[];
+}
