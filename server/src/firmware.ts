@@ -53,7 +53,7 @@ export class FirmwareStore {
       fs.existsSync(this.path(version, "bin")) && fs.existsSync(this.path(version, "sig"));
   }
 
-  list(): FirmwareRow[] {
+  list(): Omit<FirmwareRow, "device_id" | "device_name">[] {
     return fs.readdirSync(this.dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && this.exists(d.name))
       .map((d) => {

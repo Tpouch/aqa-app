@@ -221,9 +221,21 @@ describe("commands", () => {
 });
 
 describe("firmware and OTA", () => {
-  const bin = Buffer.alloc(4096, 1);
-  bin[0] = 0xe9;
+  // An ESP32 image with the board's DEVICE_TOKEN baked in as a C string, like a real build.
+  const imageFor = (tok: string | null) => {
+    const b = Buffer.alloc(4096, 1);
+    b[0] = 0xe9;
+    if (tok) Buffer.from(tok + "\0").copy(b, 100);
+    return b;
+  };
+  let bin = imageFor(null);
   const sig = Buffer.alloc(256, 7);
+  const upload = (version: string, image: Buffer) => {
+    const mp = multipart({ version, firmware: image, signature: sig });
+    return built.app.inject({ method: "POST", url: "/api/v1/firmware", ...mp, headers: { ...mp.headers, cookie } });
+  };
+  const OTHER = "aqa-24A160B3C8F1";
+  let otherToken = "";
 
   it("rejects a file that is not an ESP32 image", async () => {
     const mp = multipart({ version: "2.0.1", firmware: Buffer.alloc(4096, 0), signature: sig });
@@ -231,11 +243,43 @@ describe("firmware and OTA", () => {
     expect(res.statusCode).toBe(422);
   });
 
-  it("uploads a signed image", async () => {
-    const mp = multipart({ version: "2.0.1", firmware: bin, signature: sig });
-    const res = await built.app.inject({ method: "POST", url: "/api/v1/firmware", ...mp, headers: { ...mp.headers, cookie } });
+  it("uploads a signed image and recognises the board it was built for", async () => {
+    bin = imageFor(token);
+    const res = await upload("2.0.1", bin);
     expect(res.statusCode).toBe(201);
-    expect((await admin("GET", "/api/v1/firmware")).json().firmware[0]).toMatchObject({ version: "2.0.1", size: 4096 });
+    expect(res.json()).toMatchObject({ version: "2.0.1", size: 4096, device_id: DEVICE });
+    expect((await admin("GET", "/api/v1/firmware")).json().firmware[0])
+      .toMatchObject({ version: "2.0.1", size: 4096, device_id: DEVICE, device_name: expect.any(String) });
+  });
+
+  it("refuses to install a board's image on another board", async () => {
+    const reg = await admin("POST", "/api/v1/devices", { id: OTHER, name: "Chambre" });
+    otherToken = reg.json().token;
+    const res = await admin("POST", `/api/v1/devices/${OTHER}/commands`, { type: "ota", params: { version: "2.0.1" } });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toContain("pas pour Chambre");
+  });
+
+  it("refuses to overwrite a version that belongs to another board", async () => {
+    const res = await upload("2.0.1", imageFor(otherToken));
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toMatch(/2\.0\.1 existe déjà pour .+2\.0\.1-chambre/);
+    expect((await upload("2.0.1-chambre", imageFor(otherToken))).json()).toMatchObject({ device_id: OTHER, device_name: "Chambre" });
+  });
+
+  it("keeps an image that matches no board, but never installs it", async () => {
+    const res = await upload("9.9.9", imageFor(null));
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ device_id: null, device_name: null });
+    const ota = await admin("POST", `/api/v1/devices/${DEVICE}/commands`, { type: "ota", params: { version: "9.9.9" } });
+    expect(ota.statusCode).toBe(422);
+    expect(ota.json().error).toContain("aucune carte");
+  });
+
+  it("forgets the owner once its token is replaced", async () => {
+    await admin("POST", `/api/v1/devices/${OTHER}/token`);
+    const list = (await admin("GET", "/api/v1/firmware")).json().firmware as { version: string; device_id: string | null }[];
+    expect(list.find((f) => f.version === "2.0.1-chambre")?.device_id).toBeNull();
   });
 
   it("turns an ota command into signed, expiring download links", async () => {
