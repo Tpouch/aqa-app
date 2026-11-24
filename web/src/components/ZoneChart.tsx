@@ -271,7 +271,15 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
     setHover(null);
     const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height: heightRef.current }));
     ro.observe(el);
+    // The canvas draws with whatever font is ready: once IBM Plex Mono has loaded, draw again.
+    let alive = true;
+    const fonts = [axis.font as string, font(11), font(13, 500)];
+    if (document.fonts && !fonts.every((f) => document.fonts.check(f))) {
+      Promise.all(fonts.map((f) => document.fonts.load(f)))
+        .then(() => { if (alive) plot.current?.redraw(false, true); }, () => {});
+    }
     return () => {
+      alive = false;
       ro.disconnect();
       plot.current?.destroy();
       plot.current = null;
