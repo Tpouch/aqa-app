@@ -2,7 +2,7 @@
 // (every 5 min, then every minute over the last day, every 15 s over the last 8 h),
 // enough for the Bilan of this week, the last one and the last month. Habits
 // change with the day of the week, and the board was off for half a day.
-// Usage: npx tsx --env-file=.env server/scripts/seed-demo.ts [baseUrl]
+// Usage: npx tsx --env-file=.env server/scripts/seed-demo.ts [baseUrl] [chambre]
 import { loadConfig } from "../src/config.js";
 
 const cfg = loadConfig();
