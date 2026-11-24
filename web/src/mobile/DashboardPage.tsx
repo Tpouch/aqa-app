@@ -49,7 +49,12 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
     <div className="mb-dash">
       <div className="mb-dash-tools">
         <button type="button" className={`btn${editing ? " primary" : ""}`} aria-pressed={editing}
-                onClick={() => setEditing(!editing)}>
+                onClick={() => {
+                  // The click a long press swallows never reaches the gauge (it became a div in
+                  // organise mode): forget it, or the next keyboard or VoiceOver opening is lost.
+                  swallowClick.current = false;
+                  setEditing(!editing);
+                }}>
           {editing ? "terminé" : "organiser"}
         </button>
       </div>

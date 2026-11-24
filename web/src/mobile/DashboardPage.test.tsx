@@ -55,4 +55,16 @@ describe("DashboardPage, organiser", () => {
     act(() => down.click());
     expect(HTMLElement.prototype.animate).toHaveBeenCalledTimes(2);
   });
+
+  it("après un appui long puis « terminé », la première ouverture au clavier n'est pas ignorée", () => {
+    pointer(gauges()[0]!, "pointerdown");
+    act(() => vi.advanceTimersByTime(600));
+    expect(button("terminé")).toBeDefined();
+    pointer(window.document.body, "pointerup");
+    act(() => button("terminé").click());
+
+    const first = gauges()[0]!;
+    act(() => first.click()); // Enter, Space or VoiceOver: a click without any pointer event
+    expect(onOpen).toHaveBeenCalledWith(first.dataset.metric);
+  });
 });
