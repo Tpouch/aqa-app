@@ -159,3 +159,27 @@ describe("dispatchAlerts", () => {
     expect(hang.got.length).toBe(1);
   });
 });
+
+describe("enabling needs an allowed saved host", () => {
+  for (const [name, hosts] of [["list emptied", ""], ["host removed from the list", "other.example"]] as const) {
+    it(name, async () => {
+      const c = loadConfig({
+        ADMIN_PASSWORD: PASSWORD, SESSION_SECRET: "x".repeat(40), PUBLIC_URL: "https://sensor.example.test",
+        LOG_LEVEL: "silent", WEB_DIR: "", WEBHOOK_ALLOWED_HOSTS: hosts,
+      });
+      const b = await buildApp(c, { dataDir: ":memory:" });
+      try {
+        const login = await b.app.inject({ method: "POST", url: "/api/v1/session", payload: { password: PASSWORD } });
+        const headers = { cookie: String(login.headers["set-cookie"]).split(";")[0]! };
+        run(b.db, "UPDATE webhook SET url = 'https://hermes.example/hook', secret = ? WHERE id = 1", SECRET);
+        const res = await b.app.inject({ method: "PATCH", url: "/api/v1/webhook", payload: { enabled: true }, headers });
+        expect(res.statusCode).toBe(422);
+        expect(res.json().error).toBe("the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS");
+        const off = await b.app.inject({ method: "PATCH", url: "/api/v1/webhook", payload: { enabled: false }, headers });
+        expect(off.statusCode).toBe(200);
+      } finally {
+        await b.app.close();
+      }
+    });
+  }
+});

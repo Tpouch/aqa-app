@@ -281,14 +281,15 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       const body = webhookBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
       const b = body.data;
-      if (b.url !== undefined && !hostAllowed(b.url, cfg.WEBHOOK_ALLOWED_HOSTS)) {
-        return reply.code(422).send({ error: "the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS" });
-      }
       const cur = readWebhook(db);
       const hasSecret = b.secret !== undefined ? b.secret !== null : cur.secret_set;
       // Removing the secret switches the webhook off, unless the same call asks to enable it (then 422 below).
       const enabled = b.enabled ?? (b.secret === null ? false : cur.enabled);
       const url = b.url ?? cur.url;
+      // A new URL must be allowed; so must the merged URL whenever the webhook ends up enabled.
+      if ((b.url !== undefined || enabled) && !hostAllowed(url, cfg.WEBHOOK_ALLOWED_HOSTS)) {
+        return reply.code(422).send({ error: "the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS" });
+      }
       if (enabled && (!url || !hasSecret)) {
         return reply.code(422).send({ error: "a URL and a secret are required to enable the webhook" });
       }

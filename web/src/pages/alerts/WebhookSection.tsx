@@ -62,7 +62,7 @@ export function WebhookSection({ now }: { now: number }) {
     const next: Errors = {};
     const url = f.url.trim();
     if (!/^https?:\/\/\S+$/.test(url)) next.url = "Adresse complète attendue, par exemple https://hermes.exemple.fr/webhooks/aqa.";
-    else if (!hostListed(url, s.allowed_hosts)) next.url = "Cet hôte n'est pas dans WEBHOOK_ALLOWED_HOSTS.";
+    else if ((url !== s.url || f.enabled) && !hostListed(url, s.allowed_hosts)) next.url = "Cet hôte n'est pas dans WEBHOOK_ALLOWED_HOSTS.";
     const secret = f.secret.trim();
     if (secret && secret.length < 16) next.secret = "16 caractères au moins.";
     else if (!secret && !s.secret_set && (f.enabled || needSecret)) next.secret = "Un secret est obligatoire : la même valeur que dans la route Hermes.";
@@ -88,6 +88,21 @@ export function WebhookSection({ now }: { now: number }) {
     setBusy("save");
     try {
       if (await save()) toast("good", "Webhook enregistré.");
+    } catch (err) {
+      toast("bad", (err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // With an empty host list the form is hidden: switching off is still possible.
+  async function onDisable() {
+    setBusy("save");
+    try {
+      const s = await api.updateWebhook({ enabled: false });
+      setSaved(s);
+      setForm(formFrom(s));
+      toast("good", "Webhook désactivé.");
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -128,6 +143,9 @@ export function WebhookSection({ now }: { now: number }) {
         <>
           <p className="muted small">Prévient un agent (Hermes…) à chaque alerte, avec un message signé.</p>
           <p className="muted small">Ajoute WEBHOOK_ALLOWED_HOSTS dans le .env du serveur pour activer le webhook.</p>
+          {saved.enabled && (
+            <Button type="button" size="sm" loading={busy === "save"} disabled={busy !== null} onClick={onDisable}>Désactiver</Button>
+          )}
         </>
       ) : (
         <form className="al-notify-form" onSubmit={onSubmit} noValidate>

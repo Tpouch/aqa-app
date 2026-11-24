@@ -122,6 +122,14 @@ describe("hostAllowed", () => {
     expect(hostAllowed("not a url", allowed)).toBe(false);
     expect(hostAllowed("https://hermes-hooks.devgoblin.fr/x", [])).toBe(false);
   });
+  it("parser bypasses", () => {
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr./x", allowed)).toBe(false);
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr@evil.com/", allowed)).toBe(false);
+    expect(hostAllowed("https://evil.com@hermes-hooks.devgoblin.fr/", allowed)).toBe(true);
+    const bs = "https://hermes-hooks.devgoblin.fr\\@evil.com/";
+    expect(hostAllowed(bs, allowed)).toBe(new URL(bs).hostname === "hermes-hooks.devgoblin.fr");
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr%2eevil.com/", allowed)).toBe(false);
+  });
 });
 
 describe("Webhook.send", () => {
