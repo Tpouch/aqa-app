@@ -12,7 +12,7 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
   const [order, setOrder] = useState(readOrder);
   const [editing, setEditing] = useState(false);
   const change = (o: Metric[]) => { setOrder(o); saveOrder(o); };
-  const { lifted, bind, gridRef } = useReorder(order, change, editing);
+  const { lifted, bind, gridRef, reorder } = useReorder(order, change, editing);
   const stale = !device.online || !!device.latest?.stale;
 
   // Long press on a gauge enters organise mode; the click that follows must not open the chart.
@@ -59,7 +59,7 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
           <Gauge key={m} metric={m} device={device} stale={stale} editing={editing} lifted={lifted === m}
                  first={i === 0} last={i === order.length - 1}
                  onOpen={() => { if (swallowClick.current) { swallowClick.current = false; return; } onOpen(m); }}
-                 onMove={(d) => change(moveItem(order, i, i + d))}
+                 onMove={(d) => reorder(moveItem(order, i, i + d))}
                  pointer={editing ? bind(m) : longPress} />
         ))}
       </div>
