@@ -8,6 +8,16 @@ import { TEST_MESSAGE, closedMessage, networkError, openedMessage, type NotifyMe
 import type { NotifyLast, WebhookPayload, WebhookSettings } from "./types.js";
 
 export const COARSE_ERROR = "échec : vérifie l'URL et le secret";
+const HOST_ERROR = "hôte non autorisé (WEBHOOK_ALLOWED_HOSTS)";
+
+/** Exact hostname match (port ignored, no suffix or wildcard); an invalid URL or an empty list never matches. */
+export function hostAllowed(url: string, allowed: readonly string[]): boolean {
+  try {
+    return allowed.includes(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 interface WebhookRow {
   enabled: number; url: string; secret: string | null; notify_close: number;
@@ -17,14 +27,14 @@ interface WebhookRow {
 const readRow = (db: Db) => get<WebhookRow>(db, "SELECT * FROM webhook WHERE id = 1")!;
 
 /** `coarse` hides the failure detail (callers authenticated by API key). */
-export function readWebhook(db: Db, opts: { coarse?: boolean } = {}): WebhookSettings {
+export function readWebhook(db: Db, opts: { coarse?: boolean; allowedHosts?: readonly string[] } = {}): WebhookSettings {
   const r = readRow(db);
   let last: NotifyLast | null = null;
   if (r.last_at !== null) {
     const ok = r.last_ok === 1;
     last = { at: r.last_at, ok, error: opts.coarse ? (ok ? null : COARSE_ERROR) : r.last_error };
   }
-  return { enabled: r.enabled === 1, url: r.url, secret_set: r.secret !== null, notify_close: r.notify_close === 1, last };
+  return { enabled: r.enabled === 1, url: r.url, secret_set: r.secret !== null, notify_close: r.notify_close === 1, last, allowed_hosts: [...(opts.allowedHosts ?? [])] };
 }
 
 /** Hermes generic scheme: HMAC-SHA256 (hex) of "<timestamp>.<raw body>". */
@@ -69,7 +79,7 @@ export class Webhook {
   private readonly timeoutMs: number;
 
   constructor(private readonly db: Db, private readonly opts: {
-    publicUrl: string; log?: Log; fetch?: typeof fetch; timeoutMs?: number;
+    publicUrl: string; allowedHosts: readonly string[]; log?: Log; fetch?: typeof fetch; timeoutMs?: number;
   }) {
     this.fetch = opts.fetch ?? globalThis.fetch;
     this.timeoutMs = opts.timeoutMs ?? 5000;
@@ -82,6 +92,7 @@ export class Webhook {
       const s = readRow(this.db);
       if (!s.url) error = "aucune URL configurée";
       else if (!s.secret) error = "aucun secret configuré";
+      else if (!hostAllowed(s.url, this.opts.allowedHosts)) error = HOST_ERROR;
       else error = await this.post(s.url, s.secret, p);
     } catch (err) {
       error = `erreur interne : ${(err as Error).message}`;
@@ -103,7 +114,7 @@ export class Webhook {
     if (events.length === 0) return;
     let s: WebhookSettings;
     try {
-      s = readWebhook(this.db);
+      s = readWebhook(this.db, { allowedHosts: this.opts.allowedHosts });
     } catch {
       return;
     }

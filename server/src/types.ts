@@ -127,6 +127,8 @@ export interface WebhookSettings {
   secret_set: boolean;
   notify_close: boolean;
   last: NotifyLast | null;
+  /** Hosts the webhook may target (from the server .env). */
+  allowed_hosts: string[];
 }
 
 export interface WebhookPayload {

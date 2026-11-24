@@ -57,7 +57,7 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
 
   const notifier = new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log });
 
-  const webhook = new Webhook(db, { publicUrl: cfg.PUBLIC_URL, log: app.log });
+  const webhook = new Webhook(db, { publicUrl: cfg.PUBLIC_URL, allowedHosts: cfg.WEBHOOK_ALLOWED_HOSTS, log: app.log });
 
   app.decorateRequest("apiKeyId", null);
 

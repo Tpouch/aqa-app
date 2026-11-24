@@ -11,6 +11,14 @@ type Errors = Partial<Record<"url" | "secret", string>>;
 const formFrom = (s: WebhookSettings): Form =>
   ({ enabled: s.enabled, url: s.url, secret: "", notify_close: s.notify_close });
 
+function hostListed(url: string, hosts: string[]): boolean {
+  try {
+    return hosts.includes(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 // Global setting (all boards): each alert is POSTed, signed, to an agent such as Hermes.
 export function WebhookSection({ now }: { now: number }) {
   const toast = useToast();
@@ -54,6 +62,7 @@ export function WebhookSection({ now }: { now: number }) {
     const next: Errors = {};
     const url = f.url.trim();
     if (!/^https?:\/\/\S+$/.test(url)) next.url = "Adresse complète attendue, par exemple https://hermes.exemple.fr/webhooks/aqa.";
+    else if (!hostListed(url, s.allowed_hosts)) next.url = "Cet hôte n'est pas dans WEBHOOK_ALLOWED_HOSTS.";
     const secret = f.secret.trim();
     if (secret && secret.length < 16) next.secret = "16 caractères au moins.";
     else if (!secret && !s.secret_set && (f.enabled || needSecret)) next.secret = "Un secret est obligatoire : la même valeur que dans la route Hermes.";
@@ -115,14 +124,19 @@ export function WebhookSection({ now }: { now: number }) {
       <h3 id="al-webhook-title" className="label-caps">Webhook</h3>
       {!saved && loadError ? (
         <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {loadError}</p>
-      ) : !saved || !form ? <Skeleton height={260} /> : (
+      ) : !saved || !form ? <Skeleton height={260} /> : saved.allowed_hosts.length === 0 ? (
+        <>
+          <p className="muted small">Prévient un agent (Hermes…) à chaque alerte, avec un message signé.</p>
+          <p className="muted small">Ajoute WEBHOOK_ALLOWED_HOSTS dans le .env du serveur pour activer le webhook.</p>
+        </>
+      ) : (
         <form className="al-notify-form" onSubmit={onSubmit} noValidate>
           <p className="muted small">Prévient un agent (Hermes…) à chaque alerte, avec un message signé.</p>
           <label className="al-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
             Activé
           </label>
-          <Field label="URL" error={errors.url}>
+          <Field label="URL" error={errors.url} hint={`Hôtes autorisés : ${saved.allowed_hosts.join(", ")}`}>
             <input className="input mono" type="url" value={form.url} autoComplete="off" spellCheck={false}
                    placeholder="https://hermes.exemple.fr/webhooks/aqa" aria-invalid={errors.url ? true : undefined}
                    onChange={(e) => set("url", e.target.value)} />

@@ -164,6 +164,7 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `DATA_DIR` | `./data` (`/data` in Docker) | SQLite and firmware images |
 | `PORT`, `HOST` | `3000`, `0.0.0.0` | In dev, Vite's proxy also follows `PORT` (shell or `.env`) |
 | `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
+| `WEBHOOK_ALLOWED_HOSTS` | empty | Hostnames the alert webhook may post to, comma-separated (bare hostnames). Empty = webhook off |
 | `LOG_LEVEL` | `info` | |
 
 Alert notifications (ntfy) are not configured here: they are set in the web UI
@@ -180,11 +181,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 The board routes follow `docs/api.md`: `POST /api/v1/devices/{id}/status`,
 `/frames` and `/commands/{cid}/ack`, authenticated with a Bearer token. The app
 routes require the admin session cookie. The routes marked **(key)** below (the
-8 read routes, plus `GET/PATCH /api/v1/webhook` and `POST /api/v1/webhook/test`)
+8 read routes, plus `GET /api/v1/webhook`)
 also accept `Authorization: Bearer aqa_…`, an API key created in
 Réglages → Clés d'API, with a shared limit of 120 requests per minute per IP.
-Every other route refuses a key (401). On the webhook routes a key never sees
-the failure detail of `last.error`, only `échec : vérifie l'URL et le secret`:
+Every other route refuses a key (401), including changing or testing the webhook.
+On `GET /api/v1/webhook` a key never sees the failure detail of `last.error`,
+only `échec : vérifie l'URL et le secret`:
 
 | | |
 |---|---|
@@ -203,8 +205,8 @@ the failure detail of `last.error`, only `échec : vérifie l'URL et le secret`:
 | `GET /api/v1/devices/{id}/alerts?limit&before&before_id` (key) | Alerts of a board: `{ open, history }` |
 | `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
 | `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
-| `GET/PATCH /api/v1/webhook` (key) | Webhook settings: `enabled`, `url`, `secret` (string = replace, `null` = remove and switch off; never returned, only `secret_set`), `notify_close`; `last` = last send. Enabling needs a URL and a secret (422 otherwise) |
-| `POST /api/v1/webhook/test` (key) | Send a signed test event with the saved settings (even when disabled; 422 without URL or secret) and return them with `last` |
+| `GET /api/v1/webhook` (key), `PATCH /api/v1/webhook` | Webhook settings: `enabled`, `url`, `secret` (string = replace, `null` = remove and switch off; never returned, only `secret_set`), `notify_close`; `last` = last send, `allowed_hosts` = `WEBHOOK_ALLOWED_HOSTS`. Enabling needs a URL and a secret (422 otherwise); a `url` whose host is not allowed is refused (422) |
+| `POST /api/v1/webhook/test` | Send a signed test event with the saved settings (even when disabled; 422 without URL or secret) and return them with `last` |
 | `GET/POST /api/v1/api-keys` | API keys: list (name, prefix, dates), create → the `aqa_…` key, returned only by this POST (only its sha256 is stored). Session only |
 | `DELETE /api/v1/api-keys/{id}` | Revoke a key (session only) |
 | `GET /healthz` | Health check |
@@ -252,6 +254,14 @@ with the secret, of `"<timestamp>.<raw body>"`. The secret is mandatory and
 never returned by the API (only `secret_set`). The timeout is 5 s, there is no
 retry, redirects are not followed (a 3xx is recorded as `HTTP 30x`, so the signed
 body never reaches another origin), and the answer body is never read.
+
+The webhook may only target the hostnames listed in `WEBHOOK_ALLOWED_HOSTS`
+(server `.env`): the match is on the exact hostname (case-insensitive, port
+ignored, no suffix or wildcard), and an empty list refuses every URL (fail
+closed). The host is checked when the URL is saved (422) and again before each
+send, so a host removed from `.env` stops receiving at once (the failure is
+recorded as `hôte non autorisé`). Only the session can change or test the
+webhook; API keys can only read it.
 
 If the receiver sits behind Cloudflare, add a WAF *Skip* rule for its
 `/webhooks/` path: otherwise Bot Fight Mode blocks AQA's POST.

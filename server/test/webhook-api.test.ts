@@ -12,7 +12,7 @@ const PASSWORD = "correct horse battery";
 const SECRET = "x".repeat(16);
 const cfg = loadConfig({
   ADMIN_PASSWORD: PASSWORD, SESSION_SECRET: "x".repeat(40), PUBLIC_URL: "https://sensor.example.test",
-  LOG_LEVEL: "silent", WEB_DIR: "",
+  LOG_LEVEL: "silent", WEB_DIR: "", WEBHOOK_ALLOWED_HOSTS: "127.0.0.1,hermes.example",
 });
 
 let built: Built;
@@ -59,6 +59,7 @@ describe("/api/v1/webhook", () => {
   it("defaults, then saves without ever returning the secret", async () => {
     expect((await admin("GET", "/api/v1/webhook")).json()).toEqual({
       enabled: false, url: "", secret_set: false, notify_close: true, last: null,
+      allowed_hosts: ["127.0.0.1", "hermes.example"],
     });
     const res = await admin("PATCH", "/api/v1/webhook", { url: "https://hermes.example/hook", secret: SECRET, enabled: true });
     expect(res.statusCode).toBe(200);
@@ -116,17 +117,26 @@ describe("/api/v1/webhook", () => {
     expect(JSON.parse(r.got[0]!.body).event).toBe("test");
   });
 
-  it("works with an API key, with coarse errors", async () => {
+  it("refuses a host that is not allowed", async () => {
+    const res = await admin("PATCH", "/api/v1/webhook", { url: "https://evil.example/hook" });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe("the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS");
+    expect((await admin("PATCH", "/api/v1/webhook", { url: "https://hermes.example:8644/hook" })).statusCode).toBe(200);
+  });
+
+  it("API keys can read (coarse view) but not write or test", async () => {
     const r = await receiver();
-    expect((await withKey("PATCH", "/api/v1/webhook", { url: r.url, secret: SECRET })).statusCode).toBe(200);
-    expect((await withKey("POST", "/api/v1/webhook/test")).json().last.ok).toBe(true);
-    await withKey("PATCH", "/api/v1/webhook", { url: "http://127.0.0.1:1" });
-    const res = await withKey("POST", "/api/v1/webhook/test");
+    await admin("PATCH", "/api/v1/webhook", { url: r.url, secret: SECRET });
+    expect((await withKey("PATCH", "/api/v1/webhook", { notify_close: false })).statusCode).toBe(401);
+    expect((await withKey("POST", "/api/v1/webhook/test")).statusCode).toBe(401);
+    expect(r.got).toHaveLength(0);
+    await admin("PATCH", "/api/v1/webhook", { url: "http://127.0.0.1:1" });
+    await admin("POST", "/api/v1/webhook/test");
+    const res = await withKey("GET", "/api/v1/webhook");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().allowed_hosts).toEqual(["127.0.0.1", "hermes.example"]);
     expect(res.json().last.error).toBe(COARSE_ERROR);
     expect((await admin("GET", "/api/v1/webhook")).json().last.error).toMatch(/^injoignable/);
-    expect((await withKey("GET", "/api/v1/webhook")).json().last.error).toBe(COARSE_ERROR);
-    const patched = await withKey("PATCH", "/api/v1/webhook", { notify_close: false });
-    expect(patched.json().last.error).toBe(COARSE_ERROR);
   });
 });
 

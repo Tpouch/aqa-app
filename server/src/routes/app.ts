@@ -16,7 +16,7 @@ import { isTimeZone } from "../localtime.js";
 import { buildReport, REPORT_STEP } from "../report.js";
 import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
-import { readWebhook, testPayload, type Webhook } from "../webhook.js";
+import { hostAllowed, readWebhook, testPayload, type Webhook } from "../webhook.js";
 import type {
   AggregateRow, AlertKind, CommandRow, DeviceSummary, EventRow, FirmwareRow, FrameRow, UnknownDevice,
 } from "../types.js";
@@ -270,17 +270,20 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       return readNotify(db);
     });
 
-    // ---- outgoing webhook (session or API key; keys only see a coarse error)
+    // ---- outgoing webhook: keys may only read (coarse error), writes and tests are session-only
 
-    const agentRoute = { config: { agent: true }, onRequest: app.agentRateLimit };
-    const view = (request: { apiKeyId: number | null }) => readWebhook(db, { coarse: request.apiKeyId !== null });
+    const view = (request: { apiKeyId: number | null }) =>
+      readWebhook(db, { coarse: request.apiKeyId !== null, allowedHosts: cfg.WEBHOOK_ALLOWED_HOSTS });
 
-    scope.get("/api/v1/webhook", agentRoute, async (request) => view(request));
+    scope.get("/api/v1/webhook", { config: { agent: true }, onRequest: app.agentRateLimit }, async (request) => view(request));
 
-    scope.patch("/api/v1/webhook", agentRoute, async (request, reply) => {
+    scope.patch("/api/v1/webhook", async (request, reply) => {
       const body = webhookBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
       const b = body.data;
+      if (b.url !== undefined && !hostAllowed(b.url, cfg.WEBHOOK_ALLOWED_HOSTS)) {
+        return reply.code(422).send({ error: "the webhook host must be listed in WEBHOOK_ALLOWED_HOSTS" });
+      }
       const cur = readWebhook(db);
       const hasSecret = b.secret !== undefined ? b.secret !== null : cur.secret_set;
       // Removing the secret switches the webhook off, unless the same call asks to enable it (then 422 below).
@@ -302,7 +305,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
 
     // Sends a test event with the saved settings, even when the webhook is off,
     // and waits for the answer (5 s at most).
-    scope.post("/api/v1/webhook/test", agentRoute, async (request, reply) => {
+    scope.post("/api/v1/webhook/test", async (request, reply) => {
       const cur = readWebhook(db);
       if (!cur.url || !cur.secret_set) {
         return reply.code(422).send({ error: "a URL and a secret are required to send a test" });

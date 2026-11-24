@@ -95,7 +95,7 @@ describe("clés d'API", () => {
     expect((await admin("GET", `/api/v1/devices/${DEVICE}`)).statusCode).toBe(200);
   });
 
-  it("flags exactly the 11 expected key-capable routes with agent: true", async () => {
+  it("flags exactly the 9 expected key-capable routes with agent: true", async () => {
     // Test-only app: an onRoute hook registered before appRoutes records the flagged routes.
     const db = openDb(":memory:");
     const app = Fastify({ logger: false });
@@ -112,7 +112,7 @@ describe("clés d'API", () => {
       await app.register(multipart);
       app.decorateRequest("apiKeyId", null);
       appRoutes(app, db, cfg, built.firmware, new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }),
-        new Webhook(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }));
+        new Webhook(db, { publicUrl: cfg.PUBLIC_URL, allowedHosts: [], log: app.log }));
       await app.ready();
       expect(flagged.sort()).toEqual([
         "GET /api/v1/alert-rules",
@@ -124,8 +124,6 @@ describe("clés d'API", () => {
         "GET /api/v1/devices/:id/frames/aggregate",
         "GET /api/v1/devices/:id/report",
         "GET /api/v1/webhook",
-        "PATCH /api/v1/webhook",
-        "POST /api/v1/webhook/test",
       ]);
     } finally {
       await app.close();

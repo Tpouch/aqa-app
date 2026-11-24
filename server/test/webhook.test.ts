@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { CATALOG, type AlertEvent } from "../src/alerts.js";
 import { openDb, run, type Db } from "../src/db.js";
-import { COARSE_ERROR, Webhook, payloadFor, readWebhook, sign, testPayload } from "../src/webhook.js";
+import { COARSE_ERROR, Webhook, hostAllowed, payloadFor, readWebhook, sign, testPayload } from "../src/webhook.js";
 
 const URL_ = "https://x.test";
 const T = 100_000;
@@ -104,7 +104,23 @@ const valid = (r: Received) => {
 
 describe("readWebhook", () => {
   it("défauts", () => {
-    expect(readWebhook(openDb(":memory:"))).toEqual({ enabled: false, url: "", secret_set: false, notify_close: true, last: null });
+    expect(readWebhook(openDb(":memory:"))).toEqual({ enabled: false, url: "", secret_set: false, notify_close: true, last: null, allowed_hosts: [] });
+    expect(readWebhook(openDb(":memory:"), { allowedHosts: ["a.test"] }).allowed_hosts).toEqual(["a.test"]);
+  });
+});
+
+describe("hostAllowed", () => {
+  const allowed = ["hermes-hooks.devgoblin.fr"];
+  it("exact match, case-insensitive, port ignored", () => {
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr/x", allowed)).toBe(true);
+    expect(hostAllowed("https://Hermes-Hooks.DevGoblin.fr/x", allowed)).toBe(true);
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr:8644/x", allowed)).toBe(true);
+  });
+  it("no suffix or wildcard match, bad URL, empty list", () => {
+    expect(hostAllowed("https://evil.hermes-hooks.devgoblin.fr/x", allowed)).toBe(false);
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr.evil.com/x", allowed)).toBe(false);
+    expect(hostAllowed("not a url", allowed)).toBe(false);
+    expect(hostAllowed("https://hermes-hooks.devgoblin.fr/x", [])).toBe(false);
   });
 });
 
@@ -114,7 +130,7 @@ describe("Webhook.send", () => {
     const db = openDb(":memory:");
     configure(db, h.url);
     const p = payloadFor(opened(), URL_, 1_700_000_000);
-    const last = await new Webhook(db, { publicUrl: URL_ }).send(p);
+    const last = await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).send(p);
     expect(last).toMatchObject({ ok: true, error: null });
     expect(h.received).toHaveLength(1);
     const r = h.received[0]!;
@@ -130,7 +146,7 @@ describe("Webhook.send", () => {
     const bad = await fakeHermes((res) => { res.statusCode = 500; res.end("<html>secret</html>"); });
     const db = openDb(":memory:");
     configure(db, bad.url);
-    const wh = new Webhook(db, { publicUrl: URL_ });
+    const wh = new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] });
     expect(await wh.send(testPayload(URL_, 1))).toMatchObject({ ok: false, error: "HTTP 500" });
     const big = await fakeHermes((res) => res.end("<html>" + "x".repeat(100_000) + "</html>"));
     configure(db, big.url);
@@ -142,7 +158,7 @@ describe("Webhook.send", () => {
     const redir = await fakeHermes((res) => { res.statusCode = 302; res.setHeader("location", target.url); res.end(); });
     const db = openDb(":memory:");
     configure(db, redir.url);
-    const last = await new Webhook(db, { publicUrl: URL_ }).send(testPayload(URL_, 1));
+    const last = await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).send(testPayload(URL_, 1));
     expect(last.ok).toBe(false);
     expect(last.error).toBe("HTTP 302");
     expect(readWebhook(db).last).toMatchObject({ ok: false, error: "HTTP 302" });
@@ -153,16 +169,16 @@ describe("Webhook.send", () => {
     const h = await fakeHermes(() => {});
     const db = openDb(":memory:");
     configure(db, h.url);
-    const slow = await new Webhook(db, { publicUrl: URL_, timeoutMs: 100 }).send(testPayload(URL_, 1));
+    const slow = await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"], timeoutMs: 100 }).send(testPayload(URL_, 1));
     expect(slow.ok).toBe(false);
     expect(slow.error).toContain("délai dépassé");
     configure(db, "http://127.0.0.1:1");
-    const down = await new Webhook(db, { publicUrl: URL_ }).send(testPayload(URL_, 1));
+    const down = await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).send(testPayload(URL_, 1));
     expect(down.error).toMatch(/^injoignable/);
   });
   it("sans URL ou sans secret", async () => {
     const db = openDb(":memory:");
-    const wh = new Webhook(db, { publicUrl: URL_ });
+    const wh = new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] });
     expect((await wh.send(testPayload(URL_, 1))).error).toBe("aucune URL configurée");
     configure(db, "http://127.0.0.1:1", { secret: null });
     expect((await wh.send(testPayload(URL_, 1))).error).toBe("aucun secret configuré");
@@ -170,7 +186,7 @@ describe("Webhook.send", () => {
   it("erreur grossière pour les clés", async () => {
     const db = openDb(":memory:");
     configure(db, "http://127.0.0.1:1");
-    const wh = new Webhook(db, { publicUrl: URL_ });
+    const wh = new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] });
     await wh.send(testPayload(URL_, 1));
     expect(readWebhook(db).last?.error).toMatch(/^injoignable/);
     expect(readWebhook(db, { coarse: true }).last).toMatchObject({ ok: false, error: COARSE_ERROR });
@@ -181,12 +197,26 @@ describe("Webhook.send", () => {
   });
 });
 
+describe("Webhook.send host check", () => {
+  it("hôte non autorisé : aucune requête, échec enregistré", async () => {
+    const h = await fakeHermes();
+    const db = openDb(":memory:");
+    configure(db, h.url);
+    const wh = new Webhook(db, { publicUrl: URL_, allowedHosts: ["other.test"] });
+    const last = await wh.send(testPayload(URL_, 1));
+    expect(last).toMatchObject({ ok: false, error: "hôte non autorisé (WEBHOOK_ALLOWED_HOSTS)" });
+    expect(readWebhook(db).last?.error).toBe("hôte non autorisé (WEBHOOK_ALLOWED_HOSTS)");
+    await wh.alerts([opened()]);
+    expect(h.received).toHaveLength(0);
+  });
+});
+
 describe("Webhook.alerts", () => {
   it("ouverture oui, fermeture « disabled » non", async () => {
     const h = await fakeHermes();
     const db = openDb(":memory:");
     configure(db, h.url);
-    await new Webhook(db, { publicUrl: URL_ }).alerts([opened(), closed({ reason: "disabled" })]);
+    await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).alerts([opened(), closed({ reason: "disabled" })]);
     expect(h.received).toHaveLength(1);
     expect(JSON.parse(h.received[0]!.raw).event).toBe("alert.opened");
   });
@@ -194,21 +224,21 @@ describe("Webhook.alerts", () => {
     const h = await fakeHermes();
     const db = openDb(":memory:");
     configure(db, h.url, { notify_close: 0 });
-    await new Webhook(db, { publicUrl: URL_ }).alerts([closed()]);
+    await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).alerts([closed()]);
     expect(h.received).toHaveLength(0);
   });
   it("désactivé : rien", async () => {
     const h = await fakeHermes();
     const db = openDb(":memory:");
     configure(db, h.url, { enabled: 0 });
-    await new Webhook(db, { publicUrl: URL_ }).alerts([opened()]);
+    await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).alerts([opened()]);
     expect(h.received).toHaveLength(0);
   });
   it("deux ouvertures : deux POST, chacun signé pour son corps", async () => {
     const h = await fakeHermes();
     const db = openDb(":memory:");
     configure(db, h.url);
-    await new Webhook(db, { publicUrl: URL_ }).alerts([opened(), opened({ kind: "temp_low", threshold: 19, value: 18 })]);
+    await new Webhook(db, { publicUrl: URL_, allowedHosts: ["127.0.0.1"] }).alerts([opened(), opened({ kind: "temp_low", threshold: 19, value: 18 })]);
     expect(h.received).toHaveLength(2);
     expect(h.received.every(valid)).toBe(true);
     expect(new Set(h.received.map((r) => r.raw)).size).toBe(2);
