@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice,
+  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, ApiKey, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -80,5 +80,8 @@ export const api = {
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),
+  apiKeys: () => request<{ keys: ApiKey[] }>("GET", "/api/v1/api-keys"),
+  createApiKey: (name: string) => request<ApiKey & { key: string }>("POST", "/api/v1/api-keys", { name }),
+  deleteApiKey: (id: number) => request<void>("DELETE", `/api/v1/api-keys/${id}`),
   deleteFirmware: (version: string) => request<void>("DELETE", `/api/v1/firmware/${encodeURIComponent(version)}`),
 };

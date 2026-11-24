@@ -1,6 +1,7 @@
 import { Fragment, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { FirmwareSection } from "../../components/FirmwareSection";
+import { ApiKeysSection } from "./ApiKeysSection";
 import { Setting } from "../../components/Setting";
 import { TokenReveal } from "../../components/TokenReveal";
 import { Button, Field, Skeleton, useConfirm, useToast } from "../../components/ui";
@@ -35,6 +36,7 @@ export function SettingsPage({ device, next, send, reloadDevice, onDeleted }: {
       <GeohashRow device={device} send={send} />
       <ParamsRow device={device} send={send} />
       <FirmwareSection />
+      <ApiKeysSection />
       <DangerZone device={device} next={next} onDeleted={onDeleted} />
     </div>
   );
