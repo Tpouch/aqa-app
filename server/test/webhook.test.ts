@@ -16,7 +16,7 @@ const opened = (over: Partial<Extract<AlertEvent, { type: "opened" }>> = {}): Ex
 });
 const closed = (over: Partial<Extract<AlertEvent, { type: "closed" }>> = {}): Extract<AlertEvent, { type: "closed" }> => ({
   type: "closed", device_id: "aqa-24A160B3C8F0", device_name: "Salon", kind: "co2_high", started_at: T - 1380, at: T,
-  end_value: 640, reason: "normal", ...over,
+  threshold: 1200, end_value: 640, reason: "normal", ...over,
 });
 
 describe("payloads", () => {
@@ -36,8 +36,16 @@ describe("payloads", () => {
   });
   it("payloadFor closed", () => {
     const p = payloadFor(closed(), URL_, 1234);
-    expect(p).toMatchObject({ event: "alert.closed" });
-    expect(p.alert).toMatchObject({ value: null, ended_at: T, end_value: 640, duration_s: 1380 });
+    expect(p).toEqual({
+      event: "alert.closed", sent_at: 1234,
+      text: p.text,
+      device: { id: "aqa-24A160B3C8F0", name: "Salon" },
+      alert: {
+        kind: "co2_high", label: "CO₂ élevé", tone: "bad", value: null, threshold: 1200, unit: "ppm",
+        started_at: T - 1380, ended_at: T, duration_s: 1380, end_value: 640, advice: CATALOG.co2_high.advice,
+      },
+      url: "https://x.test/#/alertes",
+    });
     expect(p.text).toBe("Retour à la normale · Salon\nCO₂ élevé : terminé après 23 min, retour à 640 ppm.");
   });
   it("hors ligne : valeur, seuil et unité nuls", () => {
@@ -128,6 +136,18 @@ describe("Webhook.send", () => {
     configure(db, big.url);
     expect(await wh.send(testPayload(URL_, 1))).toMatchObject({ ok: true, error: null });
     expect(JSON.stringify(readWebhook(db))).not.toContain("xxxx");
+  });
+  it("redirection : échec, le corps signé n'est pas suivi", async () => {
+    const target = await fakeHermes();
+    const redir = await fakeHermes((res) => { res.statusCode = 302; res.setHeader("location", target.url); res.end(); });
+    const db = openDb(":memory:");
+    configure(db, redir.url);
+    const last = await new Webhook(db, { publicUrl: URL_ }).send(testPayload(URL_, 1));
+    expect(last.ok).toBe(false);
+    expect(last.error).toBe("HTTP 302");
+    expect(readWebhook(db).last).toMatchObject({ ok: false, error: "HTTP 302" });
+    expect(redir.received).toHaveLength(1);
+    expect(target.received).toHaveLength(0);
   });
   it("délai dépassé et injoignable", async () => {
     const h = await fakeHermes(() => {});

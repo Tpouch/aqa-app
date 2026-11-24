@@ -179,10 +179,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 The board routes follow `docs/api.md`: `POST /api/v1/devices/{id}/status`,
 `/frames` and `/commands/{cid}/ack`, authenticated with a Bearer token. The app
-routes require the admin session cookie. The 8 read routes marked **(key)**
-below also accept `Authorization: Bearer aqa_…`, an API key created in
+routes require the admin session cookie. The routes marked **(key)** below (the
+8 read routes, plus `GET/PATCH /api/v1/webhook` and `POST /api/v1/webhook/test`)
+also accept `Authorization: Bearer aqa_…`, an API key created in
 Réglages → Clés d'API, with a shared limit of 120 requests per minute per IP.
-Every other route refuses a key (401):
+Every other route refuses a key (401). On the webhook routes a key never sees
+the failure detail of `last.error`, only `échec : vérifie l'URL et le secret`:
 
 | | |
 |---|---|
@@ -201,6 +203,8 @@ Every other route refuses a key (401):
 | `GET /api/v1/devices/{id}/alerts?limit&before&before_id` (key) | Alerts of a board: `{ open, history }` |
 | `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
 | `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
+| `GET/PATCH /api/v1/webhook` (key) | Webhook settings: `enabled`, `url`, `secret` (string = replace, `null` = remove and switch off; never returned, only `secret_set`), `notify_close`; `last` = last send. Enabling needs a URL and a secret (422 otherwise) |
+| `POST /api/v1/webhook/test` (key) | Send a signed test event with the saved settings (even when disabled; 422 without URL or secret) and return them with `last` |
 | `GET/POST /api/v1/api-keys` | API keys: list (name, prefix, dates), create → the `aqa_…` key, returned only by this POST (only its sha256 is stored). Session only |
 | `DELETE /api/v1/api-keys/{id}` | Revoke a key (session only) |
 | `GET /healthz` | Health check |
@@ -227,6 +231,30 @@ is logged and stored as the "last send" shown in the UI.
 
 Clicking a notification opens `PUBLIC_URL/#/alertes`. An alert closed because
 its rule was switched off sends nothing.
+
+## Alert webhook
+
+`server/src/webhook.ts` sends the same events as ntfy to a URL of your choice
+(an agent such as Hermes), through `Webhook.alerts()`, next to the `Notifier` and
+also without waiting. A send happens when an alert opens, and when it closes
+(unless "prévenir à la fin" is off). A rule switched off by hand sends nothing,
+neither when it closes.
+
+The body is JSON: `event` (`alert.opened`, `alert.closed` or `test`), `sent_at`
+(unix seconds), `text` (title and message, as in ntfy), `device` (`id`, `name`),
+`alert` (`kind`, `label`, `tone`, `value`, `threshold`, `unit`, `started_at`,
+`ended_at`, `duration_s`, `end_value`, `advice`) and `url` (`PUBLIC_URL/#/alertes`).
+`test` carries only `event`, `sent_at`, `text` and `url`.
+
+The request is signed with Hermes' generic V2 scheme: `X-Webhook-Timestamp` is
+`sent_at` and `X-Webhook-Signature-V2` is the lowercase hex HMAC-SHA256, keyed
+with the secret, of `"<timestamp>.<raw body>"`. The secret is mandatory and
+never returned by the API (only `secret_set`). The timeout is 5 s, there is no
+retry, redirects are not followed (a 3xx is recorded as `HTTP 30x`, so the signed
+body never reaches another origin), and the answer body is never read.
+
+If the receiver sits behind Cloudflare, add a WAF *Skip* rule for its
+`/webhooks/` path: otherwise Bot Fight Mode blocks AQA's POST.
 
 ## Code structure (front end and shared modules)
 

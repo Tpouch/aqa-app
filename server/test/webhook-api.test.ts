@@ -91,6 +91,17 @@ describe("/api/v1/webhook", () => {
     expect(res.json()).toMatchObject({ enabled: false, secret_set: false });
   });
 
+  it("secret: null with enabled: true is refused, secret: null alone disables", async () => {
+    await admin("PATCH", "/api/v1/webhook", { secret: SECRET, enabled: true });
+    const res = await admin("PATCH", "/api/v1/webhook", { secret: null, enabled: true });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe("a URL and a secret are required to enable the webhook");
+    expect((await admin("GET", "/api/v1/webhook")).json()).toMatchObject({ enabled: true, secret_set: true });
+    const off = await admin("PATCH", "/api/v1/webhook", { secret: null });
+    expect(off.statusCode).toBe(200);
+    expect(off.json()).toMatchObject({ enabled: false, secret_set: false });
+  });
+
   it("test: 422 without URL or secret, then delivers a signed test event", async () => {
     run(built.db, "UPDATE webhook SET url = '' WHERE id = 1");
     expect((await admin("POST", "/api/v1/webhook/test")).statusCode).toBe(422);
@@ -114,6 +125,8 @@ describe("/api/v1/webhook", () => {
     expect(res.json().last.error).toBe(COARSE_ERROR);
     expect((await admin("GET", "/api/v1/webhook")).json().last.error).toMatch(/^injoignable/);
     expect((await withKey("GET", "/api/v1/webhook")).json().last.error).toBe(COARSE_ERROR);
+    const patched = await withKey("PATCH", "/api/v1/webhook", { notify_close: false });
+    expect(patched.json().last.error).toBe(COARSE_ERROR);
   });
 });
 

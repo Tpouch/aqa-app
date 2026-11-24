@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { Button, Field, Skeleton, useToast } from "../../components/ui";
 import { usePoll } from "../../util";
@@ -21,17 +21,20 @@ export function WebhookSection({ now }: { now: number }) {
   const [busy, setBusy] = useState<"save" | "test" | null>(null);
 
   // Polled so "dernier envoi" follows the alerts sent in the background.
-  // Only the first answer fills the form: later ones never overwrite what is being typed.
+  // Each answer replaces the saved settings (an agent may have changed them) and
+  // refills the form, unless something was typed or generated since the last fill or save.
+  const touched = useRef(false);
   const poll = usePoll(() => api.webhook(), 15000, []);
   useEffect(() => {
     const s = poll.data;
     if (!s) return;
-    setSaved((cur) => (cur ? { ...cur, last: s.last } : s));
-    setForm((f) => f ?? formFrom(s));
+    setSaved(s);
+    if (!touched.current) setForm(formFrom(s));
   }, [poll.data]);
   const loadError = poll.error;
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
+    touched.current = true;
     setForm((f) => f && { ...f, [k]: v });
     if (k === "url" || k === "secret" || k === "enabled") setErrors({});
     if (k === "secret") setGenerated(false);
@@ -66,6 +69,7 @@ export function WebhookSection({ now }: { now: number }) {
     const s = await api.updateWebhook(p);
     setSaved(s);
     setForm(formFrom(s));
+    touched.current = false;
     setGenerated(false);
     return s;
   }

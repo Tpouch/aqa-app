@@ -15,7 +15,7 @@ export type AlertEvent =
   | { type: "opened"; device_id: string; device_name: string; kind: AlertKind; threshold: number | null;
       value: number | null; started_at: number; at: number }
   | { type: "closed"; device_id: string; device_name: string; kind: AlertKind; started_at: number; at: number;
-      end_value: number | null; reason: "normal" | "disabled" };
+      threshold: number | null; end_value: number | null; reason: "normal" | "disabled" };
 
 export const CLOSE_AFTER_S = 120;
 export const COVERAGE_S = 60;
@@ -165,7 +165,7 @@ export function closeAlert(
   run(db, "UPDATE alerts SET ended_at = ?, end_value = ?, end_reason = ? WHERE id = ?", now, endValue, reason, alert.id);
   out.push({
     type: "closed", device_id: device.id, device_name: device.name, kind: alert.kind, started_at: alert.started_at, at: now,
-    end_value: endValue, reason,
+    threshold: alert.threshold, end_value: endValue, reason,
   });
 }
 

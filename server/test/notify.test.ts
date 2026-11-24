@@ -15,7 +15,7 @@ const opened = (over: Partial<Extract<AlertEvent, { type: "opened" }>> = {}): Ex
 });
 const closed = (over: Partial<Extract<AlertEvent, { type: "closed" }>> = {}): Extract<AlertEvent, { type: "closed" }> => ({
   type: "closed", device_id: "aqa-24A160B3C8F0", device_name: "Salon", kind: "co2_high", started_at: T - 1380, at: T,
-  end_value: 640, reason: "normal", ...over,
+  threshold: 1200, end_value: 640, reason: "normal", ...over,
 });
 
 describe("messages", () => {

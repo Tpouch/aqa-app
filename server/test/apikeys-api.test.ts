@@ -95,7 +95,7 @@ describe("clés d'API", () => {
     expect((await admin("GET", `/api/v1/devices/${DEVICE}`)).statusCode).toBe(200);
   });
 
-  it("flags exactly the 11 expected read routes with agent: true", async () => {
+  it("flags exactly the 11 expected key-capable routes with agent: true", async () => {
     // Test-only app: an onRoute hook registered before appRoutes records the flagged routes.
     const db = openDb(":memory:");
     const app = Fastify({ logger: false });

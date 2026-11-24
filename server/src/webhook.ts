@@ -46,7 +46,7 @@ export function payloadFor(e: AlertEvent, publicUrl: string, at: number): Webhoo
     alert: {
       kind: e.kind, label: c.label, tone: c.tone,
       value: opened ? e.value : null,
-      threshold: opened ? e.threshold : null,
+      threshold: e.threshold,
       unit: c.unit && c.metric !== null ? c.unit : null,
       started_at: e.started_at,
       ended_at: opened ? null : e.at,
@@ -129,10 +129,14 @@ export class Webhook {
           "x-webhook-signature-v2": sign(secret, p.sent_at, body),
         },
         body,
+        // A redirect would forward the signed body to another origin: record it as a failure instead.
+        redirect: "manual",
         signal: AbortSignal.timeout(this.timeoutMs),
       });
       await res.body?.cancel();
-      return res.ok ? null : `HTTP ${res.status}`;
+      if (res.ok) return null;
+      // redirect: "manual" yields the 3xx itself (undici), or an opaque redirect with status 0 elsewhere.
+      return res.type === "opaqueredirect" || res.status === 0 ? "HTTP 3xx (redirection)" : `HTTP ${res.status}`;
     } catch (err) {
       return networkError(err, this.timeoutMs);
     }

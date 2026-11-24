@@ -1,5 +1,6 @@
 // Routes used by the web UI. All require the admin session cookie, except the
-// read routes flagged `agent: true`, which also accept an API key.
+// routes flagged `agent: true` (the read routes and the webhook ones), which
+// also accept an API key.
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -280,9 +281,11 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       const body = webhookBody.safeParse(request.body);
       if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
       const b = body.data;
-      const hasSecret = b.secret !== undefined ? b.secret !== null : readWebhook(db).secret_set;
-      const enabled = b.secret === null ? false : (b.enabled ?? readWebhook(db).enabled);
-      const url = b.url ?? readWebhook(db).url;
+      const cur = readWebhook(db);
+      const hasSecret = b.secret !== undefined ? b.secret !== null : cur.secret_set;
+      // Removing the secret switches the webhook off, unless the same call asks to enable it (then 422 below).
+      const enabled = b.enabled ?? (b.secret === null ? false : cur.enabled);
+      const url = b.url ?? cur.url;
       if (enabled && (!url || !hasSecret)) {
         return reply.code(422).send({ error: "a URL and a secret are required to enable the webhook" });
       }

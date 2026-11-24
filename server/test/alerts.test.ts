@@ -192,7 +192,7 @@ describe("checkAlerts", () => {
     frames(db, T + 15, T + 150, { co2: 600 });
     const closed = checkAlerts(db, T + 150, 0);
     expect(closed).toEqual([{
-      type: "closed", device_id: "d1", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 150, end_value: 600, reason: "normal",
+      type: "closed", device_id: "d1", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 150, threshold: 1200, end_value: 600, reason: "normal",
     }]);
     expect(closed[0]).toMatchObject({ device_id: "d1" });
   });
@@ -202,7 +202,7 @@ describe("checkAlerts", () => {
     checkAlerts(db, T, 0);
     run(db, "UPDATE alert_rules SET enabled = 0 WHERE kind = 'co2_high'");
     expect(checkAlerts(db, T + 30, 0)).toEqual([{
-      type: "closed", device_id: "d1", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 30, end_value: null, reason: "disabled",
+      type: "closed", device_id: "d1", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 30, threshold: 1200, end_value: null, reason: "disabled",
     }]);
   });
   it("événement hors ligne sans valeur", () => {
