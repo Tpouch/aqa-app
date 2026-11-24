@@ -5,8 +5,8 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance } from "fastify";
-import { SESSION_COOKIE } from "./auth.js";
+import Fastify, { type FastifyInstance, type onRequestHookHandler } from "fastify";
+import { AGENT_RATE_LIMIT, SESSION_COOKIE } from "./auth.js";
 import type { Config } from "./config.js";
 import { CHECK_EVERY_S, checkAlerts } from "./alerts.js";
 import { now, openDb, run, type Db } from "./db.js";
@@ -41,6 +41,8 @@ export async function buildApp(cfg: Config, opts: { dataDir?: string } = {}): Pr
     cookie: { cookieName: SESSION_COOKIE, signed: false },
   });
   await app.register(rateLimit, { global: false });
+  // app.rateLimit(options) builds one store when called, so routes sharing this handler share one counter.
+  app.decorate("agentRateLimit", app.rateLimit(AGENT_RATE_LIMIT) as onRequestHookHandler);
   await app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024, files: 2 } });
   // reply.sendFile for firmware downloads; the web app gets its own instance.
   await app.register(fastifyStatic, { root: firmware.dir, serve: false });

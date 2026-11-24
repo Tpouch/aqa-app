@@ -127,6 +127,25 @@ describe("clés d'API", () => {
       expect(codes.slice(0, 120).every((c) => c === 200)).toBe(true);
       expect(codes[120]).toBe(429);
 
+      // The budget is shared by all agent routes: 60 + 61 over two routes -> the 121st is refused.
+      const fresh2 = await buildApp(cfg, { dataDir: ":memory:" });
+      try {
+        const k2 = (await fresh2.app.inject({
+          method: "POST", url: "/api/v1/api-keys", payload: { name: "x" },
+          headers: { cookie: String((await fresh2.app.inject({ method: "POST", url: "/api/v1/session", payload: { password: PASSWORD } })).headers["set-cookie"]).split(";")[0]! },
+        })).json().key as string;
+        const mixed: number[] = [];
+        for (let i = 0; i < 121; i++) {
+          mixed.push((await fresh2.app.inject({
+            method: "GET", url: i < 60 ? "/api/v1/alert-rules" : "/api/v1/devices", headers: { authorization: `Bearer ${k2}` },
+          })).statusCode);
+        }
+        expect(mixed.slice(0, 120).every((c) => c === 200)).toBe(true);
+        expect(mixed[120]).toBe(429);
+      } finally {
+        await fresh2.app.close();
+      }
+
       for (let i = 0; i < 121; i++) {
         const res = await fresh.app.inject({ method: "GET", url: "/api/v1/alert-rules", headers: { cookie: ck } });
         expect(res.statusCode).toBe(200);

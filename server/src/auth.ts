@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
-import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
+import type { FastifyReply, FastifyRequest, onRequestHookHandler, preHandlerHookHandler } from "fastify";
 import { KEY_PREFIX, useKey } from "./apikeys.js";
 import type { Db } from "./db.js";
 
 declare module "fastify" {
   interface FastifyContextConfig { agent?: boolean }
   interface FastifyRequest { apiKeyId: number | null }
+  // One limiter shared by every agent route: 120 key requests / minute / IP in total.
+  interface FastifyInstance { agentRateLimit: onRequestHookHandler }
 }
 
 export const SESSION_COOKIE = "aqa_session";
