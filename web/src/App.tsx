@@ -93,7 +93,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
   const [selection, setSelection] = useSelection();
 
   useEffect(() => {
-    document.title = device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
+    document.title = tab === "ajouter" ? `${TAB_LABEL[tab]} · AQA` : device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
   }, [tab, device]);
 
   const onPendingChange = useCallback((n: number) => setPending(n), []);
