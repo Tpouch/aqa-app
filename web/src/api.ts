@@ -1,5 +1,5 @@
 import type {
-  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, SoundCalibration, UnknownDevice,
+  AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, CommandRow, CommandType, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice,
 } from "../../server/src/types";
 
 export class ApiError extends Error {
@@ -67,6 +67,12 @@ export const api = {
   alerts: (id: string, before?: number, beforeId?: number) =>
     request<{ open: AlertRow[]; history: AlertRow[] }>(
       "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}${beforeId === undefined ? "" : `&before_id=${beforeId}`}`}`),
+
+  notify: () => request<NotifySettings>("GET", "/api/v1/notify"),
+  // token: a string replaces it, null removes it, absent keeps it.
+  updateNotify: (patch: Partial<Pick<NotifySettings, "enabled" | "server" | "topic" | "notify_close">> & { token?: string | null }) =>
+    request<NotifySettings>("PATCH", "/api/v1/notify", patch),
+  testNotify: () => request<NotifySettings>("POST", "/api/v1/notify/test"),
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),
