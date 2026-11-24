@@ -132,6 +132,9 @@ shown as a raw amplitude with no zones. The CSV export keeps `snd` and adds
 | `TRUST_PROXY` | `true` | Client IP taken from `X-Forwarded-For` |
 | `LOG_LEVEL` | `info` | |
 
+Alert notifications (ntfy) are not configured here: they are set in the web UI
+(**Alertes → Notifications**) and stored in the database.
+
 Generate a `SESSION_SECRET` with:
 
 ```bash
@@ -157,7 +160,34 @@ routes require the admin session cookie:
 | `GET/POST /api/v1/devices/{id}/commands`, `DELETE …/{cid}` | History, send, cancel (if `pending`) |
 | `GET/POST /api/v1/firmware`, `DELETE …/{version}` | Firmware images (multipart upload: `version`, `firmware`, `signature`) |
 | `GET /firmware/{version}/firmware.bin\|sig?exp&sig` | Download by the board, signed link |
+| `GET /api/v1/alert-rules`, `PATCH …/{kind}`, `POST …/reset` | Alert rules: list, update `enabled` / `threshold` / `duration_s`, restore defaults |
+| `GET /api/v1/devices/{id}/alerts?limit&before&before_id` | Alerts of a board: `{ open, history }` |
+| `GET/PATCH /api/v1/notify` | ntfy settings: `enabled`, `server`, `topic`, `token` (string = replace, `null` = remove; never returned, only `token_set`), `notify_close`; `last` = last send |
+| `POST /api/v1/notify/test` | Send a test notification with the saved settings (even when disabled) and return them with `last` |
 | `GET /healthz` | Health check |
+
+## Alert notifications (ntfy)
+
+`server/src/alerts.ts` checks the rules every 30 s. `openAlert` and
+`closeAlert` report an event, and `checkAlerts` returns these events after its
+SQLite transaction commits. `buildApp` hands them to the `Notifier`
+(`server/src/notify.ts`) without waiting, so a slow or unreachable ntfy server
+never delays detection, and no notification goes out for a rolled-back
+transaction.
+
+`Notifier.publish()` is the only way out: a `POST` of JSON to the root of the
+ntfy server (`topic`, `title`, `message`, `priority`, `tags`, `click`), with
+`Authorization: Bearer <token>` when a token is set and a 5 s timeout. It never
+throws. Each result (success or a short error such as `HTTP 403 : forbidden`)
+is logged and stored as the "last send" shown in the UI.
+
+| Event | Title | Priority |
+|---|---|---|
+| Alert opens | `<label> · <board name>`, body = value, threshold and tip | `high` for red alerts, `default` for amber ones |
+| Alert ends (optional) | `Retour à la normale · <board name>`, body = duration | `low` |
+
+Clicking a notification opens `PUBLIC_URL/#/alertes`. An alert closed because
+its rule was switched off sends nothing.
 
 ## Code structure (front end and shared modules)
 
@@ -171,6 +201,7 @@ routes require the admin session cookie:
 | `web/src/pages/measures/` | Mesures: banner, stats, single chart and grid |
 | `web/src/pages/report/` | Bilan: week / month bounds (`period.ts`), page and view, shared with the phone tab |
 | `web/src/pages/card/` | Carte: board status, actions, commands in progress, journal |
+| `web/src/pages/alerts/` | Alertes: rules, ntfy notifications, journal |
 | `web/src/pages/settings/` | Réglages, including sound calibration |
 | `web/src/styles.css` | Design tokens (dark default + light) and every style |
 

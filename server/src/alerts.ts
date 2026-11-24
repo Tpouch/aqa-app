@@ -10,6 +10,13 @@ export type Decision =
   | { action: "update"; peak_value: number }
   | { action: "close"; end_value: number | null };
 
+// What openAlert / closeAlert report, handed to the notifier after the commit.
+export type AlertEvent =
+  | { type: "opened"; device_name: string; kind: AlertKind; threshold: number | null;
+      value: number | null; started_at: number; at: number }
+  | { type: "closed"; device_name: string; kind: AlertKind; started_at: number; at: number;
+      end_value: number | null; reason: "normal" | "disabled" };
+
 export const CLOSE_AFTER_S = 120;
 export const COVERAGE_S = 60;
 export const CHECK_EVERY_S = 30;
@@ -136,35 +143,44 @@ export function toAlertRow(r: AlertDbRow): AlertRow {
   return { ...r, label: c.label, unit: c.unit, metric: c.metric, tone: c.tone, advice: c.advice };
 }
 
-// Only write points for alerts: a future webhook hooks in here.
+interface DeviceRef { id: string; name: string }
+interface OpenRow { id: number; kind: AlertKind; threshold: number | null; peak_value: number | null; started_at: number }
+
+// Only write points for alerts. Each one reports an event in `out`;
+// checkAlerts returns them after the commit for the notifier (notify.ts).
 export function openAlert(
-  db: Db, deviceId: string, kind: AlertKind, threshold: number | null,
-  d: Extract<Decision, { action: "open" }>,
+  db: Db, device: DeviceRef, kind: AlertKind, threshold: number | null,
+  d: Extract<Decision, { action: "open" }>, value: number | null, now: number, out: AlertEvent[],
 ): void {
   run(db,
     "INSERT INTO alerts (device_id, kind, threshold, started_at, start_value, peak_value) VALUES (?, ?, ?, ?, ?, ?)",
-    deviceId, kind, threshold, d.started_at, d.start_value, d.peak_value);
+    device.id, kind, threshold, d.started_at, d.start_value, d.peak_value);
+  out.push({ type: "opened", device_name: device.name, kind, threshold, value, started_at: d.started_at, at: now });
 }
 
 export function closeAlert(
-  db: Db, alertId: number, now: number, endValue: number | null, reason: "normal" | "disabled",
+  db: Db, device: DeviceRef, alert: OpenRow, now: number, endValue: number | null, reason: "normal" | "disabled",
+  out: AlertEvent[],
 ): void {
-  run(db, "UPDATE alerts SET ended_at = ?, end_value = ?, end_reason = ? WHERE id = ?", now, endValue, reason, alertId);
+  run(db, "UPDATE alerts SET ended_at = ?, end_value = ?, end_reason = ? WHERE id = ?", now, endValue, reason, alert.id);
+  out.push({
+    type: "closed", device_name: device.name, kind: alert.kind, started_at: alert.started_at, at: now,
+    end_value: endValue, reason,
+  });
 }
 
-interface OpenRow { id: number; kind: AlertKind; threshold: number | null; peak_value: number | null }
-
-export function checkAlerts(db: Db, now: number, serverStart: number): void {
+export function checkAlerts(db: Db, now: number, serverStart: number): AlertEvent[] {
+  const events: AlertEvent[] = [];
   tx(db, () => {
     const rules = readRules(db);
     const maxDur = rules.reduce((m, r) => (r.enabled && r.metric ? Math.max(m, r.duration_s) : m), 0);
     const from = now - Math.max(maxDur, CLOSE_AFTER_S) - 60;
-    const devices = all<{ id: string; last_seen: number | null; snd_ref: number | null; db_ref: number | null }>(
-      db, "SELECT id, last_seen, snd_ref, db_ref FROM devices");
+    const devices = all<DeviceRef & { last_seen: number | null; snd_ref: number | null; db_ref: number | null }>(
+      db, "SELECT id, name, last_seen, snd_ref, db_ref FROM devices");
 
     for (const dev of devices) {
       const openRows = all<OpenRow>(
-        db, "SELECT id, kind, threshold, peak_value FROM alerts WHERE device_id = ? AND ended_at IS NULL", dev.id);
+        db, "SELECT id, kind, threshold, peak_value, started_at FROM alerts WHERE device_id = ? AND ended_at IS NULL", dev.id);
       const openByKind = new Map(openRows.map((o) => [o.kind, o]));
       const frames = all<Record<string, number | null> & { ts: number }>(
         db, "SELECT ts, snd, co2, pm25, hum, temp FROM frames WHERE device_id = ? AND ts >= ? ORDER BY ts",
@@ -173,16 +189,17 @@ export function checkAlerts(db: Db, now: number, serverStart: number): void {
       for (const rule of rules) {
         const open = openByKind.get(rule.kind);
         if (!rule.enabled) {
-          if (open) closeAlert(db, open.id, now, null, "disabled");
+          if (open) closeAlert(db, dev, open, now, null, "disabled", events);
           continue;
         }
         let decision: Decision;
+        let value: number | null = null;
         if (rule.metric === null) {
           decision = decideOffline(rule, !!open, dev.last_seen, serverStart, now);
         } else {
           const cal = dev.snd_ref !== null && dev.db_ref !== null ? { snd_ref: dev.snd_ref, db_ref: dev.db_ref } : null;
           if (rule.metric === "snd" && !cal) {
-            if (open) closeAlert(db, open.id, now, null, "disabled");
+            if (open) closeAlert(db, dev, open, now, null, "disabled", events);
             continue;
           }
           const samples: Sample[] = [];
@@ -192,16 +209,18 @@ export function checkAlerts(db: Db, now: number, serverStart: number): void {
             const v = rule.metric === "snd" ? soundDb(raw, cal!) : raw;
             if (v !== null) samples.push({ ts: f.ts, v });
           }
+          value = samples.length ? samples[samples.length - 1]!.v : null;
           decision = decideMetric(rule.kind, rule,
             open && open.threshold !== null ? { threshold: open.threshold, peak_value: open.peak_value } : null,
             samples, now);
         }
-        if (decision.action === "open") openAlert(db, dev.id, rule.kind, rule.threshold, decision);
-        else if (decision.action === "close" && open) closeAlert(db, open.id, now, decision.end_value, "normal");
+        if (decision.action === "open") openAlert(db, dev, rule.kind, rule.threshold, decision, value, now, events);
+        else if (decision.action === "close" && open) closeAlert(db, dev, open, now, decision.end_value, "normal", events);
         else if (decision.action === "update" && open) {
           run(db, "UPDATE alerts SET peak_value = ? WHERE id = ?", decision.peak_value, open.id);
         }
       }
     }
   });
+  return events;
 }

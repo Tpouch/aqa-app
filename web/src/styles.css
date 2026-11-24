@@ -670,8 +670,9 @@ select.input, .field select { background: var(--bg); }
 .al-head h2 { font-size: 22px; line-height: 1.1; font-weight: 400; overflow-wrap: anywhere; }
 .al-head p { font-size: 12px; }
 .al-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; margin-top: 14px; align-items: start; }
-.al-rules, .al-journal { min-width: 0; }
-.al-rules > h3, .al-journal > h3 { margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+.al-side { display: grid; gap: 28px; min-width: 0; }
+.al-rules, .al-journal, .al-notify { min-width: 0; }
+.al-rules > h3, .al-journal > h3, .al-notify > h3 { margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
 
 .al-rule { border-bottom: 1px solid var(--rule); }
 .al-rule-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
@@ -686,6 +687,16 @@ select.input, .field select { background: var(--bg); }
 .al-rule-form .field { flex: 1 1 110px; min-width: 0; }
 .al-rule-actions { display: flex; gap: 6px; flex-basis: 100%; }
 .al-reset, .al-more { margin: 8px 0 0 -8px; }  /* quiet button: text aligned with the list */
+
+.al-notify-form { display: grid; gap: 12px; padding-top: 6px; font-size: 13px; }
+.al-notify-form > p { font-size: 12px; }
+.al-check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.al-check input { width: 14px; height: 14px; margin: 0; accent-color: var(--text); cursor: pointer; }
+.al-notify-inline { display: flex; align-items: flex-start; gap: 8px; }
+.al-notify-inline .field { flex: 1 1 auto; min-width: 0; }
+.al-notify-inline > .btn { margin-top: 27px; }  /* level with the input, under the label */
+.al-notify-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.al-notify-status { overflow-wrap: anywhere; }
 
 .al-now-list { display: grid; gap: 8px; margin-bottom: 10px; }
 .al-now { padding: 10px 12px; border: 1px solid var(--bad); background: var(--bad-band); font-size: 13px; }

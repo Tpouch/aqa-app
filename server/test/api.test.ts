@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp, type Built } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -447,6 +449,69 @@ describe("bilan", () => {
   it("répond 404 pour une carte inconnue et 401 sans session", async () => {
     expect((await admin("GET", `/api/v1/devices/aqa-000000000000/report?from=${from}&to=${from + 86400}`)).statusCode).toBe(404);
     expect((await built.app.inject({ method: "GET", url: url(`from=${from}&to=${from + 86400}`) })).statusCode).toBe(401);
+  });
+});
+
+describe("notifications", () => {
+  const received: { url: string; auth?: string; body: any }[] = [];
+  let ntfy: http.Server;
+  let ntfyUrl = "";
+  beforeAll(async () => {
+    ntfy = http.createServer((req, res) => {
+      let data = "";
+      req.on("data", (c) => (data += c));
+      req.on("end", () => {
+        received.push({ url: req.url!, auth: req.headers.authorization, body: JSON.parse(data) });
+        res.end("{}");
+      });
+    });
+    await new Promise<void>((r) => ntfy.listen(0, "127.0.0.1", r));
+    ntfyUrl = `http://127.0.0.1:${(ntfy.address() as AddressInfo).port}`;
+  });
+  afterAll(() => { ntfy.closeAllConnections(); ntfy.close(); });
+
+  it("exige la session", async () => {
+    expect((await built.app.inject({ method: "GET", url: "/api/v1/notify" })).statusCode).toBe(401);
+  });
+  it("défauts", async () => {
+    expect((await admin("GET", "/api/v1/notify")).json()).toEqual({
+      enabled: false, server: "https://ntfy.sh", topic: "", token_set: false, notify_close: true, last: null,
+    });
+  });
+  it("valide", async () => {
+    expect((await admin("PATCH", "/api/v1/notify", { topic: "a b" })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { server: "ftp://x" })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { enabled: true })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", { nope: 1 })).statusCode).toBe(422);
+    expect((await admin("PATCH", "/api/v1/notify", {})).statusCode).toBe(422);
+    const res = await admin("PATCH", "/api/v1/notify", { server: " https://ntfy.example/ " });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().server).toBe("https://ntfy.example");
+  });
+  it("ne renvoie jamais le jeton", async () => {
+    const set = await admin("PATCH", "/api/v1/notify", { token: "tk_secret" });
+    expect(set.json().token_set).toBe(true);
+    expect(set.body).not.toContain("tk_secret");
+    expect((await admin("GET", "/api/v1/notify")).body).not.toContain("tk_secret");
+    expect((await admin("PATCH", "/api/v1/notify", { token: null })).json().token_set).toBe(false);
+  });
+  it("test sans sujet", async () => {
+    expect((await admin("POST", "/api/v1/notify/test")).statusCode).toBe(422);
+  });
+  it("envoie un test, même désactivé", async () => {
+    const set = await admin("PATCH", "/api/v1/notify", { server: ntfyUrl, topic: "aqa-test", token: "tk_x" });
+    expect(set.json()).toMatchObject({ enabled: false, topic: "aqa-test", token_set: true });
+    const res = await admin("POST", "/api/v1/notify/test");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().last).toMatchObject({ ok: true, error: null });
+    expect(res.body).not.toContain("tk_x");
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ url: "/", auth: "Bearer tk_x", body: { topic: "aqa-test", title: "Test · AQA" } });
+  });
+  it("active et coupe la fin", async () => {
+    const res = await admin("PATCH", "/api/v1/notify", { enabled: true, notify_close: false });
+    expect(res.json()).toMatchObject({ enabled: true, notify_close: false });
+    expect((await admin("PATCH", "/api/v1/notify", { topic: "" })).statusCode).toBe(422);
   });
 });
 
