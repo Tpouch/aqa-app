@@ -1,0 +1,132 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # post the Quality Gate summary on the PR
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # Waits for the server to process the analysis. Doesn't fail the job yet,
+      # so the PR comment below is posted even when the gate is red.
+      - name: Quality Gate
+        id: qg
+        uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1.2.1
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          QG_STATUS: ${{ steps.qg.outputs.quality-gate-status }}
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- sonarqube-quality-gate -->';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const host = (process.env.SONAR_HOST_URL || '').replace(/\/+$/, '');
+            const auth = 'Basic ' + Buffer.from(`${process.env.SONAR_TOKEN}:`).toString('base64');
+            const sonar = async (path) => {
+              const res = await fetch(`${host}${path}`, { headers: { Authorization: auth } });
+              if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
+              return res.json();
+            };
+
+            const LABELS = {
+              new_violations: 'New issues',
+              new_reliability_rating: 'Reliability rating',
+              new_security_rating: 'Security rating',
+              new_maintainability_rating: 'Maintainability rating',
+              new_coverage: 'Coverage on new code',
+              new_duplicated_lines_density: 'Duplication on new code',
+              new_security_hotspots_reviewed: 'Security hotspots reviewed',
+            };
+            const fmt = (metric, value) => {
+              if (value === undefined) return '—';
+              if (metric.endsWith('_rating')) return 'ABCDE'[Math.round(Number(value)) - 1] ?? value;
+              if (/coverage|density|reviewed/.test(metric)) return `${Number(value).toFixed(1)} %`;
+              return value;
+            };
+            const OPS = { GT: '>', LT: '<' };
+
+            let body;
+            try {
+              const report = Object.fromEntries(
+                fs.readFileSync('.scannerwork/report-task.txt', 'utf8')
+                  .split('\n').filter((l) => l.includes('='))
+                  .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+              );
+              const { task } = await sonar(`/api/ce/task?id=${encodeURIComponent(report.ceTaskId)}`);
+              if (!task.analysisId) throw new Error(`analysis task is ${task.status}`);
+              const { projectStatus } = await sonar(
+                `/api/qualitygates/project_status?analysisId=${encodeURIComponent(task.analysisId)}`,
+              );
+
+              const passed = projectStatus.status === 'OK';
+              const rows = (projectStatus.conditions || []).map((c) => {
+                const icon = c.status === 'OK' ? '✅' : c.status === 'ERROR' ? '❌' : '⚠️';
+                const label = LABELS[c.metricKey] || c.metricKey;
+                return `| ${icon} | ${label} | ${fmt(c.metricKey, c.actualValue)} | ${OPS[c.comparator] || c.comparator} ${fmt(c.metricKey, c.errorThreshold)} |`;
+              });
+
+              body = [
+                MARKER,
+                `## ${passed ? '✅' : '❌'} SonarQube Quality Gate: **${passed ? 'Passed' : 'Failed'}**`,
+                '',
+                rows.length ? '| | Condition | Value | Fails when |\n|---|---|---|---|\n' + rows.join('\n') : '_No conditions on this gate._',
+                '',
+                `[See the analysis on SonarQube](${report.dashboardUrl}) · [Workflow run](${runUrl}) · commit ${context.sha.slice(0, 7)}`,
+              ].join('\n');
+            } catch (err) {
+              core.warning(`Could not read the Quality Gate result: ${err.message}`);
+              body = [
+                MARKER,
+                '## ⚠️ SonarQube Quality Gate: **unknown**',
+                '',
+                `The analysis did not finish or its result could not be read (${process.env.QG_STATUS || 'no status'}).`,
+                `Check the [workflow run](${runUrl}).`,
+              ].join('\n');
+            }
+
+            // Update the existing comment instead of posting a new one on every push.
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo, issue_number, per_page: 100,
+            });
+            const previous = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(MARKER));
+            if (previous) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number, body });
+            }
+
+      - name: Fail if the Quality Gate failed
+        if: steps.qg.outcome == 'failure'
+        run: |
+          echo "::error::SonarQube Quality Gate status: ${{ steps.qg.outputs.quality-gate-status || 'unknown' }}"
+          exit 1
