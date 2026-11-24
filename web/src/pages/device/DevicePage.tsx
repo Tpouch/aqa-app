@@ -8,6 +8,7 @@ import { useNow, usePoll } from "../../util";
 import { AlertsPage } from "../alerts/AlertsPage";
 import { CardPage } from "../card/CardPage";
 import { MeasuresPage } from "../measures/MeasuresPage";
+import { ReportPage } from "../report/ReportPage";
 import { InfosPage } from "../infos/InfosPage";
 import { SettingsPage } from "../settings/SettingsPage";
 import { COMMAND_LABEL, useCommands } from "./shared";
@@ -68,6 +69,7 @@ export function DevicePage({ id, tab, selection, onSelection, onPendingChange, o
     <div id={`panel-${tab}`} className="tab-panel">
       <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
       {tab === "mesures" && <MeasuresPage id={id} device={d} selection={selection} onSelection={onSelection} />}
+      {tab === "bilan" && <ReportPage key={id} id={id} device={d ?? undefined} />}
       {tab === "alertes" && <AlertsPage key={id} id={id} device={d ?? null} />}
       {tab === "carte" && <CardPage id={id} device={d} commands={commands.data?.commands} commandsError={commands.error} reload={commands.reload} send={send} now={now} />}
       {tab === "infos" && <InfosPage device={d} />}

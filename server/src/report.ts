@@ -14,6 +14,9 @@ import {
 
 /** Bucket length of the rows the report is computed from, in seconds. */
 export const REPORT_STEP = 60;
+/** A measurement stands until the next one if that one comes within this delay;
+ *  a longer silence is an outage and the bucket only counts for itself. */
+export const MAX_GAP_S = 600;
 
 export interface ReportInput {
   deviceId: string;
@@ -23,6 +26,7 @@ export interface ReportInput {
   to: number;
   prevFrom: number;
   now: number;
+  firstTs: number | null;
   cal: SoundCalibration | null;
   step: number;
   current: AggregateRow[]; // buckets of `step` seconds
@@ -54,7 +58,9 @@ function summarize(rows: AggregateRow[], step: number, cal: SoundCalibration | n
     sums[m] = 0;
   }
 
-  for (const row of rows) {
+  rows.forEach((row, i) => {
+    const next = rows[i + 1]?.ts;
+    const span = next !== undefined && next - row.ts <= MAX_GAP_S ? next - row.ts : step;
     let any = false;
     let worst: Tone | null = null;
     for (const m of METRICS) {
@@ -62,24 +68,24 @@ function summarize(rows: AggregateRow[], step: number, cal: SoundCalibration | n
       if (v === null) continue;
       any = true;
       const p = metrics[m];
-      p.measured_s += step;
-      sums[m] += v;
+      p.measured_s += span;
+      sums[m] += v * span;
       if (!p.min || v < p.min.v) p.min = { v, ts: row.ts };
       if (!p.max || v > p.max.v) p.max = { v, ts: row.ts };
       const bands = zonesOf(m, cal !== null);
       const band = bandOf(bands, v);
-      if (band && p.zones) p.zones[bands!.indexOf(band)]!.seconds += step;
+      if (band && p.zones) p.zones[bands!.indexOf(band)]!.seconds += span;
       if ((m === "co2" || m === "pm25") && band && (worst === null || RANK[band.tone] > RANK[worst])) worst = band.tone;
     }
-    if (any) measured += step;
+    if (any) measured += span;
     if (worst) {
-      air.measured_s += step;
-      air[`${worst}_s`] += step;
+      air.measured_s += span;
+      air[`${worst}_s`] += span;
     }
-  }
+  });
   for (const m of METRICS) {
     const p = metrics[m];
-    if (p.measured_s) p.avg = sums[m] / (p.measured_s / step);
+    if (p.measured_s) p.avg = sums[m] / p.measured_s;
   }
   return { measured_s: measured, air, metrics };
 }
@@ -163,7 +169,7 @@ export function buildReport(input: ReportInput): DeviceReport {
   const v = verdict(kind, inProgress, cur.air);
 
   return {
-    device_id: input.deviceId, kind, tz, from, to, prev_from: prevFrom, now,
+    device_id: input.deviceId, kind, tz, from, to, prev_from: prevFrom, now, first_ts: input.firstTs,
     in_progress: inProgress,
     elapsed_s: elapsed,
     measured_s: cur.measured_s,

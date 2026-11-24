@@ -423,6 +423,7 @@ describe("bilan", () => {
     expect(r.metrics[0].current.zones[0]).toMatchObject({ word: "bon" });
     expect(r.alerts.current).toBe(1);
     expect(typeof r.verdict.head).toBe("string");
+    expect(r.first_ts).toBe(1795200000); // oldest frame stored for the board
     run(built.db, "DELETE FROM alerts");
   });
 

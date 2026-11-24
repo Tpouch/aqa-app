@@ -312,6 +312,7 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
         .map((a) => a.kind);
       return buildReport({
         deviceId: d.id, kind, tz, from, to, prevFrom, now: now(), step: REPORT_STEP,
+        firstTs: get<{ ts: number | null }>(db, "SELECT MIN(ts) AS ts FROM frames WHERE device_id = ?", d.id)!.ts,
         cal: d.snd_ref !== null && d.db_ref !== null ? { snd_ref: d.snd_ref, db_ref: d.db_ref } : null,
         current: aggregateRows(db, d.id, from, to - 1, REPORT_STEP),
         previous: aggregateRows(db, d.id, prevFrom, from - 1, REPORT_STEP),

@@ -5,7 +5,7 @@ import { ZONES } from "../src/zones.js";
 
 // Generated text puts a no-break space before units and "%"; thousands use the
 // narrow no-break space of fr-FR. Written out here so the tests read naturally.
-const t = (s: string) => s.replace(/ (%|h\b|j\b|ppm|°C|µg)/g, "\u00a0$1").replace(/(\d) (\d{3})/g, "$1\u202f$2");
+const t = (s: string) => s.replace(/ (%|h\b|j\b|ppm|°C|µg|:)/g, "\u00a0$1").replace(/(\d) (\d{3})/g, "$1\u202f$2");
 
 const air = (good: number, warn: number, bad: number) => ({ measured_s: good + warn + bad, good_s: good, warn_s: warn, bad_s: bad });
 
@@ -35,7 +35,7 @@ describe("verdict", () => {
   });
   it("sans mesure", () => {
     expect(verdict("week", false, air(0, 0, 0)))
-      .toEqual({ tone: null, head: "Pas de mesure", rest: " cette semaine : la carte était peut-être hors ligne." });
+      .toEqual({ tone: null, head: "Pas de mesure", rest: t(" cette semaine : la carte était peut-être hors ligne.") });
   });
 });
 
@@ -46,7 +46,7 @@ describe("comparison", () => {
     expect(comparison("temp", "week", period("temp", [4, 81, 15]), period("temp", [2, 88, 10]), 100))
       .toEqual({ trend: "worse", text: t("Moins bien que la semaine dernière : 19 % du temps hors confort, contre 12 %.") });
     expect(comparison("co2", "week", period("co2", [90, 10, 0]), period("co2", [80, 20, 0]), 100))
-      .toEqual({ trend: "same", text: "Comme la semaine dernière : jamais en zone mauvaise." });
+      .toEqual({ trend: "same", text: t("Comme la semaine dernière : jamais en zone mauvaise.") });
     expect(comparison("hum", "month", period("hum", [0, 96, 4]), period("hum", [0.5, 96, 3.6]), 100))
       .toEqual({ trend: "same", text: t("Comme le mois dernier : 4 % du temps hors confort.") });
   });
@@ -91,7 +91,7 @@ function withHour(days: number, hour: number, v: number) {
 
 describe("takeaways", () => {
   it("rien à signaler", () => {
-    expect(takeaways(input())).toEqual(["Aucune alerte cette semaine.", "Rien d'autre à signaler : continue comme ça."]);
+    expect(takeaways(input())).toEqual(["Aucune alerte cette semaine.", t("Rien d'autre à signaler : continue comme ça.")]);
   });
   it("habitude du soir", () => {
     expect(takeaways(input({ dayHourCo2: withHour(6, 22, 1300) }))[0])

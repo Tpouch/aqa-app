@@ -183,6 +183,7 @@ export interface DeviceReport {
   to: number;
   prev_from: number; // the previous period is [prev_from, from)
   now: number;
+  first_ts: number | null; // oldest measurement of the board: no report before it
   in_progress: boolean;
   elapsed_s: number; // from → min(to, now)
   measured_s: number;

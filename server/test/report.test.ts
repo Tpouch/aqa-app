@@ -19,7 +19,7 @@ function rows(start: number, minutes: number, v: Values): AggregateRow[] {
 function input(over: Partial<ReportInput> = {}): ReportInput {
   return {
     deviceId: "aqa-24A160B3C8F0", kind: "week", tz: "Europe/Paris",
-    from: FROM, to: TO, prevFrom: PREV, now: TO + 3600, cal: null, step: STEP,
+    from: FROM, to: TO, prevFrom: PREV, now: TO + 3600, firstTs: null, cal: null, step: STEP,
     current: [], previous: [], alerts: { current: [], previous: [] },
     ...over,
   };
@@ -39,6 +39,16 @@ describe("buildReport", () => {
     expect(metric(r, "co2").current.max).toEqual({ v: 1300, ts: FROM + 3600 });
     expect(r.air.current).toEqual({ measured_s: 5400, good_s: 3600, warn_s: 0, bad_s: 1800 });
     expect(r.measured_s).toBe(5400);
+  });
+
+  it("une mesure vaut jusqu'à la suivante, si elle arrive dans les 10 minutes", () => {
+    // One frame every 5 minutes for an hour, then nothing for 3 hours, then one more.
+    const sparse = [...Array.from({ length: 12 }, (_, i) => rows(FROM + i * 300, 1, { co2: 600 })[0]!),
+      ...rows(FROM + 4 * 3600, 1, { co2: 1300 })];
+    const r = buildReport(input({ current: sparse }));
+    expect(r.measured_s).toBe(11 * 300 + 60 + 60);
+    expect(metric(r, "co2").current.zones?.[2]?.seconds).toBe(60);
+    expect(metric(r, "co2").current.avg).toBeCloseTo((3360 * 600 + 60 * 1300) / 3420);
   });
 
   it("prend la pire zone entre CO₂ et PM2.5", () => {

@@ -4,7 +4,7 @@ import { localClock } from "./localtime.js";
 import { ZONES, type Band } from "./zones.js";
 import type { AirTime, Comparison, DeviceReport, Metric, MetricPeriod, MetricReport, ReportKind, Tone } from "./types.js";
 
-/** No-break space: before units and "%" so "22 h" never wraps on a phone. */
+/** No-break space: before units, "%" and ":" so "22 h" never wraps on a phone. */
 export const NBSP = "\u00a0";
 
 export function fmtNum(v: number, decimals = 0): string {
@@ -35,16 +35,16 @@ export function airTone(air: AirTime): Tone | null {
 export function verdict(kind: ReportKind, inProgress: boolean, air: AirTime): DeviceReport["verdict"] {
   const w = WORDS[kind];
   const tone = airTone(air);
-  if (tone === null) return { tone, head: "Pas de mesure", rest: ` ${w.this} : la carte était peut-être hors ligne.` };
+  if (tone === null) return { tone, head: "Pas de mesure", rest: ` ${w.this}${NBSP}: la carte était peut-être hors ligne.` };
   const g = pct(air.good_s, air.measured_s);
   const b = pct(air.bad_s, air.measured_s);
   const head = w[tone] + (inProgress ? " pour l'instant" : "");
   let rest: string;
-  if (tone === "good") rest = ` : l'air a été bon ${pc(g)} du temps.`;
-  else if (tone === "warn") rest = ` : l'air a été bon ${pc(g)} du temps${b >= 1 ? `, et mauvais ${pc(b)}` : ""}.`;
+  if (tone === "good") rest = `${NBSP}: l'air a été bon ${pc(g)} du temps.`;
+  else if (tone === "warn") rest = `${NBSP}: l'air a été bon ${pc(g)} du temps${b >= 1 ? `, et mauvais ${pc(b)}` : ""}.`;
   else rest = air.bad_s / air.measured_s >= 0.15
-    ? ` : l'air a été mauvais ${pc(b)} du temps.`
-    : ` : l'air n'a été bon que ${pc(g)} du temps.`;
+    ? `${NBSP}: l'air a été mauvais ${pc(b)} du temps.`
+    : `${NBSP}: l'air n'a été bon que ${pc(g)} du temps.`;
   return { tone, head, rest };
 }
 
@@ -68,10 +68,10 @@ export function comparison(
   const c = pct(badSeconds(cur), cur.measured_s);
   const p = pct(badSeconds(prev), prev.measured_s);
   const now = c === 0 ? `jamais ${label}` : `${pc(c)} du temps ${label}`;
-  if (c === p) return { trend: "same", text: `Comme ${last} : ${now}.` };
+  if (c === p) return { trend: "same", text: `Comme ${last}${NBSP}: ${now}.` };
   return c < p
-    ? { trend: "better", text: `Mieux que ${last} : ${now}, contre ${pc(p)}.` }
-    : { trend: "worse", text: `Moins bien que ${last} : ${now}, contre ${pc(p)}.` };
+    ? { trend: "better", text: `Mieux que ${last}${NBSP}: ${now}, contre ${pc(p)}.` }
+    : { trend: "worse", text: `Moins bien que ${last}${NBSP}: ${now}, contre ${pc(p)}.` };
 }
 
 // ---- takeaways ("À retenir")
@@ -121,7 +121,7 @@ function co2Habit(days: Map<string, (number | null)[]>): string | null {
     const m = moment(best.hour);
     const almost = best.hits / best.days >= 0.8;
     const ppm = `${fmtNum(threshold)}${NBSP}ppm`;
-    const when = `vers ${hourText(best.hour)} : ${adviceAt(best.hour)}.`;
+    const when = `vers ${hourText(best.hour)}${NBSP}: ${adviceAt(best.hour)}.`;
     if (tone === "bad") {
       return almost
         ? `Le CO₂ dépasse ${ppm} presque ${m.every} ${when}`
@@ -135,10 +135,10 @@ function co2Habit(days: Map<string, (number | null)[]>): string | null {
 }
 
 const COMFORT: Record<string, (p: string, lim: string) => string> = {
-  froid: (p, lim) => `Il a fait trop froid ${p} du temps (moins de ${lim}${NBSP}°C) : monte un peu le chauffage.`,
-  chaud: (p, lim) => `Il a fait trop chaud ${p} du temps (plus de ${lim}${NBSP}°C) : baisse le chauffage ou ferme les volets côté soleil.`,
-  sec: (p, lim) => `L'air a été trop sec ${p} du temps (moins de ${lim}${NBSP}%) : aère moins longtemps ou utilise un humidificateur.`,
-  humide: (p, lim) => `L'air a été trop humide ${p} du temps (plus de ${lim}${NBSP}%) : aère 10 minutes après la douche ou la cuisine.`,
+  froid: (p, lim) => `Il a fait trop froid ${p} du temps (moins de ${lim}${NBSP}°C)${NBSP}: monte un peu le chauffage.`,
+  chaud: (p, lim) => `Il a fait trop chaud ${p} du temps (plus de ${lim}${NBSP}°C)${NBSP}: baisse le chauffage ou ferme les volets côté soleil.`,
+  sec: (p, lim) => `L'air a été trop sec ${p} du temps (moins de ${lim}${NBSP}%)${NBSP}: aère moins longtemps ou utilise un humidificateur.`,
+  humide: (p, lim) => `L'air a été trop humide ${p} du temps (plus de ${lim}${NBSP}%)${NBSP}: aère 10 minutes après la douche ou la cuisine.`,
 };
 
 function comfortIssue(metrics: MetricReport[]): string | null {
@@ -179,7 +179,7 @@ function worstMoment(metrics: MetricReport[], tz: string): string | null {
   const day = new Intl.DateTimeFormat("fr-FR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" })
     .format(new Date(ts * 1000));
   const hour = localClock(tz)(ts).hour;
-  return `Pire moment : ${fmtNum(Math.round(v))}${NBSP}${unit} de ${name} le ${day} vers ${hourText(hour)}.`;
+  return `Pire moment${NBSP}: ${fmtNum(Math.round(v))}${NBSP}${unit} de ${name} le ${day} vers ${hourText(hour)}.`;
 }
 
 export function durationText(seconds: number): string {
@@ -194,7 +194,7 @@ export function durationText(seconds: number): string {
 function gaps(elapsed: number, measured: number): string | null {
   const missing = elapsed - measured;
   if (missing < 7200 || missing <= 0.1 * elapsed) return null;
-  return `Pas de mesure pendant ${durationText(missing)} : vérifie que la carte reste branchée et connectée.`;
+  return `Pas de mesure pendant ${durationText(missing)}${NBSP}: vérifie que la carte reste branchée et connectée.`;
 }
 
 function alertsText(kind: ReportKind, a: DeviceReport["alerts"]): string {
@@ -214,6 +214,6 @@ export function takeaways(input: TakeawayInput): string[] {
     gaps(input.elapsed_s, input.measured_s),
     alertsText(input.kind, input.alerts),
   ].filter((s): s is string => s !== null).slice(0, 3);
-  if (out.length < 2 && input.tone === "good") out.push("Rien d'autre à signaler : continue comme ça.");
+  if (out.length < 2 && input.tone === "good") out.push(`Rien d'autre à signaler${NBSP}: continue comme ça.`);
   return out;
 }
