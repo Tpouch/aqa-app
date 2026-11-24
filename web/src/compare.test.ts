@@ -66,10 +66,17 @@ describe("comparer : étiquettes au bout des courbes", () => {
   it("seule : au-dessus, sauf contre le haut", () => {
     expect(labelSides(100, null, 0).main).toBe("above");
     expect(labelSides(10, null, 0).main).toBe("below");
+    expect(labelSides(290, null, 0, 300).main).toBe("above");
   });
   it("deux : la plus haute au-dessus, l'autre en dessous", () => {
     expect(labelSides(100, 80, 0)).toEqual({ main: "below", other: "above" });
     expect(labelSides(80, 100, 0)).toEqual({ main: "above", other: "below" });
     expect(labelSides(10, 50, 0)).toEqual({ main: "below", other: "below" });
+  });
+  it("contre le bas : la plus basse écrit au-dessus si l'autre est assez loin", () => {
+    expect(labelSides(100, 290, 0, 300)).toEqual({ main: "above", other: "above" });
+    expect(labelSides(290, 100, 0, 300)).toEqual({ main: "above", other: "above" });
+    // Trop proches : en dessous, quitte à mordre sur la marge de l'axe.
+    expect(labelSides(280, 290, 0, 300)).toEqual({ main: "above", other: "below" });
   });
 });
