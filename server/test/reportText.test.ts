@@ -18,24 +18,31 @@ function period(metric: Metric, shares: number[] | null, measured = 100, extra: 
 
 describe("verdict", () => {
   it("bonne semaine", () => {
-    expect(verdict("week", false, air(86, 14, 0)))
+    expect(verdict("week", false, air(86, 14, 0), 100))
       .toEqual({ tone: "good", head: "Bonne semaine", rest: t(" : l'air a été bon 86 % du temps.") });
   });
   it("semaine moyenne, en cours", () => {
-    expect(verdict("week", true, air(72, 24, 4)))
+    expect(verdict("week", true, air(72, 24, 4), 100))
       .toEqual({ tone: "warn", head: "Semaine moyenne pour l'instant", rest: t(" : l'air a été bon 72 % du temps, et mauvais 4 %.") });
   });
   it("mauvais mois", () => {
-    expect(verdict("month", false, air(60, 18, 22)))
+    expect(verdict("month", false, air(60, 18, 22), 100))
       .toEqual({ tone: "bad", head: "Mauvais mois", rest: t(" : l'air a été mauvais 22 % du temps.") });
   });
   it("mauvaise semaine quand l'air est rarement bon", () => {
-    expect(verdict("week", false, air(41, 55, 4)))
+    expect(verdict("week", false, air(41, 55, 4), 100))
       .toEqual({ tone: "bad", head: "Mauvaise semaine", rest: t(" : l'air n'a été bon que 41 % du temps.") });
   });
   it("sans mesure", () => {
-    expect(verdict("week", false, air(0, 0, 0)))
+    expect(verdict("week", false, air(0, 0, 0), 0))
       .toEqual({ tone: null, head: "Pas de mesure", rest: t(" cette semaine : la carte était peut-être hors ligne.") });
+  });
+});
+
+describe("verdict sans capteur d'air", () => {
+  it("ne dit pas « hors ligne » quand seuls température et humidité ont été mesurées", () => {
+    expect(verdict("week", false, air(0, 0, 0), 3600))
+      .toEqual({ tone: null, head: "Pas de mesure de l'air", rest: t(" cette semaine : ni CO₂ ni particules fines, seulement le confort.") });
   });
 });
 

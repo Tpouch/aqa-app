@@ -32,10 +32,15 @@ export function airTone(air: AirTime): Tone | null {
   return "good";
 }
 
-export function verdict(kind: ReportKind, inProgress: boolean, air: AirTime): DeviceReport["verdict"] {
+/** `measured_s`: time with any measurement, air or comfort. */
+export function verdict(kind: ReportKind, inProgress: boolean, air: AirTime, measured_s: number): DeviceReport["verdict"] {
   const w = WORDS[kind];
   const tone = airTone(air);
-  if (tone === null) return { tone, head: "Pas de mesure", rest: ` ${w.this}${NBSP}: la carte était peut-être hors ligne.` };
+  if (tone === null) {
+    return measured_s > 0
+      ? { tone, head: "Pas de mesure de l'air", rest: ` ${w.this}${NBSP}: ni CO₂ ni particules fines, seulement le confort.` }
+      : { tone, head: "Pas de mesure", rest: ` ${w.this}${NBSP}: la carte était peut-être hors ligne.` };
+  }
   const g = pct(air.good_s, air.measured_s);
   const b = pct(air.bad_s, air.measured_s);
   const head = w[tone] + (inProgress ? " pour l'instant" : "");

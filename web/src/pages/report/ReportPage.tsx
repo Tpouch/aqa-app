@@ -2,14 +2,13 @@ import { useMemo, useState } from "react";
 import { api } from "../../api";
 import { Skeleton } from "../../components/ui";
 import type { DeviceSummary } from "../../../../server/src/types";
-import { usePoll } from "../../util";
+import { useNow, usePoll } from "../../util";
 import { periodAt, useReportKind } from "./period";
 import { ReportView } from "./ReportView";
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-// Bilan tab: picks the week or month, loads its report and shows it. The
-// period in progress refreshes every 5 minutes; a past one never changes.
+// Bilan tab: picks the week or month, loads its report and shows it.
 // Rendered with key={id} so a board switch starts over on the current period.
 export function ReportPage({ id, device, compact = false }: {
   id: string;
@@ -18,8 +17,12 @@ export function ReportPage({ id, device, compact = false }: {
 }) {
   const [kind, setKind] = useReportKind();
   const [offset, setOffset] = useState(0);
-  const period = useMemo(() => periodAt(kind, offset, new Date()), [kind, offset]);
-  const report = usePoll(() => api.report(id, period, TZ), period.current ? 5 * 60_000 : 24 * 3600_000,
+  // The day changes while the tab stays open: on Monday 00:00 "this week" moves on.
+  const today = new Date(useNow(60_000) * 1000).toDateString();
+  const period = useMemo(() => periodAt(kind, offset, new Date()), [kind, offset, today]);
+  // The period in progress changes every few minutes; a past one only if a
+  // late frame arrives, and a failed load is retried at the same pace.
+  const report = usePoll(() => api.report(id, period, TZ), period.current ? 5 * 60_000 : 30 * 60_000,
                          [id, period.from, period.kind]);
   // usePoll keeps the last answer while the next one loads: never show another period's numbers.
   const data = report.data && report.data.from === period.from && report.data.kind === period.kind ? report.data : null;

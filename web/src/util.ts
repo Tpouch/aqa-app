@@ -50,6 +50,7 @@ export function usePoll<T>(fn: () => Promise<T>, intervalMs: number, deps: unkno
 
   useEffect(() => {
     let alive = true;
+    setError(null); // an error belongs to the previous deps, not to these
     const load = () => {
       if (document.hidden) return;
       fnRef.current().then(

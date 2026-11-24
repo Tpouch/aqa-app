@@ -44,7 +44,8 @@ function valueOf(row: AggregateRow, m: Metric, cal: SoundCalibration | null): nu
 
 interface Summary { measured_s: number; air: AirTime; metrics: Record<Metric, MetricPeriod> }
 
-function summarize(rows: AggregateRow[], step: number, cal: SoundCalibration | null): Summary {
+/** Rows must lie in [.., end): a measurement never counts past `end` (now, in the period in progress). */
+function summarize(rows: AggregateRow[], step: number, end: number, cal: SoundCalibration | null): Summary {
   const air: AirTime = { measured_s: 0, good_s: 0, warn_s: 0, bad_s: 0 };
   let measured = 0;
   const metrics = {} as Record<Metric, MetricPeriod>;
@@ -60,7 +61,7 @@ function summarize(rows: AggregateRow[], step: number, cal: SoundCalibration | n
 
   rows.forEach((row, i) => {
     const next = rows[i + 1]?.ts;
-    const span = next !== undefined && next - row.ts <= MAX_GAP_S ? next - row.ts : step;
+    const span = next !== undefined && next - row.ts <= MAX_GAP_S ? next - row.ts : Math.min(step, end - row.ts);
     let any = false;
     let worst: Tone | null = null;
     for (const m of METRICS) {
@@ -148,8 +149,8 @@ export function buildReport(input: ReportInput): DeviceReport {
   const curRows = input.current.filter(inside(from, end));
   const prevRows = input.previous.filter(inside(prevFrom, prevEnd));
 
-  const cur = summarize(curRows, step, cal);
-  const prev = summarize(prevRows, step, cal);
+  const cur = summarize(curRows, step, end, cal);
+  const prev = summarize(prevRows, step, prevEnd, cal);
   const elapsed = Math.max(0, end - from);
   const prevElapsed = Math.max(0, prevEnd - prevFrom);
   const inProgress = to > now;
@@ -166,7 +167,7 @@ export function buildReport(input: ReportInput): DeviceReport {
     previous: input.alerts.previous.length,
     by_kind: countAlerts(input.alerts.current),
   };
-  const v = verdict(kind, inProgress, cur.air);
+  const v = verdict(kind, inProgress, cur.air, cur.measured_s);
 
   return {
     device_id: input.deviceId, kind, tz, from, to, prev_from: prevFrom, now, first_ts: input.firstTs,

@@ -27,15 +27,17 @@ const rangeQuery = z.object({
 
 const MAX_REPORT_S = 32 * 86400;
 const reportQuery = z.object({
-  from: z.coerce.number().int().nonnegative(),
-  to: z.coerce.number().int().nonnegative(),
-  prev_from: z.coerce.number().int().nonnegative().optional(),
+  from: z.coerce.number().int().nonnegative().max(2 ** 31),
+  to: z.coerce.number().int().nonnegative().max(2 ** 31),
+  prev_from: z.coerce.number().int().nonnegative().max(2 ** 31).optional(),
   kind: z.enum(["week", "month", "custom"]).default("custom"),
   tz: z.string().default(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
     .refine(isTimeZone, "tz must be an IANA time zone such as Europe/Paris"),
 }).refine((q) => q.to > q.from, "to must be after from")
   .refine((q) => q.to - q.from <= MAX_REPORT_S, "the period must not exceed 32 days")
-  .refine((q) => q.prev_from === undefined || q.prev_from < q.from, "prev_from must be before from");
+  .refine((q) => q.prev_from === undefined || q.prev_from < q.from, "prev_from must be before from")
+  .refine((q) => q.prev_from === undefined || q.from - q.prev_from <= MAX_REPORT_S,
+    "the previous period must not exceed 32 days");
 
 // Averages per bucket of `step` seconds over [from, to].
 // Not aliased "ts": SQLite would resolve GROUP BY ts to the alias. The CAST

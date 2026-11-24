@@ -51,6 +51,13 @@ describe("buildReport", () => {
     expect(metric(r, "co2").current.avg).toBeCloseTo((3360 * 600 + 60 * 1300) / 3420);
   });
 
+  it("ne compte pas plus de temps mesuré que de temps écoulé", () => {
+    const now = FROM + 3630; // in the middle of the last bucket
+    const r = buildReport(input({ now, current: rows(FROM, 61, { co2: 600 }) }));
+    expect(r.elapsed_s).toBe(3630);
+    expect(r.measured_s).toBe(3630);
+  });
+
   it("prend la pire zone entre CO₂ et PM2.5", () => {
     const r = buildReport(input({ current: rows(FROM, 10, { co2: 600, pm25: 40 }) }));
     expect(r.air.current).toEqual({ measured_s: 600, good_s: 0, warn_s: 0, bad_s: 600 });

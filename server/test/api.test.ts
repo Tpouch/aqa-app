@@ -439,6 +439,9 @@ describe("bilan", () => {
     expect((await admin("GET", url(`from=${from}&to=${from + 86400}&kind=year`))).statusCode).toBe(400);
     expect((await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=${from + 10}`))).statusCode).toBe(400);
     expect((await admin("GET", url("to=5"))).statusCode).toBe(400);
+    // The previous period obeys the same 32-day cap, and dates stay in range.
+    expect((await admin("GET", url(`from=${from}&to=${from + 86400}&prev_from=0`))).statusCode).toBe(400);
+    expect((await admin("GET", url(`from=${1e15}&to=${1e15 + 86400}&kind=week`))).statusCode).toBe(400);
   });
 
   it("répond 404 pour une carte inconnue et 401 sans session", async () => {
