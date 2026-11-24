@@ -5,10 +5,12 @@ import { TAB_LABEL, TAB_ORDER, type Tab } from "../routes";
 import type { Selection } from "../selection";
 import { applyTheme, readTheme, type Theme } from "../theme";
 import { ago, fmt } from "../util";
+import { neverSeen, WAITING } from "../rooms";
+import { RoomList } from "./RoomList";
 
 // The fixed left column: board, its five current readings (which double as the
 // Mesures page's metric picker), navigation, theme and logout.
-export function Sidebar({ devices, device, onDevice, tab, selection, onSelection, pending, alerts, onLogout, now }: {
+export function Sidebar({ devices, device, onDevice, tab, selection, onSelection, pending, alerts, unknown, onLogout, now }: {
   devices: DeviceSummary[];
   device: DeviceSummary | undefined;
   onDevice: (id: string) => void;
@@ -17,6 +19,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
   onSelection: (s: Selection) => void;
   pending: number;
   alerts: number;
+  unknown: number; // unregistered boards that keep calling the API
   onLogout: () => void;
   now: number;
 }) {
@@ -43,21 +46,30 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
         <a href="#/mesures" className="sb-brand">AQA</a>
         {device && (
           <>
-            <div className="sb-device">
-              {/* Shape and word, not only colour: ● online, ○ + "hors ligne" offline. */}
-              <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
-              {device.online && <span className="sr-only">En ligne</span>}
-              {devices.length > 1 ? (
-                <select className="sb-switch" value={device.id} aria-label="Carte affichée"
-                        onChange={(e) => onDevice(e.target.value)}>
-                  {devices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              ) : (
+            {devices.length > 1 ? (
+              // Several rooms: all of them, with their worst zone and alerts, so
+              // trouble in the room not shown is never missed.
+              <RoomList devices={devices} current={device.id} onPick={(id) => {
+                onDevice(id);
+                if (tab === "ajouter") window.location.hash = "/mesures";
+              }} />
+            ) : (
+              <div className="sb-device">
+                {/* Shape and word, not only colour: ● online, ○ + "hors ligne" offline. */}
+                <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
+                {device.online && <span className="sr-only">En ligne</span>}
                 <span className="sb-name" title={device.name}>{device.name}</span>
-              )}
-              {!device.online && <span className="sb-offline">hors ligne</span>}
-            </div>
+                {!device.online && <span className="sb-offline">{neverSeen(device) ? WAITING : "hors ligne"}</span>}
+              </div>
+            )}
             <div className="sb-ago">{device.latest ? `mesuré ${ago(device.latest.ts, now)}` : "aucune mesure reçue"}</div>
+            {unknown > 0 && (
+              <a className="sb-unknown tone-warn" href="#/ajouter">
+                <span aria-hidden>▲ </span>
+                {unknown === 1 ? "1 carte inconnue essaie de se connecter" : `${unknown} cartes inconnues essaient de se connecter`}
+              </a>
+            )}
+            <a className="sb-link sb-add" href="#/ajouter" aria-current={tab === "ajouter" ? "page" : undefined}>+ ajouter une carte</a>
           </>
         )}
       </div>

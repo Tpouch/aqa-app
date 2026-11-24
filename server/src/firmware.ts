@@ -11,8 +11,32 @@ export const VERSION_RE = /^[A-Za-z0-9._-]{1,32}$/;
 export const FILES = { bin: "firmware.bin", sig: "firmware.sig" } as const;
 const LINK_TTL_S = 24 * 3600;
 
+// A DEVICE_TOKEN is 32 random bytes in base64url (auth.ts), baked into the
+// image as a plain C string. Hashing every 43-character base64url window of an
+// image tells which board it was built for, by comparison with devices.token_hash.
+export const TOKEN_LENGTH = 43;
+
+const isTokenChar = (b: number) =>
+  (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a) || b === 0x2d || b === 0x5f;
+
+/** SHA-256 (hex) of every TOKEN_LENGTH-long run of base64url characters in the image. */
+export function tokenCandidates(bin: Buffer): Set<string> {
+  const out = new Set<string>();
+  let start = 0;
+  for (let i = 0; i <= bin.length; i++) {
+    if (i < bin.length && isTokenChar(bin[i]!)) continue;
+    for (let w = start; w + TOKEN_LENGTH <= i; w++) {
+      out.add(crypto.createHash("sha256").update(bin.subarray(w, w + TOKEN_LENGTH)).digest("hex"));
+    }
+    start = i + 1;
+  }
+  return out;
+}
+
 export class FirmwareStore {
   readonly dir: string;
+  // Token candidates per version, computed once: an image never changes without save().
+  private readonly hashes = new Map<string, Set<string>>();
 
   constructor(dataDir: string, private readonly secret: string) {
     this.dir = path.join(dataDir, "firmware");
@@ -29,7 +53,7 @@ export class FirmwareStore {
       fs.existsSync(this.path(version, "bin")) && fs.existsSync(this.path(version, "sig"));
   }
 
-  list(): FirmwareRow[] {
+  list(): Omit<FirmwareRow, "device_id" | "device_name">[] {
     return fs.readdirSync(this.dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && this.exists(d.name))
       .map((d) => {
@@ -44,10 +68,22 @@ export class FirmwareStore {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(this.path(version, "bin"), bin);
     fs.writeFileSync(this.path(version, "sig"), sig);
+    this.hashes.delete(version);
+  }
+
+  /** Hashes of the token candidates in this version's image (see tokenCandidates). */
+  tokenHashes(version: string): Set<string> {
+    let set = this.hashes.get(version);
+    if (!set) {
+      set = tokenCandidates(fs.readFileSync(this.path(version, "bin")));
+      this.hashes.set(version, set);
+    }
+    return set;
   }
 
   remove(version: string) {
     fs.rmSync(path.dirname(this.path(version, "bin")), { recursive: true, force: true });
+    this.hashes.delete(version);
   }
 
   private mac(version: string, exp: number): string {

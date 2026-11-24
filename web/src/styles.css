@@ -271,21 +271,31 @@ select.input, .field select { background: var(--bg); }
 .sb-brand { font-weight: 600; letter-spacing: 0.14em; text-decoration: none; justify-self: start; }
 .sb-device { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); }
 .sb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sb-switch {
-  min-width: 0;
-  flex: 1;
-  padding: 2px 0;
+/* Several boards: one line per room (components/RoomList.tsx), shown one first. */
+.rooms { display: grid; margin: 6px 0 2px; border-top: 1px solid var(--rule); }
+.rooms > li { border-bottom: 1px solid var(--rule); }
+.room {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 0;
   border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-  background: var(--bg);
+  background: none;
   color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.sb-switch:hover { color: var(--text); }
+.room:focus-visible { outline-offset: 2px; }
+.room-name { display: flex; gap: 6px; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room:hover .room-name { color: var(--text); }
+.room-mark { flex: none; width: 1ch; }
+.room[aria-current] .room-name { color: var(--text); font-size: 15px; font-weight: 500; }
+.room-state { padding-left: calc(1ch + 6px); font-size: 11px; }
 .sb-ago { color: var(--muted); font-size: 11px; }
+.sb-add { justify-self: start; margin-top: 4px; font-size: 11px; }
+.sb-add[aria-current="page"] { color: var(--text); }
+.sb-unknown { justify-self: start; margin-top: 4px; font-size: 11px; text-underline-offset: 3px; }
 
 .sb-readings { border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
 .sb-readings > li + li { border-top: 1px solid var(--rule); }
@@ -366,6 +376,7 @@ select.input, .field select { background: var(--bg); }
   }
   .sb-head { grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
   .sb-ago { grid-column: 2; }
+  .sb-head .rooms, .rooms ~ .sb-ago, .sb-add, .sb-unknown { grid-column: 1 / -1; }
   .sb-readings {
     display: flex;
     overflow-x: auto;
@@ -624,6 +635,8 @@ select.input, .field select { background: var(--bg); }
 .cp-stats .ms-stat-value { font-size: 16px; }
 .cp-stats dt { margin: 0; }
 .cp-empty { padding: 14px 0; border-bottom: 1px solid var(--rule-strong); }
+div.cp-empty { display: grid; gap: 6px; }
+.cp-empty .steps { display: grid; gap: 4px; padding-left: 18px; list-style: decimal; }
 .cp-sensors { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 10px 0; border-bottom: 1px solid var(--rule-strong); font-size: 12px; }
 .cp-pos { margin-left: auto; }
 .cp-cols { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-top: 14px; align-items: start; }
@@ -640,6 +653,7 @@ select.input, .field select { background: var(--bg); }
 .cp-ota { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
 .cp-ota label { margin-right: auto; font-size: 13px; }
 .cp-ota select { min-width: 0; max-width: 100%; }
+.cp-ota-others { flex-basis: 100%; margin: 0; }
 .cp-note { margin-top: 8px; }
 .cp-active { display: grid; gap: 8px; }
 .cp-active > li { border: 1px solid var(--rule-strong); padding: 10px; }
@@ -776,6 +790,7 @@ select.input, .field select { background: var(--bg); }
 .setup-panel header { display: grid; gap: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--rule-strong); }
 .setup-panel section { display: grid; gap: 6px; }
 .setup-panel .steps { display: grid; gap: 4px; padding-left: 18px; list-style: decimal; }
+.setup-back { justify-self: start; font-size: 12px; }
 
 .callout { display: flex; gap: 8px; margin: 0; padding: 10px 12px; border: 1px solid var(--rule-strong); border-left-width: 3px; font-size: 13px; }
 .callout.warn { border-left-color: var(--warn); color: var(--warn); }
@@ -817,9 +832,26 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-sel);
 .mb-device { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; }
 .mb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mb-switch {
-  font-size: 16px; /* under 16px iOS zooms the page on focus */
-  background: var(--bg); border: 1px solid var(--rule-strong); padding: 4px 6px; min-height: 44px; max-width: 45vw;
+  display: inline-flex; align-items: center; min-width: 0; max-width: 45vw; min-height: 44px; padding: 4px 6px;
+  border: 1px solid var(--rule-strong); border-radius: 0; background: var(--bg); color: var(--text);
+  font: inherit; font-size: 16px; cursor: pointer;
 }
+.mb-elsewhere { flex: none; font-size: 13px; }
+/* Rooms sheet: full screen above the tabs, the phone's board switcher. */
+.mb-sheet {
+  position: fixed; inset: 0; z-index: 20; overflow-y: auto;
+  padding: calc(env(safe-area-inset-top) + 12px) max(16px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 16px) max(16px, env(safe-area-inset-left));
+  background: var(--bg);
+}
+.mb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mb-sheet-close {
+  min-width: 44px; min-height: 44px; border: 1px solid var(--rule-strong); border-radius: 0;
+  background: none; color: var(--text); font: inherit; font-size: 16px; cursor: pointer;
+}
+.mb-sheet .room { min-height: 56px; padding: 10px 0; }
+.mb-sheet .room-name { font-size: 16px; }
+.mb-sheet .room[aria-current] .room-name { font-size: 18px; }
+.mb-sheet .room-state { font-size: 14px; }
 .mb-ago { margin-left: auto; font-size: 12px; white-space: nowrap; }
 .mb-main:focus { outline: none; }
 

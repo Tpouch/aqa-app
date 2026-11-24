@@ -18,6 +18,8 @@ describe("parseMobileRoute", () => {
     ["#/mesures", "dashboard", null, "#/dashboard"],
     ["#/carte", "dashboard", null, "#/dashboard"],
     ["#/reglages", "dashboard", null, "#/dashboard"],
+    // Ajouter une carte se fait sur ordinateur.
+    ["#/ajouter", "dashboard", null, "#/dashboard"],
     ["#/device/aqa-24A160B3C8F0/commands", "dashboard", null, "#/dashboard"],
   ])("%s → %s", (h, tab, metric, redirect) =>
     expect(parseMobileRoute(h)).toEqual({ tab, metric, redirect }));

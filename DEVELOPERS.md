@@ -112,6 +112,9 @@ Without it, the ESP32 gets HTML 403 pages instead of the API.
    A board that calls the API before it is registered also appears on its own in
    the app's add-a-board screen.
 2. On the add-a-board screen, register the id. The app shows a token **once**.
+   The screen opens by itself while no board is registered; afterwards, use
+   **+ ajouter une carte** in the left column (`#/ajouter`, desktop only). The
+   column also warns when an unregistered board keeps calling the API.
 3. In the firmware's `.env`, set `DEVICE_TOKEN=<token>` (and
    `API_URL=https://sensor.devgoblin.fr`), then rebuild and flash.
 
@@ -128,6 +131,15 @@ The compiled firmware contains the Wi-Fi credentials and the `DEVICE_TOKEN`
 from its `.env`, so build **one image per board**. The app never makes it
 public. The board downloads it through an HMAC-signed link valid for 24 h and
 checks the RSA signature before activating it.
+
+The server finds which board an image belongs to by looking for a registered
+board's token inside it. **Carte → Mettre à jour** only offers that board's
+images, and an `ota` command for another board's image is refused: the board
+would come back with the wrong token, be refused by the server and need a
+reflash by cable. An image that matches no board (token replaced since the
+build) is listed as *aucune carte* and cannot be installed. A version number
+already used by one board cannot be reused for another (for example
+`2.1.0-chambre` instead of `2.1.0`).
 
 ## Sound calibration
 

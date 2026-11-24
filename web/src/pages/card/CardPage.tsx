@@ -2,9 +2,11 @@ import { useState } from "react";
 import { api } from "../../api";
 import { Button, Skeleton, useConfirm, useToast } from "../../components/ui";
 import type { CommandRow, DeviceSummary, EventRow } from "../../../../server/src/types";
+import { firmwareFor } from "../../firmware";
 import { ago, dateTime, duration, usePoll } from "../../util";
 import type { Send } from "../device/DevicePage";
 import { COMMAND_LABEL, COMMAND_STATE } from "../device/shared";
+import { neverSeen, WAITING } from "../../rooms";
 
 interface Props {
   id: string;
@@ -24,6 +26,9 @@ export function CardPage({ id, device, commands, commandsError, reload, send, no
   const firmware = usePoll(api.firmware, 60000, []);
   const [otaVersion, setOtaVersion] = useState("");
   const name = device?.name ?? id;
+  const allImages = firmware.data?.firmware ?? [];
+  const images = firmwareFor(allImages, id);
+  const others = allImages.length - images.length;
 
   const run = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); try { await fn(); } finally { setBusy(null); } };
   const active = (commands ?? []).filter((c) => c.state !== "completed" && c.state !== "failed");
@@ -37,7 +42,7 @@ export function CardPage({ id, device, commands, commandsError, reload, send, no
             {id}
             {device && <> · {device.online
               ? <span className="tone-good"><span aria-hidden>●</span> en ligne</span>
-              : <span><span aria-hidden>○</span> hors ligne</span>}
+              : <span><span aria-hidden>○</span> {neverSeen(device) ? WAITING : "hors ligne"}</span>}
               {device.last_seen !== null && <>, contact {ago(device.last_seen, now)}</>}</>}
           </p>
         </div>
@@ -68,18 +73,26 @@ export function CardPage({ id, device, commands, commandsError, reload, send, no
                 await run("ota", async () => {
                   if (await confirm({
                     title: `Installer la version ${otaVersion} ?`,
-                    body: "L'image doit avoir été compilée avec le .env de cette carte (Wi-Fi et jeton). La carte vérifie la signature avant de l'activer, puis redémarre.",
+                    body: `${name} télécharge l'image, vérifie sa signature, puis redémarre dessus.`,
                     confirmLabel: "Installer",
                   }) && await send("ota", { version: otaVersion })) setOtaVersion("");
                 });
               }}>
                 <label htmlFor="cp-ota-select">Mettre à jour</label>
-                <select id="cp-ota-select" className="input" value={otaVersion} onChange={(e) => setOtaVersion(e.target.value)} disabled={!firmware.data?.firmware.length}>
-                  <option value="">{firmware.data?.firmware.length ? "Choisir une version…"
-                    : firmware.error && !firmware.data ? "Liste des firmwares indisponible" : "Aucun firmware envoyé"}</option>
-                  {firmware.data?.firmware.map((f) => <option key={f.version} value={f.version}>{f.version}</option>)}
+                <select id="cp-ota-select" className="input" value={otaVersion} onChange={(e) => setOtaVersion(e.target.value)} disabled={!images.length}>
+                  <option value="">{images.length ? "Choisir une version…"
+                    : firmware.error && !firmware.data ? "Liste des firmwares indisponible" : "Aucun firmware pour cette carte"}</option>
+                  {images.map((f) => <option key={f.version} value={f.version}>{f.version}</option>)}
                 </select>
                 <Button type="submit" variant="primary" disabled={!otaVersion || busy !== null} loading={busy === "ota"}>Installer</Button>
+                {others > 0 && (
+                  <p className="muted small cp-ota-others">
+                    {others === 1
+                      ? "1 autre image n'est pas proposée ici : compilée pour une autre carte, ou avec un jeton remplacé depuis"
+                      : `${others} autres images ne sont pas proposées ici : compilées pour une autre carte, ou avec un jeton remplacé depuis`}
+                    {" "}(voir <a href="#/reglages">Réglages</a>).
+                  </p>
+                )}
               </form>
             </li>
             <li>
@@ -143,6 +156,19 @@ function LoadError({ message }: { message: string }) {
 
 function StatusBlocks({ device: d }: { device: DeviceSummary }) {
   const s = d.status;
+  if (!s && neverSeen(d)) {
+    return (
+      <div className="cp-empty small">
+        <p>La carte n'a encore jamais contacté le serveur. Pour qu'elle le fasse :</p>
+        <ol className="steps muted">
+          <li>Mets son jeton dans <code>DEVICE_TOKEN</code> du <code>.env</code> du firmware.</li>
+          <li>Recompile et flashe la carte (<code>pio run -t upload</code>, ou le TUI).</li>
+          <li>Les premières mesures arrivent en moins d'une minute.</li>
+        </ol>
+        <p className="muted">Jeton perdu ? <a href="#/reglages">Réglages</a> → Nouveau jeton.</p>
+      </div>
+    );
+  }
   if (!s) return <p className="muted small cp-empty">Aucun rapport d'état reçu. La carte en envoie un au démarrage puis chaque minute.</p>;
   const signal = s.rssi < -80 ? ["faible", "tone-warn"] : s.rssi < -70 ? ["moyen", "muted"] : ["bon", "tone-good"];
   const sensors: [boolean, string][] = [

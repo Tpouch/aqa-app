@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
 import { Sidebar, SessionTools } from "./components/Sidebar";
 import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
@@ -7,6 +7,7 @@ import { MobileEmpty, MobileShell } from "./mobile/MobileShell";
 import { usePhone } from "./mobile/usePhone";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
+import { sortDevices } from "./rooms";
 import { parseRoute, TAB_LABEL, type Tab } from "./routes";
 import { useSelection } from "./selection";
 import { storageGet, storageRemove, storageSet } from "./storage";
@@ -63,7 +64,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const phone = usePhone();
   const now = useNow();
 
-  const list = devices.data?.devices ?? [];
+  // Sorted once: the column, the phone's sheet and the default board all follow this order.
+  const list = useMemo(() => sortDevices(devices.data?.devices ?? []), [devices.data]);
   const device = list.find((d) => d.id === chosen) ?? list[0];
   const logout = () => { api.logout().finally(onLogout); };
 
@@ -93,7 +95,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
   const [selection, setSelection] = useSelection();
 
   useEffect(() => {
-    document.title = device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
+    document.title = tab === "ajouter" ? `${TAB_LABEL[tab]} · AQA` : device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
   }, [tab, device]);
 
   const onPendingChange = useCallback((n: number) => setPending(n), []);
@@ -107,7 +109,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
         </a>
         <div className="setup-tools"><SessionTools onLogout={onLogout} /></div>
         <main id="main" tabIndex={-1} className="setup">
-          <Setup unknown={devices.data.unknown} onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
+          <Setup unknown={devices.data.unknown} first onDone={() => { devices.reload(); window.location.hash = "/mesures"; }} />
         </main>
       </>
     );
@@ -119,16 +121,29 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
         Aller au contenu
       </a>
       <Sidebar devices={list} device={device} onDevice={onDevice} tab={tab} selection={selection} onSelection={setSelection}
-               pending={pending} alerts={device?.open_alerts ?? 0} now={now} onLogout={onLogout} />
+               pending={pending} alerts={device?.open_alerts ?? 0} unknown={devices.data?.unknown.length ?? 0}
+               now={now} onLogout={onLogout} />
       <main id="main" className="shell-main" tabIndex={-1}>
         {devices.error && !devices.data ? (
           <p className="callout warn" role="alert"><span aria-hidden>▲</span> {devices.error}</p>
         ) : !devices.data ? (
           <Skeleton height={400} />
-        ) : !device ? null : (
-          <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
+        ) : !device ? null : tab === "ajouter" ? (
+          <Setup unknown={devices.data.unknown} first={false} onDone={(id) => {
+            devices.reload();
+            if (id) onDevice(id);
+            window.location.hash = "/mesures";
+          }} />
+        ) : (
+          <DevicePage key={device.id} id={device.id} others={list.filter((d) => d.id !== device.id)} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
-                      onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
+                      onDeleted={() => {
+                        // Straight to the board the confirmation named (the first of the others).
+                        const next = list.find((d) => d.id !== device.id);
+                        if (next) onDevice(next.id); else storageRemove("aqa-device");
+                        devices.reload();
+                        window.location.hash = "/mesures";
+                      }} />
         )}
       </main>
     </div>
