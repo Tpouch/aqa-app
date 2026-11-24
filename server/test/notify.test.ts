@@ -114,6 +114,12 @@ describe("Notifier.publish", () => {
     expect(last).toMatchObject({ ok: false, error: "HTTP 403 : forbidden" });
     expect(readNotify(db).last).toMatchObject({ ok: false, error: "HTTP 403 : forbidden" });
   });
+  it("erreur HTTP hors ntfy : code seul", async () => {
+    const ntfy = await fakeNtfy((res) => { res.statusCode = 500; res.end("<html>secret internal page</html>"); });
+    const db = openDb(":memory:");
+    configure(db, ntfy.url);
+    expect(await new Notifier(db, { publicUrl: URL_ }).publish(TEST_MESSAGE)).toMatchObject({ ok: false, error: "HTTP 500" });
+  });
   it("délai dépassé", async () => {
     const ntfy = await fakeNtfy(() => {}); // never answers
     const db = openDb(":memory:");

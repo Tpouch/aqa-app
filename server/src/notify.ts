@@ -158,11 +158,13 @@ export class Notifier {
       });
       const text = await res.text();
       if (res.ok) return null;
-      let reason = text.trim().slice(0, 120);
+      // Only ntfy's own error field is kept: the raw body of whatever answered
+      // (the server URL is free) is never echoed back to the browser.
+      let reason = "";
       try {
         const j = JSON.parse(text) as { error?: unknown };
-        if (typeof j.error === "string") reason = j.error;
-      } catch { /* not JSON: keep the text */ }
+        if (typeof j.error === "string") reason = j.error.slice(0, 120);
+      } catch { /* not ntfy's JSON: status code only */ }
       return `HTTP ${res.status}${reason ? ` : ${reason}` : ""}`;
     } catch (err) {
       const e = err as Error & { cause?: { code?: string; message?: string } };
