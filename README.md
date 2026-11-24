@@ -136,3 +136,11 @@ You need two things: the box, and somewhere to run the website.
   [Tpouch/EPITECH_ESP32](https://github.com/Tpouch/EPITECH_ESP32).
 - **The website**: how to install it, connect a box to it and everything
   technical is in **[DEVELOPERS.md](DEVELOPERS.md)**.
+
+## Where the name comes from
+
+AQA started as an Epitech IoT project, which was itself based on the AQA kit,
+*Agentes de la Calidad del Aire* ("air quality agents"), made by
+[Unloquer](https://github.com/unloquer/aqav80), a hackerspace in Medellín,
+Colombia. Their idea was a kit anyone can build to measure the air they
+breathe. This project keeps the name and the idea.
