@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import cookiePlugIn from "@fastify/cookie";
+import jwt from "@fastify/jwt";
+import multipart from "@fastify/multipart";
+import rateLimit from "@fastify/rate-limit";
+import Fastify, { type onRequestHookHandler } from "fastify";
 import { buildApp, type Built } from "../src/app.js";
+import { SESSION_COOKIE } from "../src/auth.js";
 import { loadConfig } from "../src/config.js";
+import { openDb } from "../src/db.js";
+import { Notifier } from "../src/notify.js";
+import { appRoutes } from "../src/routes/app.js";
 
 const PASSWORD = "correct horse battery";
 const DEVICE = "aqa-24A160B3C8F0";
@@ -70,6 +79,7 @@ describe("clés d'API", () => {
   it("refuses a key on every other route", async () => {
     const cases: [("GET" | "POST" | "PATCH" | "DELETE"), string, unknown?][] = [
       ["POST", `/api/v1/devices/${DEVICE}/commands`, { type: "status" }],
+      ["POST", "/api/v1/firmware", {}],
       ["POST", "/api/v1/api-keys", { name: "evil" }],
       ["GET", "/api/v1/api-keys"],
       ["PATCH", "/api/v1/alert-rules/co2_high", { enabled: false }],
@@ -84,6 +94,40 @@ describe("clés d'API", () => {
     expect((await admin("GET", `/api/v1/devices/${DEVICE}`)).statusCode).toBe(200);
   });
 
+  it("flags exactly the 8 expected read routes with agent: true", async () => {
+    // Test-only app: an onRoute hook registered before appRoutes records the flagged routes.
+    const db = openDb(":memory:");
+    const app = Fastify({ logger: false });
+    const flagged: string[] = [];
+    app.addHook("onRoute", (r) => {
+      if (r.config?.agent !== true) return;
+      for (const m of [r.method].flat()) if (m !== "HEAD") flagged.push(`${m} ${r.url}`);
+    });
+    try {
+      await app.register(cookiePlugIn);
+      await app.register(jwt, { secret: cfg.SESSION_SECRET, cookie: { cookieName: SESSION_COOKIE, signed: false } });
+      await app.register(rateLimit, { global: false });
+      app.decorate("agentRateLimit", (async () => {}) as onRequestHookHandler);
+      await app.register(multipart);
+      app.decorateRequest("apiKeyId", null);
+      appRoutes(app, db, cfg, built.firmware, new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }));
+      await app.ready();
+      expect(flagged.sort()).toEqual([
+        "GET /api/v1/alert-rules",
+        "GET /api/v1/devices",
+        "GET /api/v1/devices/:id",
+        "GET /api/v1/devices/:id/alerts",
+        "GET /api/v1/devices/:id/events",
+        "GET /api/v1/devices/:id/frames",
+        "GET /api/v1/devices/:id/frames/aggregate",
+        "GET /api/v1/devices/:id/report",
+      ]);
+    } finally {
+      await app.close();
+      db.close();
+    }
+  });
+
   it("answers 401, never 500, to a wrong or malformed key", async () => {
     expect((await withKey("GET", "/api/v1/devices", undefined, "aqa_nope")).statusCode).toBe(401);
     expect((await withKey("GET", "/api/v1/devices", undefined, "nimporte")).statusCode).toBe(401);
@@ -94,6 +138,13 @@ describe("clés d'API", () => {
       method: "GET", url: "/api/v1/devices", headers: { cookie, authorization: "Bearer aqa_nope" },
     });
     expect(res.statusCode).toBe(200);
+  });
+
+  it("reports a valid cookie as authenticated even with a stray bearer", async () => {
+    const res = await built.app.inject({
+      method: "GET", url: "/api/v1/session", headers: { cookie, authorization: "Bearer aqa_nope" },
+    });
+    expect(res.json()).toEqual({ authenticated: true });
   });
 
   it("revokes a key: next request is 401, deleting twice is 404", async () => {

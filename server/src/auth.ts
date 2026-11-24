@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { FastifyReply, FastifyRequest, onRequestHookHandler, preHandlerHookHandler } from "fastify";
+import type { FastifyRequest, onRequestHookHandler, preHandlerHookHandler } from "fastify";
 import { KEY_PREFIX, useKey } from "./apikeys.js";
 import type { Db } from "./db.js";
 
@@ -34,14 +34,6 @@ export function bearerToken(request: FastifyRequest): string | null {
   if (!header?.startsWith("Bearer ")) return null;
   const token = header.slice(7).trim();
   return token.length > 0 ? token : null;
-}
-
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    await request.jwtVerify();
-  } catch {
-    return reply.code(401).send({ error: "login required" });
-  }
 }
 
 export const isKeyRequest = (request: FastifyRequest): boolean =>

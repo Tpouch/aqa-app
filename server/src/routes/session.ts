@@ -30,7 +30,7 @@ export function sessionRoutes(app: FastifyInstance, cfg: Config) {
 
   app.get("/api/v1/session", async (request) => {
     try {
-      await request.jwtVerify();
+      await request.jwtVerify({ onlyCookie: true });
       return { authenticated: true };
     } catch {
       return { authenticated: false };
