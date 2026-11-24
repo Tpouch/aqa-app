@@ -9,6 +9,7 @@ import { all, get, now, run, type Db } from "../db.js";
 import type { SQLInputValue } from "node:sqlite";
 import { logEvent, redactParams } from "../events.js";
 import { FirmwareStore, VERSION_RE } from "../firmware.js";
+import { readNotify, TEST_MESSAGE, type Notifier } from "../notify.js";
 import { ALERT_KINDS } from "../types.js";
 import type {
   AggregateRow, CommandRow, DeviceSummary, EventRow, FrameRow, UnknownDevice,
@@ -38,6 +39,16 @@ const ruleBody = z.object({
 }).strict().refine(
   (b) => b.enabled !== undefined || b.threshold !== undefined || b.duration_s !== undefined,
   "enabled, threshold or duration_s required");
+
+const notifyBody = z.object({
+  enabled: z.boolean().optional(),
+  server: z.string().trim().max(200).pipe(z.url({ protocol: /^https?$/, error: "server must be an http(s) URL" }))
+    .transform((u) => u.replace(/\/+$/, "")).optional(),
+  // ntfy's own rule for topic names; empty = not configured.
+  topic: z.string().trim().regex(/^[-_A-Za-z0-9]{0,64}$/, "topic: letters, digits, - and _ (max 64)").optional(),
+  token: z.string().trim().min(1).max(200).nullable().optional(),
+  notify_close: z.boolean().optional(),
+}).strict().refine((b) => Object.keys(b).length > 0, "nothing to update");
 
 const alertsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -96,7 +107,7 @@ function toCommand(r: Omit<CommandRow, "params"> & { params_json: string }): Com
   return { ...rest, params: redactParams(JSON.parse(params_json)) };
 }
 
-export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore) {
+export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: FirmwareStore, notifier: Notifier) {
   function summary(d: DeviceDbRow): DeviceSummary {
     const latest = get<FrameDbRow>(db,
       `SELECT ts, ts_estimated, geohash, snd, co2, pm25, hum, temp, stale
@@ -167,6 +178,37 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (body.data.duration_s !== undefined) { sets.push("duration_s = ?"); args.push(body.data.duration_s); }
       run(db, `UPDATE alert_rules SET ${sets.join(", ")} WHERE kind = ?`, ...args, kind);
       return readRules(db).find((r) => r.kind === kind);
+    });
+
+    // ---- notifications (ntfy)
+
+    scope.get("/api/v1/notify", async () => readNotify(db));
+
+    scope.patch("/api/v1/notify", async (request, reply) => {
+      const body = notifyBody.safeParse(request.body);
+      if (!body.success) return reply.code(422).send({ error: body.error.issues[0]?.message });
+      const cur = readNotify(db);
+      const b = body.data;
+      if ((b.enabled ?? cur.enabled) && !(b.topic ?? cur.topic)) {
+        return reply.code(422).send({ error: "a topic is required to enable notifications" });
+      }
+      const sets: string[] = [];
+      const args: SQLInputValue[] = [];
+      if (b.enabled !== undefined) { sets.push("enabled = ?"); args.push(b.enabled ? 1 : 0); }
+      if (b.server !== undefined) { sets.push("server = ?"); args.push(b.server); }
+      if (b.topic !== undefined) { sets.push("topic = ?"); args.push(b.topic); }
+      if (b.token !== undefined) { sets.push("token = ?"); args.push(b.token); }
+      if (b.notify_close !== undefined) { sets.push("notify_close = ?"); args.push(b.notify_close ? 1 : 0); }
+      run(db, `UPDATE notify SET ${sets.join(", ")} WHERE id = 1`, ...args);
+      return readNotify(db);
+    });
+
+    // Sends with the saved settings, even when notifications are off, and
+    // waits for ntfy's answer (5 s at most).
+    scope.post("/api/v1/notify/test", async (_request, reply) => {
+      if (!readNotify(db).topic) return reply.code(422).send({ error: "no topic configured" });
+      await notifier.publish(TEST_MESSAGE);
+      return readNotify(db);
     });
 
     scope.get<{ Params: { id: string } }>("/api/v1/devices/:id/alerts", async (request, reply) => {

@@ -4,6 +4,7 @@ import type { AlertRule, DeviceSummary } from "../../../../server/src/types";
 import { useNow } from "../../util";
 import { AlertJournal } from "./AlertJournal";
 import { useAlertJournal } from "./useAlertJournal";
+import { NotifySection } from "./NotifySection";
 import { RuleList } from "./RuleList";
 
 // Rendered with key={id}: a card switch remounts the page, so the poll data,
@@ -28,7 +29,10 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
         {journal.open && <p className="muted">{openCount === 0 ? "aucune en cours" : `${openCount} en cours`}</p>}
       </header>
       <div className="al-cols">
-        <RuleList rules={rules} error={rulesError} calibrated={device?.sound_calibration != null} onChange={setRules} />
+        <div className="al-side">
+          <RuleList rules={rules} error={rulesError} calibrated={device?.sound_calibration != null} onChange={setRules} />
+          <NotifySection now={now} />
+        </div>
         <AlertJournal open={journal.open} history={journal.history} error={journal.error} device={device} now={now}
                       hasMore={journal.hasMore} loadingMore={journal.loadingMore} onMore={journal.more} />
       </div>

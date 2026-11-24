@@ -61,6 +61,19 @@ show the same moment.
 
 You can download everything as a spreadsheet (CSV).
 
+### Alerts, even on your phone
+
+The **Alerts** page (*Alertes*) keeps a log of every time the air stayed bad
+for a while (too much CO₂, too cold, the board offline…), each with a concrete
+tip such as "open a window wide for 5 to 10 minutes". You can switch each rule
+on or off and change its threshold and duration.
+
+To get them on your phone, install the free [ntfy](https://ntfy.sh) app,
+subscribe to a topic, and enter the same topic in **Alertes → Notifications**.
+Each notification says which board it comes from, what is wrong and what to
+do; another one tells you when things are back to normal. A test button
+checks it works.
+
 ### Look after the board from your browser
 
 The **Board** page (*Carte*) shows:
@@ -116,4 +129,6 @@ Step-by-step instructions, configuration and the API are in
 ## Privacy
 
 Everything stays on your own server. There is one admin account, each board
-signs in with its own secret key, and nothing is sent to anyone else.
+signs in with its own secret key, and nothing is sent to anyone else, except
+the alert notifications if you turn them on: they go to the ntfy server you
+choose (ntfy.sh by default, or your own).

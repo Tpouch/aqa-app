@@ -180,6 +180,34 @@ describe("checkAlerts", () => {
     checkAlerts(db, T + 30, 0);
     expect(alerts(db)[0]).toMatchObject({ ended_at: T + 30, end_reason: "normal" });
   });
+  it("renvoie les événements après le commit", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    expect(checkAlerts(db, T, 0)).toEqual([{
+      type: "opened", device_name: "Salon", kind: "co2_high", threshold: 1200, value: 1300, started_at: T - 300, at: T,
+    }]);
+    expect(checkAlerts(db, T, 0)).toEqual([]);
+    frames(db, T + 15, T + 150, { co2: 600 });
+    expect(checkAlerts(db, T + 150, 0)).toEqual([{
+      type: "closed", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 150, end_value: 600, reason: "normal",
+    }]);
+  });
+  it("événement pour une règle désactivée", () => {
+    const db = setup();
+    frames(db, T - 300, T, { co2: 1300 });
+    checkAlerts(db, T, 0);
+    run(db, "UPDATE alert_rules SET enabled = 0 WHERE kind = 'co2_high'");
+    expect(checkAlerts(db, T + 30, 0)).toEqual([{
+      type: "closed", device_name: "Salon", kind: "co2_high", started_at: T - 300, at: T + 30, end_value: null, reason: "disabled",
+    }]);
+  });
+  it("événement hors ligne sans valeur", () => {
+    const db = setup();
+    run(db, "UPDATE devices SET last_seen = ? WHERE id = 'd1'", T - 1000);
+    expect(checkAlerts(db, T, 0)).toEqual([{
+      type: "opened", device_name: "Salon", kind: "offline", threshold: null, value: null, started_at: T - 1000, at: T,
+    }]);
+  });
   it("enregistre le nouveau pic", () => {
     const db = setup();
     frames(db, T - 300, T, { co2: 1300 });

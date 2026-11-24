@@ -102,6 +102,22 @@ export interface AlertRow {
   advice: string;
 }
 
+// ntfy notifications. The token itself never leaves the server.
+export interface NotifyLast {
+  at: number;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface NotifySettings {
+  enabled: boolean;
+  server: string;
+  topic: string;
+  token_set: boolean;
+  notify_close: boolean;
+  last: NotifyLast | null; // null = nothing sent yet
+}
+
 export interface UnknownDevice {
   id: string;
   first_seen: number;
