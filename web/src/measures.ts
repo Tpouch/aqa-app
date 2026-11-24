@@ -27,3 +27,17 @@ export function alertPhrase(def: MetricDef): string {
     ? alert.charAt(0).toUpperCase() + alert.slice(1)
     : `${def.label} ${alert}`;
 }
+
+// CSV file named after the room ("chambre-co2-2026-11-24.csv"); the board id
+// when the name leaves nothing usable.
+export function csvFileName(room: string, id: string, what: string, day: string): string {
+  const slug = room.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${slug || id}-${what}-${day}.csv`;
+}
+
+// Banner subtitle: "Chambre · 24 h glissantes · moyennes sur 1 min" (room only with several boards).
+export function bannerSubtitle(room: string | null, period: string, step: string | null): string {
+  const text = period.charAt(0).toUpperCase() + period.slice(1) + (step ? ` · moyennes sur ${step}` : "");
+  return room ? `${room} · ${text}` : text;
+}

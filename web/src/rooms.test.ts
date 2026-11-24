@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeviceSummary, FrameRow } from "../../server/src/types";
-import { otherAlerts, roomState } from "./rooms";
+import { otherAlerts, roomState, sortDevices } from "./rooms";
 
 const frame = (over: Partial<FrameRow> = {}): FrameRow => ({
   ts: 0, ts_estimated: false, geohash: null, snd: 100, co2: 500, pm25: 5, hum: 50, temp: 21, stale: false, ...over,
@@ -20,6 +20,8 @@ describe("roomState", () => {
     expect(roomState(board({ latest: frame({ co2: 900, pm25: 20 }) }))).toEqual({ tone: "warn", word: "CO₂ aérer" }));
   it("hors ligne passe avant les valeurs, qui sont périmées", () =>
     expect(roomState(board({ online: false, latest: frame({ co2: 1480 }) }))).toEqual({ tone: "off", word: "hors ligne" }));
+  it("jamais connectée : en attente, pas en panne", () =>
+    expect(roomState(board({ online: false, last_seen: null, latest: null }))).toEqual({ tone: "off", word: "en attente du 1er contact" }));
   it("sans mesure", () => expect(roomState(board({ latest: null }))).toEqual({ tone: "off", word: "aucune mesure" }));
   it("le son brut, sans zones, ne compte pas", () =>
     expect(roomState(board({ latest: frame({ snd: 4000 }) }))).toEqual({ tone: "good", word: "bon" }));
@@ -32,5 +34,14 @@ describe("otherAlerts", () => {
   it("additionne les alertes des autres cartes", () => {
     const list = [board({ id: "a", open_alerts: 2 }), board({ id: "b", open_alerts: 1 }), board({ id: "c" })];
     expect(otherAlerts(list, "b")).toBe(2);
+  });
+});
+
+describe("sortDevices", () => {
+  it("par nom, sans tenir compte de la casse ni des accents, nombres dans l'ordre", () => {
+    const names = ["salon", "Chambre", "Étage", "bureau 10", "bureau 9"];
+    const list = names.map((name, i) => board({ id: `aqa-${i}`, name }));
+    expect(sortDevices(list).map((d) => d.name)).toEqual(["bureau 9", "bureau 10", "Chambre", "Étage", "salon"]);
+    expect(list.map((d) => d.name)).toEqual(names); // la liste d'origine ne bouge pas
   });
 });

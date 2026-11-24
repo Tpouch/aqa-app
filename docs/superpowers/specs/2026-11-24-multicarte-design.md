@@ -156,8 +156,28 @@ Dans l'ordre : **B1** (sans lui, la 2e carte ne s'ajoute pas), **B3** (le seul r
 
 ## Décision de l'auteur
 
-- **À faire maintenant** : B1, B3 et A1 (qui règle B2).
-- **Restent à faire** : B4, B5, B6, A2 (petits), A3 (comparer deux pièces), puis A4, A5, A6.
+- **À faire d'abord** : B1, B3 et A1 (qui règle B2). **Ensuite** : B4, B5, B6 et A2.
+- **Restent à faire** : A3 (comparer deux pièces), puis A4, A5, A6.
+
+## État
+
+Fait, une branche par sujet (plan : `docs/superpowers/plans/2026-11-24-multicarte.md`) :
+
+| Branche | Contenu | Base |
+|---|---|---|
+| `fix-ajout-carte` | B1 : lien « + ajouter une carte » (`#/ajouter`, ordinateur seulement), cartes inconnues signalées dans la colonne ; cette spec, le plan, la 2e carte de démo | `main` |
+| `feat-ota-par-carte` | B3 : carte d'une image retrouvée par son jeton, page Carte filtrée, OTA croisée et écrasement de version refusés | `main` |
+| `feat-liste-pieces` | A1 (et B2) : liste des pièces dans la colonne, feuille « Pièces » sur téléphone | `fix-ajout-carte` (la liste ramène de `#/ajouter` vers Mesures) |
+| `fix-multicarte-details` | B4, B5, B6, A2 | `feat-liste-pieces` (`rooms.ts`, barre mobile) |
+
+Écarts avec les propositions :
+
+- B3 : pas de `meta.json`. La carte d'une image est recalculée à chaque lecture (hachages des fenêtres de 43 caractères gardés en mémoire par version), donc toujours juste après un changement de jeton ou l'enregistrement d'une carte.
+- A1 : la fonction « pire zone » est dans `web/src/rooms.ts`, pas dans `metrics.ts`.
+- B4 : l'app va directement sur la carte annoncée par la confirmation.
+- B5 : tri côté web (`sortDevices`, `Intl.Collator` français, nombres dans l'ordre).
+- B6 : la liste des pièces dit « en attente du 1er contact » (la colonne est étroite) ; ailleurs, « en attente du premier contact ».
+- A2 : le CSV prend le nom de la pièce même avec une seule carte ; le bandeau ne la nomme qu'à partir de deux.
 
 ## Fichiers partagés avec les autres branches
 

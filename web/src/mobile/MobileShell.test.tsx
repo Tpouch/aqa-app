@@ -22,4 +22,10 @@ describe("TopBar", () => {
     expect(out).not.toContain("aria-haspopup");
     expect(out).toContain("Chambre");
   });
+  it("carte jamais connectée : en attente du premier contact, pas « hors ligne »", () => {
+    const fresh = { ...chambre, online: false, last_seen: null } as DeviceSummary;
+    const out = renderToStaticMarkup(<TopBar devices={[fresh]} device={fresh} onDevice={() => {}} now={0} />);
+    expect(out).toContain("en attente du premier contact");
+    expect(out).not.toContain("hors ligne");
+  });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, setUnauthorizedHandler } from "./api";
 import { Sidebar, SessionTools } from "./components/Sidebar";
 import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
@@ -7,6 +7,7 @@ import { MobileEmpty, MobileShell } from "./mobile/MobileShell";
 import { usePhone } from "./mobile/usePhone";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
+import { sortDevices } from "./rooms";
 import { parseRoute, TAB_LABEL, type Tab } from "./routes";
 import { useSelection } from "./selection";
 import { storageGet, storageRemove, storageSet } from "./storage";
@@ -63,7 +64,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const phone = usePhone();
   const now = useNow();
 
-  const list = devices.data?.devices ?? [];
+  // Sorted once: the column, the phone's sheet and the default board all follow this order.
+  const list = useMemo(() => sortDevices(devices.data?.devices ?? []), [devices.data]);
   const device = list.find((d) => d.id === chosen) ?? list[0];
   const logout = () => { api.logout().finally(onLogout); };
 
@@ -133,9 +135,15 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
             window.location.hash = "/mesures";
           }} />
         ) : (
-          <DevicePage key={device.id} id={device.id} tab={tab} selection={selection} onSelection={setSelection}
+          <DevicePage key={device.id} id={device.id} others={list.filter((d) => d.id !== device.id)} tab={tab} selection={selection} onSelection={setSelection}
                       onPendingChange={onPendingChange} onDeviceChanged={devices.reload}
-                      onDeleted={() => { storageRemove("aqa-device"); devices.reload(); window.location.hash = "/mesures"; }} />
+                      onDeleted={() => {
+                        // Straight to the board the confirmation named (the first of the others).
+                        const next = list.find((d) => d.id !== device.id);
+                        if (next) onDevice(next.id); else storageRemove("aqa-device");
+                        devices.reload();
+                        window.location.hash = "/mesures";
+                      }} />
         )}
       </main>
     </div>
