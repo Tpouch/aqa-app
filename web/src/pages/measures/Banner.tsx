@@ -3,6 +3,7 @@ import { Button, Field } from "../../components/ui";
 import { isoLocal, PRESETS, shiftDay, type Range } from "../../range";
 import type { Selection } from "../../selection";
 import { SMOOTH_MODES, type SmoothMode } from "../../smooth";
+import { t } from "../../i18n/dict";
 
 // Room put next to the shown one (single chart, several boards).
 export interface CompareControl {
@@ -13,12 +14,6 @@ export interface CompareControl {
   onPick: (id: string | null) => void;
 }
 
-const SMOOTH_LABEL: Record<SmoothMode, string> = { smooth: "lissé", band: "marge", raw: "brut" };
-const SMOOTH_TITLE: Record<SmoothMode, string> = {
-  smooth: "Moyenne glissante",
-  band: "Moyenne glissante ± 2 écarts-types",
-  raw: "Mesures telles que reçues",
-};
 
 // Top of the Mesures page: what is shown, over which period, and the controls.
 // Same controls in both views; "plage…" and "comparer avec…" open their panel underneath.
@@ -40,6 +35,7 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
   const [panel, setPanel] = useState<null | "range" | "compare">(null);
   const toggle = (p: "range" | "compare") => setPanel(panel === p ? null : p);
   const day = range.kind === "day" ? range.date : today;
+  const w = t().measures;
 
   return (
     <header ref={headRef} className="ms-head">
@@ -49,44 +45,44 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
           <p className="muted">{subtitle}</p>
         </div>
         <div className="ms-tools">
-          <div className="seg" role="group" aria-label="Période glissante">
+          <div className="seg" role="group" aria-label={w.rollingPeriod}>
             {PRESETS.map((p) => (
-              <button key={p.seconds} type="button" aria-label={`${p.label} glissantes`}
+              <button key={p.seconds} type="button" aria-label={w.rollingAria(p.label)}
                       aria-pressed={range.kind === "preset" && range.seconds === p.seconds}
                       onClick={() => onRange({ kind: "preset", seconds: p.seconds })}>{p.short}</button>
             ))}
           </div>
-          <div className="seg" role="group" aria-label="Jour précis">
-            <button type="button" aria-label="Jour précédent" onClick={() => onRange({ kind: "day", date: shiftDay(day, -1) })}>‹</button>
-            <button type="button" aria-pressed={range.kind === "day"} title="Aujourd'hui, de minuit à minuit"
-                    onClick={() => onRange({ kind: "day", date: today })}>jour</button>
-            <button type="button" aria-label="Jour suivant" disabled={day >= today}
+          <div className="seg" role="group" aria-label={w.exactDay}>
+            <button type="button" aria-label={w.prevDay} onClick={() => onRange({ kind: "day", date: shiftDay(day, -1) })}>‹</button>
+            <button type="button" aria-pressed={range.kind === "day"} title={w.todayTitle}
+                    onClick={() => onRange({ kind: "day", date: today })}>{w.day}</button>
+            <button type="button" aria-label={w.nextDay} disabled={day >= today}
                     onClick={() => onRange({ kind: "day", date: shiftDay(day, 1) })}>›</button>
           </div>
           <div className="seg">
             <button type="button" aria-expanded={panel === "range"} aria-controls="ms-range"
-                    className={range.kind === "custom" ? "active" : undefined} onClick={() => toggle("range")}>plage…</button>
+                    className={range.kind === "custom" ? "active" : undefined} onClick={() => toggle("range")}>{w.range}</button>
           </div>
           {compare && (
             <div className="seg">
               <button type="button" aria-expanded={panel === "compare"} aria-controls="ms-compare"
                       className={compare.current ? "active" : undefined} onClick={() => toggle("compare")}>
-                {compare.current ? `avec ${compare.current.name}…` : "comparer avec…"}
+                {compare.current ? w.withRoom(compare.current.name) : w.compareWith}
               </button>
             </div>
           )}
           <div className="seg">
             <button type="button" disabled={csvDisabled} onClick={onCsv}>csv <span aria-hidden>↓</span></button>
           </div>
-          <fieldset className="seg" aria-label="Traitement des données">
+          <fieldset className="seg" aria-label={w.processing}>
             {SMOOTH_MODES.map((m) => (
-              <button key={m} type="button" title={SMOOTH_TITLE[m]} aria-pressed={smoothing === m}
-                      onClick={() => onSmoothing(m)}>{SMOOTH_LABEL[m]}</button>
+              <button key={m} type="button" title={w.smoothTitle[m]} aria-pressed={smoothing === m}
+                      onClick={() => onSmoothing(m)}>{w.smoothLabel[m]}</button>
             ))}
           </fieldset>
-          <div className="seg" role="group" aria-label="Affichage">
-            <button type="button" aria-pressed={view === "single"} onClick={() => onView("single")}>1 graphe</button>
-            <button type="button" aria-pressed={view === "grid"} onClick={() => onView("grid")}>grille</button>
+          <div className="seg" role="group" aria-label={w.display}>
+            <button type="button" aria-pressed={view === "single"} onClick={() => onView("single")}>{w.oneChart}</button>
+            <button type="button" aria-pressed={view === "grid"} onClick={() => onView("grid")}>{w.grid}</button>
           </div>
         </div>
       </div>
@@ -99,10 +95,11 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
 // One button per room; picking one (or stopping) closes the panel.
 export function ComparePanel({ control, onDone }: { control: CompareControl; onDone: () => void }) {
   const pick = (id: string | null) => { control.onPick(id); onDone(); };
+  const w = t().measures;
   return (
     <div id="ms-compare" className="ms-range ms-compare">
       {control.choices.length > 0 && (
-        <div className="seg" role="group" aria-label="Pièce à comparer">
+        <div className="seg" role="group" aria-label={w.roomToCompare}>
           {control.choices.map((c) => (
             <button key={c.id} type="button" aria-pressed={control.current?.id === c.id} onClick={() => pick(c.id)}>{c.name}</button>
           ))}
@@ -110,8 +107,8 @@ export function ComparePanel({ control, onDone }: { control: CompareControl; onD
       )}
       {control.note && <p className="muted small">{control.note}</p>}
       <div className="ms-range-actions">
-        {control.current && <Button type="button" variant="ghost" onClick={() => pick(null)}>ne plus comparer</Button>}
-        <Button type="button" variant="ghost" onClick={onDone}>fermer</Button>
+        {control.current && <Button type="button" variant="ghost" onClick={() => pick(null)}>{w.stopComparing}</Button>}
+        <Button type="button" variant="ghost" onClick={onDone}>{w.close}</Button>
       </div>
     </div>
   );
@@ -121,25 +118,26 @@ function RangePanel({ range, onRange, onClose }: { range: Range; onRange: (r: Ra
   const [from, setFrom] = useState(() => isoLocal(range.kind === "custom" ? range.from : Date.now() / 1000 - 3 * 3600));
   const [to, setTo] = useState(() => isoLocal(range.kind === "custom" ? range.to : Date.now() / 1000));
   const [error, setError] = useState<string | null>(null);
+  const w = t().measures;
 
   function apply(e: FormEvent) {
     e.preventDefault();
     const a = new Date(from).getTime() / 1000;
     const b = new Date(to).getTime() / 1000;
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return setError("Renseigne les deux dates.");
-    if (b <= a) return setError("La fin doit être après le début.");
-    if (b - a > 366 * 86400) return setError("Un an maximum.");
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return setError(w.bothDates);
+    if (b <= a) return setError(w.endAfterStart);
+    if (b - a > 366 * 86400) return setError(w.oneYearMax);
     setError(null);
     onRange({ kind: "custom", from: a, to: b });
   }
 
   return (
-    <form id="ms-range" className="ms-range" onSubmit={apply} aria-label="Plage libre">
-      <Field label="Début"><input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-      <Field label="Fin"><input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+    <form id="ms-range" className="ms-range" onSubmit={apply} aria-label={w.freeRange}>
+      <Field label={w.start}><input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+      <Field label={w.end}><input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       <div className="ms-range-actions">
-        <Button type="submit" variant="primary">afficher</Button>
-        <Button type="button" variant="ghost" onClick={onClose}>fermer</Button>
+        <Button type="submit" variant="primary">{w.show}</Button>
+        <Button type="button" variant="ghost" onClick={onClose}>{w.close}</Button>
       </div>
       {error && <p className="field-error small ms-range-error" role="alert">{error}</p>}
     </form>

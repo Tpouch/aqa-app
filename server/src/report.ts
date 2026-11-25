@@ -9,7 +9,7 @@ import { bandOf, zonesOf } from "./zones.js";
 import {
   METRICS,
   type AggregateRow, type AirTime, type AlertKind, type DeviceReport, type HeatRow, type Metric, type MetricPeriod,
-  type ReportKind, type SoundCalibration, type Tone,
+  type ReportKind, type ReportLang, type SoundCalibration, type Tone,
 } from "./types.js";
 
 /** Bucket length of the rows the report is computed from, in seconds. */
@@ -32,6 +32,7 @@ export interface ReportInput {
   current: AggregateRow[]; // buckets of `step` seconds
   previous: AggregateRow[];
   alerts: { current: AlertKind[]; previous: AlertKind[] };
+  lang?: ReportLang; // sentences; French by default
 }
 
 const RANK: Record<Tone, number> = { good: 0, warn: 1, bad: 2 };
@@ -143,6 +144,7 @@ function countAlerts(kinds: AlertKind[]) {
 
 export function buildReport(input: ReportInput): DeviceReport {
   const { from, to, prevFrom, now, step, cal, tz, kind } = input;
+  const lang = input.lang ?? "fr";
   const end = Math.min(to, now);
   const prevEnd = Math.min(from, now);
   const inside = (lo: number, hi: number) => (r: AggregateRow) => r.ts >= lo && r.ts < hi;
@@ -159,7 +161,7 @@ export function buildReport(input: ReportInput): DeviceReport {
     metric: m,
     current: cur.metrics[m],
     previous: prev.metrics[m],
-    comparison: comparison(m, kind, cur.metrics[m], prev.metrics[m], prevElapsed),
+    comparison: comparison(m, kind, cur.metrics[m], prev.metrics[m], prevElapsed, lang),
   }));
   const { means, weekdays } = co2ByDayHour(curRows, tz);
   const alerts = {
@@ -167,7 +169,7 @@ export function buildReport(input: ReportInput): DeviceReport {
     previous: input.alerts.previous.length,
     by_kind: countAlerts(input.alerts.current),
   };
-  const v = verdict(kind, inProgress, cur.air, cur.measured_s);
+  const v = verdict(kind, inProgress, cur.air, cur.measured_s, lang);
 
   return {
     device_id: input.deviceId, kind, tz, from, to, prev_from: prevFrom, now, first_ts: input.firstTs,
@@ -183,7 +185,7 @@ export function buildReport(input: ReportInput): DeviceReport {
     heatmap: { metric: "co2", by: kind === "week" ? "day" : "weekday", rows: heatRows(kind, from, tz, means, weekdays) },
     alerts,
     takeaways: takeaways({
-      kind, tz, tone: v.tone, elapsed_s: elapsed, measured_s: cur.measured_s, metrics, dayHourCo2: means, alerts,
+      kind, tz, tone: v.tone, elapsed_s: elapsed, measured_s: cur.measured_s, metrics, dayHourCo2: means, alerts, lang,
     }),
   };
 }

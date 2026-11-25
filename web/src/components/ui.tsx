@@ -2,6 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
   type ButtonHTMLAttributes, type ReactNode,
 } from "react";
+import { t as tr } from "../i18n/dict";
 
 // ---------------------------------------------------------------- Button
 
@@ -65,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div key={t.id} className={`toast ${t.tone}`}>
             <span className="toast-mark" aria-hidden>{t.tone === "good" ? "✓" : "✗"}</span>
             <span className="toast-text">{t.text}</span>
-            <Button variant="ghost" size="sm" onClick={() => dismiss(t.id)}>fermer</Button>
+            <Button variant="ghost" size="sm" onClick={() => dismiss(t.id)}>{tr().shell.close}</Button>
           </div>
         ))}
       </div>
@@ -119,7 +120,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <p>{pending.body}</p>
             </div>
             <div className="modal-actions">
-              <Button autoFocus onClick={() => close(false)}>Annuler</Button>
+              <Button autoFocus onClick={() => close(false)}>{tr().shell.cancel}</Button>
               <Button variant={pending.danger ? "danger" : "primary"} onClick={() => close(true)}>{pending.confirmLabel}</Button>
             </div>
           </>

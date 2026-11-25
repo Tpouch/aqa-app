@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { api } from "../../api";
-import { METRICS, type CommandRow, type CommandType, type Metric } from "../../../../server/src/types";
+import { METRICS, type Metric } from "../../../../server/src/types";
+import { t } from "../../i18n/dict";
 import { usePoll } from "../../util";
 
 const STEPS = [60, 300, 900, 3600, 10800, 21600, 86400];
@@ -13,7 +14,7 @@ export function stepFor(seconds: number): number {
 }
 
 export function stepLabel(step: number): string {
-  return step >= 86400 ? `${step / 86400} j` : step >= 3600 ? `${step / 3600} h` : `${step / 60} min`;
+  return step >= 86400 ? `${step / 86400} ${t().time.d}` : step >= 3600 ? `${step / 3600} h` : `${step / 60} min`;
 }
 
 export type Columns = { xs: number[] } & Record<Metric, (number | null)[]>;
@@ -57,18 +58,6 @@ export function useSeries(id: string | null, from: number, to: number, live: boo
 
 // ---------------------------------------------------------------- commands
 
-export const COMMAND_STATE: Record<CommandRow["state"], { label: string; tone?: "good" | "warn" | "bad" }> = {
-  pending: { label: "En attente" },
-  sent: { label: "Transmise" },
-  in_progress: { label: "En cours", tone: "warn" },
-  completed: { label: "Terminée", tone: "good" },
-  failed: { label: "Échec", tone: "bad" },
-};
-
-export const COMMAND_LABEL: Record<CommandType, string> = {
-  status: "Rapport d'état", restart: "Redémarrage", rollback: "Retour au firmware précédent",
-  geohash: "Changement de position", config: "Paramètres", ota: "Mise à jour du firmware", wifi: "Changement de Wi-Fi",
-};
 
 // Polls the command list and exposes a `send` helper with toasts.
 export function useCommands(id: string) {

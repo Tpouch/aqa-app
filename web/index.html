@@ -10,6 +10,9 @@
         var t = "dark";
         try { if (localStorage.getItem("aqa-theme") === "light") t = "light"; } catch (e) {}
         document.documentElement.dataset.theme = t;
+        // Same rule as src/i18n/lang.ts readLang: French unless "en" was chosen
+        // (the title follows from main.tsx, once <title> has been parsed).
+        try { if (localStorage.getItem("aqa-lang") === "en") document.documentElement.lang = "en"; } catch (e) {}
       })();
     </script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

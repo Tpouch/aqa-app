@@ -4,6 +4,8 @@ import { Button, Field, Skeleton, useToast } from "../../components/ui";
 import { usePoll } from "../../util";
 import type { WebhookSettings } from "../../../../server/src/types";
 import { lastSendText, randomSecret } from "./notify";
+import { t } from "../../i18n/dict";
+import { getLang } from "../../i18n/lang";
 
 interface Form { enabled: boolean; url: string; secret: string; notify_close: boolean }
 type Errors = Partial<Record<"url" | "secret", string>>;
@@ -61,11 +63,11 @@ export function WebhookSection({ now }: { now: number }) {
   function validate(f: Form, s: WebhookSettings, needSecret: boolean): boolean {
     const next: Errors = {};
     const url = f.url.trim();
-    if (!/^https?:\/\/\S+$/.test(url)) next.url = "Adresse complète attendue, par exemple https://hermes.exemple.fr/webhooks/aqa.";
-    else if ((url !== s.url || f.enabled) && !hostListed(url, s.allowed_hosts)) next.url = "Cet hôte n'est pas dans WEBHOOK_ALLOWED_HOSTS.";
+    if (!/^https?:\/\/\S+$/.test(url)) next.url = t().alerts.webhookUrlFull;
+    else if ((url !== s.url || f.enabled) && !hostListed(url, s.allowed_hosts)) next.url = t().alerts.hostNotListed;
     const secret = f.secret.trim();
-    if (secret && secret.length < 16) next.secret = "16 caractères au moins.";
-    else if (!secret && !s.secret_set && (f.enabled || needSecret)) next.secret = "Un secret est obligatoire : la même valeur que dans la route Hermes.";
+    if (secret && secret.length < 16) next.secret = t().alerts.secretMin;
+    else if (!secret && !s.secret_set && (f.enabled || needSecret)) next.secret = t().alerts.secretRequired;
     setErrors(next);
     return !next.url && !next.secret;
   }
@@ -87,7 +89,7 @@ export function WebhookSection({ now }: { now: number }) {
     e.preventDefault();
     setBusy("save");
     try {
-      if (await save()) toast("good", "Webhook enregistré.");
+      if (await save()) toast("good", t().alerts.webhookSaved);
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -102,7 +104,7 @@ export function WebhookSection({ now }: { now: number }) {
       const s = await api.updateWebhook({ enabled: false });
       setSaved(s);
       setForm(formFrom(s));
-      toast("good", "Webhook désactivé.");
+      toast("good", t().alerts.webhookDisabled);
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -117,8 +119,8 @@ export function WebhookSection({ now }: { now: number }) {
       if (!await save(true)) return;
       const s = await api.testWebhook();
       setSaved(s);
-      if (s.last?.ok) toast("good", "Test envoyé.");
-      else toast("bad", `Échec de l'envoi${s.last?.error ? ` : ${s.last.error}` : "."}`);
+      if (s.last?.ok) toast("good", t().alerts.webhookTestSent);
+      else toast("bad", t().alerts.sendFailed(s.last?.error ?? null));
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -138,46 +140,46 @@ export function WebhookSection({ now }: { now: number }) {
     <section className="al-notify" aria-labelledby="al-webhook-title">
       <h3 id="al-webhook-title" className="label-caps">Webhook</h3>
       {!saved && loadError ? (
-        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {loadError}</p>
+        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> {t().alerts.loadFailed(loadError)}</p>
       ) : !saved || !form ? <Skeleton height={260} /> : saved.allowed_hosts.length === 0 ? (
         <>
-          <p className="muted small">Prévient un agent (Hermes…) à chaque alerte, avec un message signé.</p>
-          <p className="muted small">Ajoute WEBHOOK_ALLOWED_HOSTS dans le .env du serveur pour activer le webhook.</p>
+          <p className="muted small">{t().alerts.webhookIntro}</p>
+          <p className="muted small">{t().alerts.webhookAddHosts}</p>
           {saved.enabled && (
-            <Button type="button" size="sm" loading={busy === "save"} disabled={busy !== null} onClick={onDisable}>Désactiver</Button>
+            <Button type="button" size="sm" loading={busy === "save"} disabled={busy !== null} onClick={onDisable}>{t().alerts.disable}</Button>
           )}
         </>
       ) : (
         <form className="al-notify-form" onSubmit={onSubmit} noValidate>
-          <p className="muted small">Prévient un agent (Hermes…) à chaque alerte, avec un message signé.</p>
+          <p className="muted small">{t().alerts.webhookIntro}</p>
           <label className="al-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
-            Activé
+            {t().alerts.enabled}
           </label>
-          <Field label="URL" error={errors.url} hint={`Hôtes autorisés : ${saved.allowed_hosts.join(", ")}`}>
+          <Field label="URL" error={errors.url} hint={t().alerts.allowedHosts(saved.allowed_hosts.join(", "))}>
             <input className="input mono" type="url" value={form.url} autoComplete="off" spellCheck={false}
-                   placeholder="https://hermes.exemple.fr/webhooks/aqa" aria-invalid={errors.url ? true : undefined}
+                   placeholder={getLang() === "en" ? "https://hermes.example.com/webhooks/aqa" : "https://hermes.exemple.fr/webhooks/aqa"} aria-invalid={errors.url ? true : undefined}
                    onChange={(e) => set("url", e.target.value)} />
           </Field>
           <div className="al-notify-inline">
             <Field label="Secret" error={errors.secret}
-                   hint={generated ? "Copie-le dans la route Hermes avant d'enregistrer." : undefined}>
+                   hint={generated ? t().alerts.copySecret : undefined}>
               <input className="input mono" type={generated ? "text" : "password"} value={form.secret}
-                     autoComplete="new-password" spellCheck={false} placeholder={saved.secret_set ? "défini" : ""}
+                     autoComplete="new-password" spellCheck={false} placeholder={saved.secret_set ? t().alerts.secretSet : ""}
                      aria-invalid={errors.secret ? true : undefined} onChange={(e) => set("secret", e.target.value)} />
             </Field>
-            <Button type="button" variant="ghost" size="sm" onClick={generate}>Générer</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={generate}>{t().alerts.generate}</Button>
           </div>
           <label className="al-check">
             <input type="checkbox" checked={form.notify_close} onChange={(e) => set("notify_close", e.target.checked)} />
-            Prévenir aussi à la fin
+            {t().alerts.alsoAtEnd}
           </label>
           <div className="al-notify-actions">
-            <Button type="submit" variant="primary" size="sm" loading={busy === "save"} disabled={!dirty || busy !== null}>Enregistrer</Button>
-            <Button type="button" size="sm" onClick={onTest} loading={busy === "test"} disabled={busy !== null}>Envoyer un test</Button>
+            <Button type="submit" variant="primary" size="sm" loading={busy === "save"} disabled={!dirty || busy !== null}>{t().alerts.saveCap}</Button>
+            <Button type="button" size="sm" onClick={onTest} loading={busy === "test"} disabled={busy !== null}>{t().alerts.sendTestCap}</Button>
           </div>
           <p className="al-notify-status small" aria-live="polite">
-            <span className="muted">dernier envoi : </span>
+            <span className="muted">{t().alerts.lastSend}</span>
             {status?.tone && <span className={`tone-${status.tone}`} aria-hidden>{status.tone === "good" ? "● " : "▲ "}</span>}
             <span className={status?.tone === "bad" ? "tone-bad" : status?.tone ? undefined : "muted"}>{status?.text}</span>
           </p>

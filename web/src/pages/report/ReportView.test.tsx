@@ -61,3 +61,24 @@ describe("ReportView", () => {
     expect(out).not.toContain("rp-heat-row");
   });
 });
+
+describe("ReportView in English", () => {
+  it("reads in English", async () => {
+    const { setLang } = await import("../../i18n/lang");
+    const { localizeReport } = await import("../../i18n/vocab");
+    const mem = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    setLang("en", mem);
+    try {
+      const r = report({ measured_s: 6 * 86400 });
+      r.metrics[0]!.comparison = { trend: "better", text: "Better than last week: 6% of the time in the bad zone, against 11%." };
+      const out = html(localizeReport(r));
+      for (const s of ["Per reading", "CO₂ hour by hour", "Takeaways", "Temperature", "no reading", "average",
+        "ventilate", "Mon 16", "Monday 16", "measured 6 d 0 h out of 7 d 0 h", "Better than last week</span>", "6% of the time"]) {
+        expect(out).toContain(s);
+      }
+      expect(out).not.toMatch(/Par mesure|À retenir|pas de mesure|moyenne|lun\.|aérer/);
+    } finally {
+      setLang("fr", mem);
+    }
+  });
+});

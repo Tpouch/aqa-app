@@ -5,6 +5,7 @@ import { SecretReveal } from "../../components/TokenReveal";
 import { Button, Field, useConfirm, useToast } from "../../components/ui";
 import { dateTime, useNow, usePoll } from "../../util";
 import { lastUsedText, maskedKey } from "./apiKeys";
+import { t } from "../../i18n/dict";
 
 export function ApiKeysSection() {
   const list = usePoll(api.apiKeys, 60000, []);
@@ -35,40 +36,40 @@ export function ApiKeysSection() {
   }
 
   return (
-    <Setting title="Clés d'API"
-             help="Pour qu'un agent (Hermes…) lise tes mesures et règle le webhook. Une clé ne peut pas piloter les cartes.">
+    <Setting title={t().settings.apiKeys}
+             help={t().settings.apiKeysHelp}>
       <ul className="st-stack">
         {list.data?.keys.map((k) => (
           <li key={k.id} className="st-actions">
             <span>
-              <strong>{k.name}</strong> · <code>{maskedKey(k.prefix)}</code> · créée le {dateTime(k.created_at)} · {lastUsedText(k.last_used_at, now)}
+              <strong>{k.name}</strong> · <code>{maskedKey(k.prefix)}</code> · {t().settings.createdOn(dateTime(k.created_at))} · {lastUsedText(k.last_used_at, now)}
             </span>
             <Button size="sm" variant="danger"
                     onClick={async () => {
-                      if (await confirm({ title: `Révoquer « ${k.name} » ?`, body: "L'agent qui l'utilise perdra l'accès tout de suite.", confirmLabel: "Révoquer", danger: true })) {
-                        api.deleteApiKey(k.id).then(() => { toast("good", "Clé révoquée"); list.reload(); }, (err: Error) => toast("bad", err.message));
+                      if (await confirm({ title: t().settings.revokeTitle(k.name), body: t().settings.revokeBody, confirmLabel: t().settings.revoke, danger: true })) {
+                        api.deleteApiKey(k.id).then(() => { toast("good", t().settings.revoked); list.reload(); }, (err: Error) => toast("bad", err.message));
                       }
-                    }}>Révoquer<span className="sr-only"> {k.name}</span></Button>
+                    }}>{t().settings.revoke}<span className="sr-only"> {k.name}</span></Button>
           </li>
         ))}
-        {list.data?.keys.length === 0 && <li className="muted small">Aucune clé.</li>}
+        {list.data?.keys.length === 0 && <li className="muted small">{t().settings.noKeys}</li>}
       </ul>
       {adding ? (
         <form className="st-stack" onSubmit={create}>
-          <Field label="Nom" error={error}>
+          <Field label={t().settings.name} error={error}>
             <input className="input" value={name} maxLength={60} autoFocus placeholder="Hermes"
                    onChange={(e) => setName(e.target.value)} required />
           </Field>
           <div className="st-actions">
-            <Button type="submit" variant="primary" loading={busy} disabled={!name.trim()}>Créer</Button>
-            <Button type="button" onClick={() => { setAdding(false); setError(null); }}>Annuler</Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={!name.trim()}>{t().settings.create}</Button>
+            <Button type="button" onClick={() => { setAdding(false); setError(null); }}>{t().settings.cancel}</Button>
           </div>
         </form>
       ) : (
-        <div className="st-actions"><Button onClick={() => setAdding(true)}>Nouvelle clé</Button></div>
+        <div className="st-actions"><Button onClick={() => setAdding(true)}>{t().settings.newKey}</Button></div>
       )}
-      <SecretReveal title={`Clé « ${created?.name ?? ""} »`} intro="Copie-la dans la config de ton agent."
-                    secret={created?.key ?? null} confirmLabel="J'ai copié la clé" onClose={() => setCreated(null)} />
+      <SecretReveal title={t().settings.keyTitle(created?.name ?? "")} intro={t().settings.keyIntro}
+                    secret={created?.key ?? null} confirmLabel={t().settings.keyCopied} onClose={() => setCreated(null)} />
     </Setting>
   );
 }

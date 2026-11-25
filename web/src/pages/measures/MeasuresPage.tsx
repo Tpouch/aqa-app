@@ -13,8 +13,8 @@ import { stepLabel, useSeries } from "../device/shared";
 import { Banner, type CompareControl } from "./Banner";
 import { Grid } from "./Grid";
 import { StatsRow } from "./StatsRow";
+import { t } from "../../i18n/dict";
 
-const SOUND_NOTE = "Le son ne se compare qu'entre deux cartes calibrées (Réglages → Calibrer le son).";
 
 // Mesures: banner + stats + one zone chart, or a grid of the metrics checked in the column.
 // The single chart can show another room next to this one (dashed).
@@ -82,12 +82,12 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
         return [row.snd, db === null ? null : +db.toFixed(1)];
       }),
     ]);
-    const name = grid ? "grille" : selection.metric;
+    const name = grid ? t().measures.gridFile : selection.metric;
     downloadCsv(csvFileName(device?.name ?? "", id, name, isoDay(new Date(series.window[0] * 1000))), header, lines);
   };
 
   const title = grid
-    ? `${shown.length} mesure${shown.length > 1 ? "s" : ""}`
+    ? t().measures.nMeasures(shown.length)
     : <>{single.def.label} <span className="muted ms-unit">{single.def.unit}</span></>;
   const subtitle = bannerSubtitle(multi && device ? device.name : null, r.title, series.step > 0 ? stepLabel(series.step) : null);
 
@@ -101,7 +101,7 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
   const compareControl: CompareControl | undefined = !grid && multi ? {
     choices: choices.map((d) => ({ id: d.id, name: d.name })),
     current: target && { id: target.id, name: target.name },
-    note: selection.metric === "snd" && choices.length < others.length ? SOUND_NOTE : null,
+    note: selection.metric === "snd" && choices.length < others.length ? t().measures.soundNote : null,
     onPick: (compare) => onSelection({ ...selection, compare }),
   } : undefined;
 

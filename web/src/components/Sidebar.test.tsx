@@ -19,3 +19,22 @@ describe("Sidebar, une seule carte jamais connectée", () => {
     expect(out).not.toContain("hors ligne");
   });
 });
+
+describe("Sidebar in English", () => {
+  it("reads in English", async () => {
+    const { setLang } = await import("../i18n/lang");
+    setLang("en", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    try {
+      const out = renderToStaticMarkup(
+        <Sidebar devices={[fresh]} device={fresh} onDevice={() => {}} tab="mesures"
+                 selection={{ view: "single", metric: "co2", grid: ["co2"], compare: null, smoothing: "smooth" }} onSelection={() => {}}
+                 pending={0} alerts={0} unknown={2} onLogout={() => {}} now={0} />);
+      for (const s of ["waiting for first contact", "Measures", "Report", "log out", "2 unknown boards are trying to connect", "Temperature"]) {
+        expect(out).toContain(s);
+      }
+      expect(out).not.toMatch(/déconnexion|Mesures|en attente/);
+    } finally {
+      setLang("fr", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    }
+  });
+});

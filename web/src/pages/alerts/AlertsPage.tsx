@@ -7,6 +7,7 @@ import { useAlertJournal } from "./useAlertJournal";
 import { NotifySection } from "./NotifySection";
 import { WebhookSection } from "./WebhookSection";
 import { RuleList } from "./RuleList";
+import { t } from "../../i18n/dict";
 
 // Rendered with key={id}: a card switch remounts the page, so the poll data,
 // older pages and in-flight "plus ancien" requests never mix two cards.
@@ -26,8 +27,8 @@ export function AlertsPage({ id, device }: { id: string; device: DeviceSummary |
   return (
     <div className="al-page">
       <header className="al-head">
-        <h2>Alertes{device && <> · {device.name}</>}</h2>
-        {journal.open && <p className="muted">{openCount === 0 ? "aucune en cours" : `${openCount} en cours`}</p>}
+        <h2>{t().alerts.title}{device && <> · {device.name}</>}</h2>
+        {journal.open && <p className="muted">{openCount === 0 ? t().alerts.noneOpen : t().alerts.nOpen(openCount)}</p>}
       </header>
       <div className="al-cols">
         <div className="al-side">

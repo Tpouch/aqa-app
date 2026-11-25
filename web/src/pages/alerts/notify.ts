@@ -1,13 +1,14 @@
 import type { NotifyLast } from "../../../../server/src/types";
 import { alertDate } from "./format";
+import { t } from "../../i18n/dict";
 
 /** "réussi · auj. 14:02", "échec · hier 22:40 · HTTP 403 : forbidden". */
 export function lastSendText(last: NotifyLast | null, nowSec: number): { tone: "good" | "bad" | null; text: string } {
-  if (!last) return { tone: null, text: "aucun envoi pour l'instant" };
+  if (!last) return { tone: null, text: t().alerts.nothingSent };
   const when = alertDate(last.at, nowSec);
   return last.ok
-    ? { tone: "good", text: `réussi · ${when}` }
-    : { tone: "bad", text: `échec · ${when}${last.error ? ` · ${last.error}` : ""}` };
+    ? { tone: "good", text: t().alerts.sentOk(when) }
+    : { tone: "bad", text: `${t().alerts.sentFailed(when)}${last.error ? ` · ${last.error}` : ""}` };
 }
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";

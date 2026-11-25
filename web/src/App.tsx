@@ -5,10 +5,13 @@ import { ConfirmProvider, Skeleton, ToastProvider } from "./components/ui";
 import { DevicePage } from "./pages/device/DevicePage";
 import { MobileEmpty, MobileShell } from "./mobile/MobileShell";
 import { usePhone } from "./mobile/usePhone";
+import { t } from "./i18n/dict";
+import { useLang } from "./i18n/lang";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
 import { sortDevices } from "./rooms";
-import { parseRoute, TAB_LABEL, type Tab } from "./routes";
+import { tabLabel } from "./i18n/vocab";
+import { parseRoute, type Tab } from "./routes";
 import { useSelection } from "./selection";
 import { storageGet, storageRemove, storageSet } from "./storage";
 import { useNow, usePoll } from "./util";
@@ -30,9 +33,11 @@ function Gate() {
     setUnauthorizedHandler(() => setAuth(false));
     api.session().then((s) => setAuth(s.authenticated), () => setAuth(false));
   }, []);
+  // A new language re-mounts the screen: every text is read again, data refetched.
+  const lang = useLang();
   if (auth === null) return null;
-  if (!auth) return <Login onLogin={() => setAuth(true)} />;
-  return <Shell onLogout={() => setAuth(false)} />;
+  if (!auth) return <Login key={lang} onLogin={() => setAuth(true)} />;
+  return <Shell key={lang} onLogout={() => setAuth(false)} />;
 }
 
 // Current tab from the hash. Older hashes are replaced by their canonical form;
@@ -95,7 +100,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
   const [selection, setSelection] = useSelection();
 
   useEffect(() => {
-    document.title = tab === "ajouter" ? `${TAB_LABEL[tab]} · AQA` : device ? `${TAB_LABEL[tab]} · ${device.name} · AQA` : "AQA";
+    document.title = tab === "ajouter" ? `${tabLabel(tab)} · AQA` : device ? `${tabLabel(tab)} · ${device.name} · AQA` : "AQA";
   }, [tab, device]);
 
   const onPendingChange = useCallback((n: number) => setPending(n), []);
@@ -105,7 +110,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
     return (
       <>
         <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
-          Aller au contenu
+          {t().mobile.skip}
         </a>
         <div className="setup-tools"><SessionTools onLogout={onLogout} /></div>
         <main id="main" tabIndex={-1} className="setup">
@@ -118,7 +123,7 @@ function WebShell({ devices, list, device, onDevice, onLogout, now }: {
   return (
     <div className="shell">
       <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
-        Aller au contenu
+        {t().mobile.skip}
       </a>
       <Sidebar devices={list} device={device} onDevice={onDevice} tab={tab} selection={selection} onSelection={setSelection}
                pending={pending} alerts={device?.open_alerts ?? 0} unknown={devices.data?.unknown.length ?? 0}

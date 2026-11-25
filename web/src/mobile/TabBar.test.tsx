@@ -18,3 +18,18 @@ describe("TabBar, nombre d'alertes", () => {
     expect(alertsLink(0).replace(/<[^>]+>/g, "")).toBe("Alertes");
   });
 });
+
+describe("TabBar in English", () => {
+  it("reads in English", async () => {
+    const { setLang } = await import("../i18n/lang");
+    const mem = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    setLang("en", mem);
+    try {
+      const out = renderToStaticMarkup(<TabBar tab="dashboard" alerts={2} />);
+      for (const s of ["Report", "Alerts", "Info", "2 open alerts"]) expect(out).toContain(s);
+      expect(out).not.toMatch(/Bilan|Alertes|en cours/);
+    } finally {
+      setLang("fr", mem);
+    }
+  });
+});

@@ -74,6 +74,9 @@ export const ALERT_KINDS = [
 ] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
+/** Language of the report sentences; French unless English is asked for. */
+export type ReportLang = "fr" | "en";
+
 export interface AlertRuleValues {
   enabled: boolean;
   threshold: number | null; // null for offline

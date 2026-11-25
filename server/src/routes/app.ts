@@ -36,6 +36,7 @@ const reportQuery = z.object({
   to: z.coerce.number().int().nonnegative().max(2 ** 31),
   prev_from: z.coerce.number().int().nonnegative().max(2 ** 31).optional(),
   kind: z.enum(["week", "month", "custom"]).default("custom"),
+  lang: z.enum(["fr", "en"]).default("fr"),
   tz: z.string().default(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
     .refine(isTimeZone, "tz must be an IANA time zone such as Europe/Paris"),
 }).refine((q) => q.to > q.from, "to must be after from")
@@ -370,9 +371,9 @@ export function appRoutes(app: FastifyInstance, db: Db, cfg: Config, firmware: F
       if (!d) return reply.code(404).send({ error: "unknown device" });
       const q = reportQuery.safeParse(request.query);
       if (!q.success) return reply.code(400).send({ error: q.error.issues[0]?.message });
-      const { from, to, kind, tz } = q.data;
+      const { from, to, kind, tz, lang } = q.data;
       const prevFrom = q.data.prev_from ?? Math.max(0, from - (to - from));
-      return deviceReport(db, d, { from, to, prevFrom, kind, tz, now: now() });
+      return deviceReport(db, d, { from, to, prevFrom, kind, tz, lang, now: now() });
     });
 
     // ---- journal

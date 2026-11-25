@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { METRICS, type DeviceSummary, type Metric } from "../../../server/src/types";
 import { bandOf, metricDef, toDisplay } from "../metrics";
-import { TAB_LABEL, TAB_ORDER, type Tab } from "../routes";
+import { tabLabel } from "../i18n/vocab";
+import { TAB_ORDER, type Tab } from "../routes";
 import type { Selection } from "../selection";
+import { t } from "../i18n/dict";
 import { applyTheme, readTheme, type Theme } from "../theme";
+import { LangToggle } from "./LangToggle";
 import { ago, fmt } from "../util";
-import { neverSeen, WAITING } from "../rooms";
+import { neverSeen, waiting } from "../rooms";
 import { RoomList } from "./RoomList";
 
 // The fixed left column: board, its five current readings (which double as the
@@ -41,7 +44,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
   };
 
   return (
-    <aside className="sidebar" aria-label="Carte et relevés">
+    <aside className="sidebar" aria-label={t().shell.sidebar}>
       <div className="sb-head">
         <a href="#/mesures" className="sb-brand">AQA</a>
         {device && (
@@ -57,25 +60,25 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
               <div className="sb-device">
                 {/* Shape and word, not only colour: ● online, ○ + "hors ligne" offline. */}
                 <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
-                {device.online && <span className="sr-only">En ligne</span>}
+                {device.online && <span className="sr-only">{t().shell.online}</span>}
                 <span className="sb-name" title={device.name}>{device.name}</span>
-                {!device.online && <span className="sb-offline">{neverSeen(device) ? WAITING : "hors ligne"}</span>}
+                {!device.online && <span className="sb-offline">{neverSeen(device) ? waiting() : t().rooms.offline}</span>}
               </div>
             )}
-            <div className="sb-ago">{device.latest ? `mesuré ${ago(device.latest.ts, now)}` : "aucune mesure reçue"}</div>
+            <div className="sb-ago">{device.latest ? t().shell.measuredAgo(ago(device.latest.ts, now)) : t().shell.noReadingYet}</div>
             {unknown > 0 && (
               <a className="sb-unknown tone-warn" href="#/ajouter">
                 <span aria-hidden>▲ </span>
-                {unknown === 1 ? "1 carte inconnue essaie de se connecter" : `${unknown} cartes inconnues essaient de se connecter`}
+                {t().shell.unknownBoards(unknown)}
               </a>
             )}
-            <a className="sb-link sb-add" href="#/ajouter" aria-current={tab === "ajouter" ? "page" : undefined}>+ ajouter une carte</a>
+            <a className="sb-link sb-add" href="#/ajouter" aria-current={tab === "ajouter" ? "page" : undefined}>{t().shell.addBoard}</a>
           </>
         )}
       </div>
 
       {device && (
-        <ul className="sb-readings" aria-label={checkboxes ? "Mesures affichées en grille" : "Relevés actuels"}>
+        <ul className="sb-readings" aria-label={checkboxes ? t().shell.gridReadings : t().shell.currentReadings}>
           {METRICS.map((m) => {
             const def = metricDef(m, device.sound_calibration);
             const v = toDisplay(m, device.latest?.[m] ?? null, device.sound_calibration);
@@ -100,22 +103,22 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
                   <span className={`sb-value ${toneClass}`}>{fmt(v, def.decimals)}</span>
                 </button>
                 {/* Raw sound has no zones until the board is calibrated (Réglages). */}
-                {m === "snd" && !device.sound_calibration && <a className="sb-cal" href="#/reglages">Calibrer</a>}
+                {m === "snd" && !device.sound_calibration && <a className="sb-cal" href="#/reglages">{t().shell.calibrate}</a>}
               </li>
             );
           })}
         </ul>
       )}
 
-      <nav className="sb-nav" aria-label="Navigation principale">
-        {device && TAB_ORDER.map((t) => (
-          <a key={t} href={`#/${t}`} aria-current={t === tab ? "page" : undefined}>
-            {t === tab && <span aria-hidden>▸ </span>}{TAB_LABEL[t]}
-            {t === "alertes" && alerts > 0 && (
-              <span className="tone-bad sb-count"> {alerts}<span className="sr-only"> alertes en cours</span></span>
+      <nav className="sb-nav" aria-label={t().shell.mainNav}>
+        {device && TAB_ORDER.map((tb) => (
+          <a key={tb} href={`#/${tb}`} aria-current={tb === tab ? "page" : undefined}>
+            {tb === tab && <span aria-hidden>▸ </span>}{tabLabel(tb)}
+            {tb === "alertes" && alerts > 0 && (
+              <span className="tone-bad sb-count"> {alerts}<span className="sr-only">{t().shell.openAlerts}</span></span>
             )}
-            {t === "carte" && pending > 0 && (
-              <span className="tone-warn sb-count"> {pending}<span className="sr-only"> en cours</span></span>
+            {tb === "carte" && pending > 0 && (
+              <span className="tone-warn sb-count"> {pending}<span className="sr-only">{t().shell.pending}</span></span>
             )}
           </a>
         ))}
@@ -125,7 +128,7 @@ export function Sidebar({ devices, device, onDevice, tab, selection, onSelection
   );
 }
 
-// Theme toggle and logout; shared by the column and the first-run screen.
+// Language and theme toggles and logout; shared by the column and the first-run screen.
 export function SessionTools({ onLogout }: { onLogout: () => void }) {
   // The attribute set before first paint is the truth, even when storage is blocked.
   const [theme, setTheme] = useState<Theme>(() => {
@@ -135,12 +138,14 @@ export function SessionTools({ onLogout }: { onLogout: () => void }) {
   const nextTheme = theme === "dark" ? "light" : "dark";
   return (
     <div className="sb-tools">
-      <button type="button" className="sb-link" aria-label={`Passer au thème ${nextTheme === "light" ? "clair" : "sombre"}`}
+      <LangToggle />
+      <span aria-hidden className="muted">·</span>
+      <button type="button" className="sb-link" aria-label={t().session.toTheme(nextTheme === "light")}
               onClick={() => { applyTheme(nextTheme); setTheme(nextTheme); }}>
-        ◐ {nextTheme === "light" ? "clair" : "sombre"}
+        ◐ {t().session.theme(nextTheme === "light")}
       </button>
       <span aria-hidden className="muted">·</span>
-      <button type="button" className="sb-link" onClick={onLogout}>déconnexion</button>
+      <button type="button" className="sb-link" onClick={onLogout}>{t().session.logout}</button>
     </div>
   );
 }

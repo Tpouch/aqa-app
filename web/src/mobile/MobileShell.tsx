@@ -4,15 +4,16 @@ import { SessionTools } from "../components/Sidebar";
 import { Skeleton } from "../components/ui";
 import { parseRoute } from "../routes";
 import type { DeviceSummary } from "../../../server/src/types";
-import { neverSeen, otherAlerts, WAITING } from "../rooms";
+import { neverSeen, otherAlerts, waiting } from "../rooms";
 import { ago } from "../util";
-import { MOBILE_LABEL, parseMobileRoute, type MobileRoute } from "./routes";
+import { mobileLabel, parseMobileRoute, type MobileRoute } from "./routes";
 import { DashboardPage } from "./DashboardPage";
 import { GraphPage, openGraph } from "./GraphPage";
 import { InfoPage } from "./InfoPage";
 import { MobileAlertsPage } from "./MobileAlertsPage";
 import { ReportPage } from "../pages/report/ReportPage";
 import { TabBar } from "./TabBar";
+import { t } from "../i18n/dict";
 
 // Current mobile tab from the hash. Web and legacy hashes are replaced by
 // #/dashboard; a legacy #/device/<id>/... link still selects that board.
@@ -58,17 +59,17 @@ export function MobileShell({ devices, device, onDevice, onLogout, now, error }:
   const full = route.tab === "graph" && route.metric !== null;
 
   useEffect(() => {
-    document.title = device ? `${MOBILE_LABEL[route.tab]} · ${device.name} · AQA` : "AQA";
+    document.title = device ? `${mobileLabel(route.tab)} · ${device.name} · AQA` : "AQA";
   }, [route.tab, device]);
 
   return (
     <div className={`mb${full ? " mb-full" : ""}`}>
       <a className="sr-only skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
-        Aller au contenu
+        {t().mobile.skip}
       </a>
       {!full && <TopBar devices={devices} device={device} onDevice={onDevice} now={now} />}
       <main id="main" className="mb-main" tabIndex={-1}>
-        <h1 className="sr-only">{MOBILE_LABEL[route.tab]}</h1>
+        <h1 className="sr-only">{mobileLabel(route.tab)}</h1>
         {error ? (
           <p className="callout warn" role="alert"><span aria-hidden>▲</span> {error}</p>
         ) : !device ? (
@@ -111,7 +112,7 @@ export function TopBar({ devices, device, onDevice, now }: {
           <span className={device.online ? "tone-good" : "muted"} aria-hidden>{device.online ? "●" : "○"}</span>
           {several ? (
             <button ref={trigger} type="button" className="mb-switch" aria-haspopup="dialog"
-                    aria-label={`Changer de pièce, ${device.name} affichée`} onClick={() => setOpen(true)}>
+                    aria-label={t().mobile.switchRoom(device.name)} onClick={() => setOpen(true)}>
               <span className="mb-name">{device.name}</span><span aria-hidden> ▾</span>
             </button>
           ) : (
@@ -120,13 +121,13 @@ export function TopBar({ devices, device, onDevice, now }: {
           {elsewhere > 0 && (
             <span className="tone-bad mb-elsewhere">
               <span aria-hidden>▲ {elsewhere}</span>
-              <span className="sr-only">{elsewhere} alerte{elsewhere > 1 ? "s" : ""} dans une autre pièce</span>
+              <span className="sr-only">{t().mobile.elsewhere(elsewhere)}</span>
             </span>
           )}
           <span className="mb-ago muted">
-            {neverSeen(device) ? WAITING : <>
-              {device.online ? <span className="sr-only">en ligne, </span> : "hors ligne · "}
-              {device.latest ? ago(device.latest.ts, now) : "aucune mesure"}
+            {neverSeen(device) ? waiting() : <>
+              {device.online ? <span className="sr-only">{t().mobile.onlineSr}</span> : t().mobile.offlineDot}
+              {device.latest ? ago(device.latest.ts, now) : t().mobile.noReadingShort}
             </>}
           </span>
         </div>
@@ -156,8 +157,8 @@ function RoomSheet({ devices, current, onPick, onClose }: {
   return (
     <div className="mb-sheet" role="dialog" aria-modal="true" aria-labelledby="mb-sheet-title">
       <div className="mb-sheet-head">
-        <h2 id="mb-sheet-title" className="label-caps">Pièces</h2>
-        <button ref={closeRef} type="button" className="mb-sheet-close" aria-label="Fermer" onClick={onClose}>✕</button>
+        <h2 id="mb-sheet-title" className="label-caps">{t().mobile.rooms}</h2>
+        <button ref={closeRef} type="button" className="mb-sheet-close" aria-label={t().mobile.close} onClick={onClose}>✕</button>
       </div>
       <RoomList devices={devices} current={current} onPick={onPick} />
     </div>
@@ -169,7 +170,7 @@ export function MobileEmpty({ onLogout }: { onLogout: () => void }) {
   return (
     <main id="main" className="mb-empty" tabIndex={-1}>
       <h1>AQA</h1>
-      <p>Aucune carte. Ajoute ta première carte depuis la version ordinateur.</p>
+      <p>{t().mobile.noBoard}</p>
       <SessionTools onLogout={onLogout} />
     </main>
   );

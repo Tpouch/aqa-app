@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../api";
 import { useToast } from "../../components/ui";
 import type { CommandRow, CommandType, DeviceSummary } from "../../../../server/src/types";
-import { TAB_LABEL, type Tab } from "../../routes";
+import { commandLabel, tabLabel } from "../../i18n/vocab";
+import { type Tab } from "../../routes";
 import type { Selection } from "../../selection";
 import { useNow, usePoll } from "../../util";
 import { AlertsPage } from "../alerts/AlertsPage";
@@ -11,7 +12,8 @@ import { MeasuresPage } from "../measures/MeasuresPage";
 import { ReportPage } from "../report/ReportPage";
 import { InfosPage } from "../infos/InfosPage";
 import { SettingsPage } from "../settings/SettingsPage";
-import { COMMAND_LABEL, useCommands } from "./shared";
+import { useCommands } from "./shared";
+import { t } from "../../i18n/dict";
 
 export type Send = (type: CommandType, params?: Record<string, unknown>) => Promise<boolean>;
 
@@ -33,7 +35,7 @@ export function DevicePage({ id, others, tab, selection, onSelection, onPendingC
   const send: Send = useCallback(async (type, params) => {
     try {
       await api.sendCommand(id, type, params);
-      toast("good", `${COMMAND_LABEL[type]} : envoyé. La carte le recevra à sa prochaine connexion.`);
+      toast("good", t().card.sent(commandLabel(type)));
       commands.reload();
       return true;
     } catch (err) {
@@ -54,8 +56,8 @@ export function DevicePage({ id, others, tab, selection, onSelection, onPendingC
     for (const c of list) {
       const before = seen.current.get(c.id);
       if (!first && before !== c.state) {
-        if (c.state === "completed") toast("good", `${COMMAND_LABEL[c.type]} : terminé${c.detail ? ` (${c.detail})` : ""}.`);
-        if (c.state === "failed") toast("bad", `${COMMAND_LABEL[c.type]} : échec${c.detail ? `. ${c.detail}` : ""}.`);
+        if (c.state === "completed") toast("good", t().card.done(commandLabel(c.type), c.detail));
+        if (c.state === "failed") toast("bad", t().card.failed(commandLabel(c.type), c.detail));
       }
       seen.current.set(c.id, c.state);
     }
@@ -68,7 +70,7 @@ export function DevicePage({ id, others, tab, selection, onSelection, onPendingC
 
   return (
     <div id={`panel-${tab}`} className="tab-panel">
-      <h1 className="sr-only">{TAB_LABEL[tab]}</h1>
+      <h1 className="sr-only">{tabLabel(tab)}</h1>
       {tab === "mesures" && <MeasuresPage id={id} device={d} others={others} selection={selection} onSelection={onSelection} />}
       {tab === "bilan" && <ReportPage key={id} id={id} device={d ?? undefined} />}
       {tab === "alertes" && <AlertsPage key={id} id={id} device={d ?? null} />}

@@ -1,30 +1,32 @@
 import { useEffect, useRef, useState } from "react";
+import { t } from "./i18n/dict";
+import { dateFmt, numFmt, relFmt } from "./i18n/format";
 
 export function fmt(value: number | null | undefined, decimals = 0): string {
-  return value === null || value === undefined ? "—" : value.toLocaleString("fr-FR", {
+  return value === null || value === undefined ? "—" : numFmt({
     minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-  });
+  }).format(value);
 }
 
-const rtf = new Intl.RelativeTimeFormat("fr", { numeric: "auto" });
 export function ago(epoch: number | null | undefined, nowSec = Date.now() / 1000): string {
-  if (!epoch) return "jamais";
+  if (!epoch) return t().time.never;
   const s = Math.max(0, Math.round(nowSec - epoch));
-  if (s < 10) return "à l'instant";
+  if (s < 10) return t().time.justNow;
+  const rtf = relFmt({ numeric: "auto" });
   if (s < 60) return rtf.format(-s, "second");
   if (s < 3600) return rtf.format(-Math.round(s / 60), "minute");
   if (s < 86400) return rtf.format(-Math.round(s / 3600), "hour");
   return rtf.format(-Math.round(s / 86400), "day");
 }
 
-const dtf = new Intl.DateTimeFormat("fr", { dateStyle: "short", timeStyle: "short" });
-export const dateTime = (epoch: number) => dtf.format(new Date(epoch * 1000));
+export const dateTime = (epoch: number) => dateFmt({ dateStyle: "short", timeStyle: "short" }).format(new Date(epoch * 1000));
 
 export function duration(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  return d ? `${d} j ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+  const u = t().time;
+  return d ? `${d} ${u.d} ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 }
 
 export const nowS = () => Math.floor(Date.now() / 1000);
