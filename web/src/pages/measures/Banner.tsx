@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode, type RefObject } from "react"
 import { Button, Field } from "../../components/ui";
 import { isoLocal, PRESETS, shiftDay, type Range } from "../../range";
 import type { Selection } from "../../selection";
+import { SMOOTH_MODES, type SmoothMode } from "../../smooth";
 
 // Room put next to the shown one (single chart, several boards).
 export interface CompareControl {
@@ -12,9 +13,16 @@ export interface CompareControl {
   onPick: (id: string | null) => void;
 }
 
+const SMOOTH_LABEL: Record<SmoothMode, string> = { smooth: "lissé", band: "marge", raw: "brut" };
+const SMOOTH_TITLE: Record<SmoothMode, string> = {
+  smooth: "Moyenne glissante",
+  band: "Moyenne glissante ± 2 écarts-types",
+  raw: "Mesures telles que reçues",
+};
+
 // Top of the Mesures page: what is shown, over which period, and the controls.
 // Same controls in both views; "plage…" and "comparer avec…" open their panel underneath.
-export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled, compare }: {
+export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled, smoothing, onSmoothing, compare }: Readonly<{
   headRef: RefObject<HTMLElement | null>;
   title: ReactNode;
   subtitle: string;
@@ -25,8 +33,10 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
   onView: (v: Selection["view"]) => void;
   onCsv: () => void;
   csvDisabled: boolean;
+  smoothing: SmoothMode;
+  onSmoothing: (m: SmoothMode) => void;
   compare?: CompareControl;
-}) {
+}>) {
   const [panel, setPanel] = useState<null | "range" | "compare">(null);
   const toggle = (p: "range" | "compare") => setPanel(panel === p ? null : p);
   const day = range.kind === "day" ? range.date : today;
@@ -68,6 +78,12 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
           <div className="seg">
             <button type="button" disabled={csvDisabled} onClick={onCsv}>csv <span aria-hidden>↓</span></button>
           </div>
+          <fieldset className="seg" aria-label="Traitement des données">
+            {SMOOTH_MODES.map((m) => (
+              <button key={m} type="button" title={SMOOTH_TITLE[m]} aria-pressed={smoothing === m}
+                      onClick={() => onSmoothing(m)}>{SMOOTH_LABEL[m]}</button>
+            ))}
+          </fieldset>
           <div className="seg" role="group" aria-label="Affichage">
             <button type="button" aria-pressed={view === "single"} onClick={() => onView("single")}>1 graphe</button>
             <button type="button" aria-pressed={view === "grid"} onClick={() => onView("grid")}>grille</button>
