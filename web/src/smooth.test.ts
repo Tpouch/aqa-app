@@ -28,6 +28,11 @@ describe("lissage", () => {
     expect(mid).toEqual([null, 42, null]);
     expect(sd).toEqual([null, 0, null]);
   });
+  it("marge : rien sur un trou", () => {
+    const r = displaySeries(xs(3), [1, null, 3], { mode: "band", window: 60 });
+    expect(r.lo).toEqual([1, null, 3]);
+    expect(r.hi).toEqual([1, null, 3]);
+  });
   it("tableau vide", () => {
     expect(smooth([], [], 60)).toEqual({ mid: [], sd: [] });
   });
