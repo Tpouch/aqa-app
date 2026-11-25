@@ -16,8 +16,23 @@ export function smoothWindow(span: number, period: number): number {
   return Math.max(span / 50, 3 * period);
 }
 
-/** Mean and standard deviation of the points within ± window/2 of each point.
- *  A null (a hole: board offline) splits the series: no window reaches across it. */
+/** Writes into `out[start..end)` the mean of `vals` over the points within ± half of
+ *  each point. Two pointers keep the window's running sum: O(end − start). */
+function windowMeans(xs: number[], vals: number[], start: number, end: number, half: number, out: Ys) {
+  let lo = start;
+  let hi = start;
+  let sum = 0;
+  for (let i = start; i < end; i++) {
+    while (hi < end && xs[hi]! <= xs[i]! + half) sum += vals[hi++]!;
+    while (xs[lo]! < xs[i]! - half) sum -= vals[lo++]!;
+    out[i] = sum / (hi - lo);
+  }
+}
+
+/** Centred moving average of each point over ± window/2, and the standard deviation
+ *  of the residuals y − mid over the same window: a clean rise has no spread, only
+ *  the noise around the curve counts. A null (a hole: board offline) splits the
+ *  series: no window reaches across it. */
 export function smooth(xs: number[], ys: Ys, window: number): { mid: Ys; sd: Ys } {
   const mid: Ys = ys.map(() => null);
   const sd: Ys = ys.map(() => null);
@@ -30,28 +45,12 @@ export function smooth(xs: number[], ys: Ys, window: number): { mid: Ys; sd: Ys 
     }
     let end = start;
     while (end < ys.length && ys[end] != null) end++;
-    // Segment [start, end): two pointers keep the running sums of the window.
-    let lo = start;
-    let hi = start;
-    let sum = 0;
-    let sq = 0;
-    for (let i = start; i < end; i++) {
-      while (hi < end && xs[hi]! <= xs[i]! + half) {
-        sum += ys[hi]!;
-        sq += ys[hi]! ** 2;
-        hi++;
-      }
-      while (xs[lo]! < xs[i]! - half) {
-        sum -= ys[lo]!;
-        sq -= ys[lo]! ** 2;
-        lo++;
-      }
-      const n = hi - lo;
-      const m = sum / n;
-      mid[i] = m;
-      // Floating-point cancellation can leave a tiny negative variance.
-      sd[i] = Math.sqrt(Math.max(0, sq / n - m * m));
-    }
+    const vals = ys as number[];
+    windowMeans(xs, vals, start, end, half, mid);
+    const sq = vals.map((y, i) => (i >= start && i < end ? (y - mid[i]!) ** 2 : 0));
+    windowMeans(xs, sq, start, end, half, sd);
+    // Running sums can leave a tiny negative mean square.
+    for (let i = start; i < end; i++) sd[i] = Math.sqrt(Math.max(0, sd[i]!));
     start = end;
   }
   return { mid, sd };

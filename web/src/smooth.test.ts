@@ -19,6 +19,14 @@ describe("lissage", () => {
     const inside = y.filter((v, i) => v >= r.lo![i]! && v <= r.hi![i]!).length;
     expect(inside / y.length).toBeGreaterThanOrEqual(0.95);
   });
+  it("droite sans bruit : marge quasi nulle hors des bords (la pente ne compte pas)", () => {
+    // Montée de CO₂ propre de 25 ppm/min, pas de 60 s, fenêtre 1728 s (±14 points) ;
+    // les bords, où la moyenne centrée est tronquée, sont laissés de côté.
+    const x = xs(200, 60);
+    const y = x.map((_, i) => 450 + i * 25);
+    const { sd } = smooth(x, y, 1728);
+    for (let i = 30; i < 170; i++) expect(sd[i]!).toBeLessThan(1);
+  });
   it("respecte les trous", () => {
     const { mid } = smooth(xs(7), [10, 10, 10, null, 50, 50, 50], 1000); // fenêtre qui couvrirait tout
     expect(mid).toEqual([10, 10, 10, null, 50, 50, 50]);
