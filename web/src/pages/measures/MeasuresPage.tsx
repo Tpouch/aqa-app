@@ -105,7 +105,9 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
     <div className="ms">
       <Banner headRef={head} title={title} subtitle={subtitle} range={range} onRange={setRange} today={today}
               view={selection.view} onView={(view) => onSelection({ ...selection, view })}
-              onCsv={exportCsv} csvDisabled={!rows.length || !shown.length} compare={compareControl} />
+              onCsv={exportCsv} csvDisabled={!rows.length || !shown.length}
+              smoothing={selection.smoothing} onSmoothing={(smoothing) => onSelection({ ...selection, smoothing })}
+              compare={compareControl} />
 
       {failed && (
         <p className="callout warn" role="alert"><span aria-hidden>▲</span> {series.error}</p>

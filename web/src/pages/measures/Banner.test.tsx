@@ -11,7 +11,7 @@ const control = (over: Partial<CompareControl> = {}): CompareControl =>
 const banner = (compare?: CompareControl) => renderToStaticMarkup(
   <Banner headRef={createRef()} title="CO₂" subtitle="démo · 24 h glissantes" range={{ kind: "preset", seconds: 86400 }}
           onRange={() => {}} today="2026-11-24" view="single" onView={() => {}} onCsv={() => {}} csvDisabled={false}
-          compare={compare} />);
+          smoothing="band" onSmoothing={() => {}} compare={compare} />);
 
 describe("Banner : comparer", () => {
   it("pas de bouton sans pièce à comparer (une seule carte, ou grille)", () => {
@@ -23,6 +23,16 @@ describe("Banner : comparer", () => {
   it("pièce comparée : le bouton la nomme", () => {
     const out = banner(control({ current: chambre }));
     expect(out).toMatch(/<button[^>]*class="active"[^>]*>avec Chambre…<\/button>/);
+  });
+});
+
+describe("Banner : lissage", () => {
+  it("trois boutons, le mode courant enfoncé", () => {
+    const out = banner();
+    expect(out).toContain('aria-label="Traitement des données"');
+    expect(out).toMatch(/aria-pressed="true"[^>]*>marge</);
+    expect(out).toMatch(/aria-pressed="false"[^>]*>lissé</);
+    expect(out).toMatch(/aria-pressed="false"[^>]*>brut</);
   });
 });
 
