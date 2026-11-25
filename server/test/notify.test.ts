@@ -150,7 +150,7 @@ describe("Notifier.publish", () => {
 });
 
 describe("Notifier.alerts", () => {
-  const titles = (ntfy: { received: Received[] }) => ntfy.received.map((r) => r.body.title).sort();
+  const titles = (ntfy: { received: Received[] }) => ntfy.received.map((r) => r.body.title).sort((a, b) => a.localeCompare(b));
 
   it("envoie ouverture et fin", async () => {
     const ntfy = await fakeNtfy();

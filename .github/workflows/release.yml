@@ -1,0 +1,94 @@
+# Reusable workflow: creates a GitHub release from a merged PR title.
+#
+# The PR title decides the version bump:
+#   release(major): ...  -> X+1.0.0
+#   release(minor): ...  -> X.Y+1.0
+#   release(patch): ...  -> X.Y.Z+1
+# Any other title (docs, chore...) creates no release.
+#
+# Copy this file and release-on-merge.yml into .github/workflows/ of any repo.
+# release-on-merge.yml calls this one; edit its `with:` to change the defaults.
+
+name: Release from PR title
+
+on:
+  workflow_call:
+    inputs:
+      initial-version:
+        description: Version the bump starts from when the repo has no tag yet (X.Y.Z).
+        type: string
+        default: 1.0.0
+      tag-prefix:
+        description: Prefix put before the version in the tag name.
+        type: string
+        default: v
+    outputs:
+      tag:
+        description: Tag of the created release (empty when no release was made).
+        value: ${{ jobs.release.outputs.tag }}
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'release(')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: version
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          INITIAL_VERSION: ${{ inputs.initial-version }}
+          PREFIX: ${{ inputs.tag-prefix }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$PR_TITLE" =~ ^release\((major|minor|patch)\): ]]; then
+            bump="${BASH_REMATCH[1]}"
+          else
+            echo "::error::PR title must start with release(major|minor|patch): — got: $PR_TITLE"
+            exit 1
+          fi
+
+          if [[ ! "$INITIAL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::initial-version must be X.Y.Z — got: $INITIAL_VERSION"
+            exit 1
+          fi
+
+          last=$(git tag --list "${PREFIX}[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1)
+          current=${last#"$PREFIX"}
+          current=${current:-$INITIAL_VERSION}
+          IFS=. read -r major minor patch <<< "$current"
+
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          next="${PREFIX}${major}.${minor}.${patch}"
+          echo "Last tag: ${last:-none}, bump: $bump, next: $next"
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TARGET: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET" \
+            --title "$TAG — ${PR_TITLE#*: }" \
+            --generate-notes

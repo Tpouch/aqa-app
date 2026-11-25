@@ -113,7 +113,7 @@ describe("/mcp tools", () => {
   it("lists the seven read tools", async () => {
     const client = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(
+    expect(tools.map((t) => t.name).sort((a, b) => a.localeCompare(b))).toEqual(
       ["get_alert_rules", "get_day_report", "get_history", "get_report", "get_webhook", "list_alerts", "list_rooms"]);
     for (const t of tools) expect(t.description, t.name).toMatch(/\w+\. /);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.inputSchema.properties ?? {}]));
