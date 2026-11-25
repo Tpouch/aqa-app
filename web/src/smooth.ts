@@ -71,9 +71,11 @@ export function displaySeries(xs: number[], ys: Ys, s: Smoothing | undefined): {
  *  same way, never banded) and this room's band, all on one time axis. With another
  *  room the axes are merged (see mergeSeries): the band gets `undefined` exactly
  *  where this room's curve does. */
+export interface ChartColumns { xs: number[]; a: Cell[]; b: Cell[] | null; lo: Cell[] | null; hi: Cell[] | null; sd: Cell[] | null }
+
 export function chartColumns(
-  xs: number[], ys: Ys, other: { xs: number[]; ys: Ys } | null, s: Smoothing | undefined,
-): { xs: number[]; a: Cell[]; b: Cell[] | null; lo: Cell[] | null; hi: Cell[] | null; sd: Cell[] | null } {
+  xs: number[], ys: Ys, other: { xs: number[]; ys: Ys } | null | undefined, s: Smoothing | undefined,
+): ChartColumns {
   const own = displaySeries(xs, ys, s);
   if (!other) return { xs, a: own.ys, b: null, lo: own.lo, hi: own.hi, sd: own.sd };
   const otherYs = displaySeries(other.xs, other.ys, s).ys;

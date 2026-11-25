@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { bandOptions, chartData, hoverDot, spreadAt, withSpread } from "../chartBand";
 import { labelSides, valueNear, type Cell } from "../compare";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
 import { chartColumns, type Smoothing } from "../smooth";
@@ -74,12 +75,6 @@ function useThemeKey() {
   return key;
 }
 
-// "612 ppm", or "612 ppm ± 40" with the band's half-width (2 sd) in band mode.
-function withSpread(def: MetricDef, value: number | null, spread: number | null) {
-  const text = `${fmt(value, def.decimals)} ${def.unit}`;
-  return spread === null ? text : `${text} ± ${fmt(2 * spread, def.decimals)}`;
-}
-
 export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare, smoothing }: Readonly<Props>) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
@@ -95,16 +90,14 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
 
   // Smoothed (or raw) curves; with another room, both share one time axis (see
   // mergeSeries) and the band is laid on that axis too. The other room gets no band.
+  // `smoothing` is memoised by the page: a new object means a new mode or window.
   const merged = useMemo(
-    () => chartColumns(ownXs, ownYs, compare ? { xs: compare.xs, ys: compare.ys } : null, smoothing),
+    () => chartColumns(ownXs, ownYs, compare, smoothing),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ownXs, ownYs, compare?.xs, compare?.ys, smoothing?.mode, smoothing?.window],
+    [ownXs, ownYs, compare?.xs, compare?.ys, smoothing],
   );
-  const { xs, a: ys, b: others, lo, hi, sd } = merged;
-  const data: uPlot.AlignedData = [xs, ys, ...(others ? [others] : []), ...(lo && hi ? [lo, hi] : [])];
-  // Index of the band's lower edge (upper = +1): after the curves.
-  const bandFrom = others ? 3 : 2;
-  const banded = smoothing?.mode === "band";
+  const { xs, a: ys, b: others, sd } = merged;
+  const { data, bandFrom, banded } = chartData(merged);
   const last = useMemo(() => lastIndex(ys), [ys]);
   const lastOther = useMemo(() => (others ? lastIndex(others) : -1), [others]);
   const empty = last < 0;
@@ -118,7 +111,6 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       text: cssVar("--text"), muted: cssVar("--muted"), rule: cssVar("--rule"), bg: cssVar("--bg"),
       tone: { good: cssVar("--good"), warn: cssVar("--warn"), bad: cssVar("--bad") } as Record<Tone, string>,
       band: { good: cssVar("--good-band"), warn: cssVar("--warn-band"), bad: cssVar("--bad-band") } as Record<Tone, string>,
-      margin: cssVar("--margin"), marginBand: cssVar("--margin-band"),
       mono: cssVar("--mono"),
     };
     const font = (size: number, weight = 400) => `${weight} ${Math.round(size * px)}px ${c.mono}`;
@@ -127,6 +119,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       return b ? c.tone[b.tone] : c.text;
     };
     const bounds = def.bands ? bandBounds(def.bands) : [];
+    const band = bandOptions(banded, bandFrom, cssVar("--margin"), cssVar("--margin-band"));
 
     // Each band filled between its bounds, clipped to the plot area.
     const drawBands = (u: uPlot) => {
@@ -232,9 +225,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         drag: { x: false, y: false },
         y: false,
         points: {
-          // No hover dot on the band's edges.
-          size: (_u, si) => (si >= bandFrom ? 0 : 8),
-          width: (_u, si) => (si >= bandFrom ? 0 : 2),
+          ...hoverDot(bandFrom),
           stroke: c.bg,
           fill: (u, si) => toneOf((u.data[si] as Cell[])[u.cursor.idxs?.[si] ?? u.cursor.idx ?? -1]),
         },
@@ -262,9 +253,9 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         {},
         { stroke: c.text, width: 2, spanGaps: false, points: { show: false } },
         ...(compare ? [{ stroke: c.muted, width: 1.5, dash: [6 * px, 4 * px], spanGaps: false, points: { show: false } }] : []),
-        ...(banded ? [0, 1].map(() => ({ stroke: c.margin, width: 1, spanGaps: false, points: { show: false } })) : []),
+        ...band.series,
       ],
-      ...(banded ? { bands: [{ series: [bandFrom + 1, bandFrom] as [number, number], fill: c.marginBand }] } : {}),
+      bands: band.bands,
       axes: [
         { ...axis, space: compact ? 60 : 70, values: timeTicks },
         {
@@ -305,7 +296,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
     // mode (it adds or removes the band's series) changes;
     // data, window and height are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare, smoothing?.mode]);
+  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare, banded]);
 
   useEffect(() => {
     plot.current?.setData(data, false);
@@ -323,7 +314,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   const tolerance = compare?.tolerance ?? 0;
   const value = idx >= 0 ? valueNear(xs, ys, idx, tolerance) : null;
   const tone = bandOf(def, value)?.tone;
-  const spread = sd && hover && hovering ? valueNear(xs, sd, hover.idx, tolerance) : null;
+  const spread = spreadAt(xs, sd, hover, tolerance);
   const valueText = withSpread(def, value, spread);
   const otherValue = others && hovering ? valueNear(xs, others, hover!.idx, tolerance) : null;
   const otherTone = bandOf(def, otherValue)?.tone;
