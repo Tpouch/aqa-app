@@ -8,6 +8,7 @@ import { METRICS, type DeviceSummary, type Metric } from "../../../server/src/ty
 import { fmt } from "../util";
 import { enterLandscape, exitLandscape } from "./fullscreen";
 import { reading } from "./Gauge";
+import { t } from "../i18n/dict";
 
 /**
  * Open a metric's chart from a tap: try full screen + landscape (needs the gesture), then route.
@@ -47,7 +48,7 @@ function GraphList({ device }: { device: DeviceSummary }) {
           );
         })}
       </ul>
-      <p className="muted small mb-note">Touche un capteur : le graphe s'ouvre en plein écran. Tourne ton téléphone pour l'agrandir.</p>
+      <p className="muted small mb-note">{t().mobile.tapSensor}</p>
     </div>
   );
 }
@@ -100,14 +101,14 @@ function FullGraph({ id, device, metric }: { id: string; device: DeviceSummary; 
     <div className="mb-fg">
       <header className="mb-fg-head">
         <h2><span>{def.label}</span> <span className="muted">{def.unit} · {label}</span></h2>
-        <div className="seg mb-fg-range" role="group" aria-label="Période">
+        <div className="seg mb-fg-range" role="group" aria-label={t().mobile.period}>
           {PRESETS.map((p) => (
             <button key={p.seconds} type="button" aria-pressed={p.seconds === seconds} onClick={() => setSeconds(p.seconds)}>{p.short}</button>
           ))}
         </div>
-        <button type="button" className="mb-fg-close" onClick={close} aria-label="Fermer le graphe"><span aria-hidden>✕</span></button>
+        <button type="button" className="mb-fg-close" onClick={close} aria-label={t().mobile.closeGraph}><span aria-hidden>✕</span></button>
       </header>
-      {portrait && <p className="mb-fg-hint muted small"><span aria-hidden>⟳ </span>Tourne ton téléphone pour agrandir</p>}
+      {portrait && <p className="mb-fg-hint muted small"><span aria-hidden>⟳ </span>{t().mobile.rotate}</p>}
       {series.error && !series.data && <p className="callout warn" role="alert"><span aria-hidden>▲</span> {series.error}</p>}
       <div ref={box} className="mb-fg-chart">
         {height > 0 && (series.loading

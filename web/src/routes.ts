@@ -3,7 +3,6 @@
 // #/device/<id>/<tab>) maps onto one of them and is replaced by its canonical form.
 export type Tab = "mesures" | "bilan" | "alertes" | "carte" | "reglages" | "infos" | "ajouter";
 
-export const TAB_LABEL: Record<Tab, string> = { mesures: "Mesures", bilan: "Bilan", alertes: "Alertes", carte: "Carte", reglages: "Réglages", infos: "Infos", ajouter: "Ajouter une carte" };
 export const TAB_ORDER: Tab[] = ["mesures", "bilan", "alertes", "carte", "reglages", "infos"];
 
 const ALIASES = new Map<string, Tab>([

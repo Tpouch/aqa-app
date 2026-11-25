@@ -3,6 +3,7 @@ import type { DeviceSummary, Metric } from "../../../server/src/types";
 import { Gauge } from "./Gauge";
 import { moveItem, readOrder, saveOrder } from "./order";
 import { useReorder } from "./useReorder";
+import { t } from "../i18n/dict";
 
 const LONG_PRESS_MS = 500;
 const MOVE_TOLERANCE = 8; // px a finger may drift before a press stops being "long"
@@ -57,10 +58,10 @@ export function DashboardPage({ device, onOpen }: { device: DeviceSummary; onOpe
                   swallowClick.current = false;
                   setEditing(!editing);
                 }}>
-          {editing ? "terminé" : "organiser"}
+          {editing ? t().mobile.done : t().mobile.arrange}
         </button>
       </div>
-      {editing && <p className="mb-hint muted small">Glisse une jauge par sa poignée ⋮⋮ (ou utilise ↑ ↓) pour changer l'ordre. L'ordre est gardé sur ce téléphone.</p>}
+      {editing && <p className="mb-hint muted small">{t().mobile.arrangeHint}</p>}
       <div ref={gridRef} className={`mb-gauges${editing ? " mb-editing" : ""}`}>
         {order.map((m, i) => (
           <Gauge key={m} metric={m} device={device} stale={stale} editing={editing} lifted={lifted === m}

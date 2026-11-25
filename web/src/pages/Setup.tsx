@@ -4,6 +4,8 @@ import { TokenReveal } from "../components/TokenReveal";
 import { Button, Field, useToast } from "../components/ui";
 import type { UnknownDevice } from "../../../server/src/types";
 import { ago, useNow } from "../util";
+import { t } from "../i18n/dict";
+import { getLang } from "../i18n/lang";
 
 const ID_RE = /^aqa-[0-9A-F]{12}$/;
 
@@ -23,14 +25,14 @@ export function Setup({ unknown, first, onDone }: { unknown: UnknownDevice[]; fi
   async function add(e: FormEvent) {
     e.preventDefault();
     if (!ID_RE.test(normalized)) {
-      setIdError("Format attendu : aqa- suivi de 12 caractères hexadécimaux, ex. aqa-24A160B3C8F0.");
+      setIdError(t().setup.idFormat);
       return;
     }
     setBusy(true);
     try {
-      const res = await api.addDevice(normalized, newName.trim() || "Mon capteur");
+      const res = await api.addDevice(normalized, newName.trim() || t().setup.defaultName);
       setSecret({ id: res.device.id, token: res.token });
-      toast("good", `${res.device.name} ajoutée.`);
+      toast("good", t().setup.added(res.device.name));
     } catch (err) {
       setIdError((err as Error).message);
     } finally {
@@ -38,22 +40,23 @@ export function Setup({ unknown, first, onDone }: { unknown: UnknownDevice[]; fi
     }
   }
 
+  const d = t().setup;
+  const en = getLang() === "en";
   return (
     <div className="setup-panel">
       <header>
-        {first ? <div className="label-caps login-brand">AQA</div> : <a className="sb-link setup-back" href="#/mesures">← retour</a>}
-        <h1>{first ? "Ajoute ta carte" : "Ajoute une carte"}</h1>
-        <p className="muted small">{first ? "Une étape, puis les mesures arrivent toutes seules."
-          : "Une autre pièce : même étape que pour la première carte."}</p>
+        {first ? <div className="label-caps login-brand">AQA</div> : <a className="sb-link setup-back" href="#/mesures">{d.back}</a>}
+        <h1>{first ? d.titleFirst : d.title}</h1>
+        <p className="muted small">{first ? d.introFirst : d.intro}</p>
       </header>
 
       {unknown.length > 0 && (
         <section aria-labelledby="unknown-title">
-          <h2 id="unknown-title" className="label-caps">Cartes qui ont déjà écrit</h2>
-          <p className="muted small">Ta carte a déjà essayé d'envoyer des mesures. Ajoute-la pour pré-remplir le formulaire.</p>
+          <h2 id="unknown-title" className="label-caps">{d.unknownTitle}</h2>
+          <p className="muted small">{d.unknownIntro}</p>
           <table className="st-table">
             <thead>
-              <tr><th scope="col">Identifiant</th><th scope="col">Vue</th><th scope="col" className="hide-sm">IP</th><th scope="col"><span className="sr-only">Actions</span></th></tr>
+              <tr><th scope="col">{d.colId}</th><th scope="col">{d.colSeen}</th><th scope="col" className="hide-sm">IP</th><th scope="col"><span className="sr-only">{d.actions}</span></th></tr>
             </thead>
             <tbody>
               {unknown.map((u) => (
@@ -62,8 +65,8 @@ export function Setup({ unknown, first, onDone }: { unknown: UnknownDevice[]; fi
                   <td>{ago(u.last_seen, now)}</td>
                   <td className="hide-sm">{u.ip ?? "—"}</td>
                   <td className="st-td-actions">
-                    <Button size="sm" onClick={() => { setNewId(u.id); setIdError(null); }}>Ajouter<span className="sr-only"> {u.id}</span></Button>{" "}
-                    <Button size="sm" variant="ghost" onClick={() => api.forgetUnknown(u.id)}>Oublier<span className="sr-only"> {u.id}</span></Button>
+                    <Button size="sm" onClick={() => { setNewId(u.id); setIdError(null); }}>{d.add}<span className="sr-only"> {u.id}</span></Button>{" "}
+                    <Button size="sm" variant="ghost" onClick={() => api.forgetUnknown(u.id)}>{d.forget}<span className="sr-only"> {u.id}</span></Button>
                   </td>
                 </tr>
               ))}
@@ -73,21 +76,27 @@ export function Setup({ unknown, first, onDone }: { unknown: UnknownDevice[]; fi
       )}
 
       <form className="st-stack" onSubmit={add} noValidate>
-        <Field label="Identifiant de la carte" error={idError}
-               hint={<>Affiché au démarrage dans le log série (<code>sensor id aqa-…</code>) et dans le TUI.</>}>
+        <Field label={d.idLabel} error={idError}
+               hint={en ? <>Shown at boot in the serial log (<code>sensor id aqa-…</code>) and in the TUI.</> : <>Affiché au démarrage dans le log série (<code>sensor id aqa-…</code>) et dans le TUI.</>}>
           <input className="input mono" value={newId} placeholder="aqa-24A160B3C8F0" spellCheck={false} autoCapitalize="none" autoFocus
                  onChange={(e) => { setNewId(e.target.value); setIdError(null); }} aria-invalid={idError ? true : undefined} />
         </Field>
-        <Field label="Nom" hint="Facultatif, ex. Chambre.">
-          <input className="input" value={newName} maxLength={60} placeholder="Mon capteur" onChange={(e) => setNewName(e.target.value)} />
+        <Field label={d.nameLabel} hint={d.nameHint}>
+          <input className="input" value={newName} maxLength={60} placeholder={d.defaultName} onChange={(e) => setNewName(e.target.value)} />
         </Field>
-        <Button type="submit" variant="primary" loading={busy} disabled={!newId.trim()}>Ajouter la carte</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={!newId.trim()}>{d.submit}</Button>
       </form>
 
       <ol className="steps small muted">
-        <li>Un jeton s'affiche : copie-le dans <code>DEVICE_TOKEN</code> du <code>.env</code> du firmware.</li>
-        <li>Recompile et flashe la carte (<code>pio run -t upload</code>, ou le TUI).</li>
-        <li>Les premières mesures apparaissent ici en moins d'une minute.</li>
+        {en ? <>
+          <li>A token appears: copy it into <code>DEVICE_TOKEN</code> in the firmware's <code>.env</code>.</li>
+          <li>Rebuild and flash the board (<code>pio run -t upload</code>, or the TUI).</li>
+          <li>The first readings show up here in less than a minute.</li>
+        </> : <>
+          <li>Un jeton s'affiche : copie-le dans <code>DEVICE_TOKEN</code> du <code>.env</code> du firmware.</li>
+          <li>Recompile et flashe la carte (<code>pio run -t upload</code>, ou le TUI).</li>
+          <li>Les premières mesures apparaissent ici en moins d'une minute.</li>
+        </>}
       </ol>
       <TokenReveal deviceId={secret?.id ?? ""} token={secret?.token ?? null} onClose={() => { const id = secret?.id ?? null; setSecret(null); onDone(id); }} />
     </div>

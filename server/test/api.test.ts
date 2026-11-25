@@ -493,6 +493,16 @@ describe("bilan", () => {
     expect((await admin("GET", url(`from=${1e15}&to=${1e15 + 86400}&kind=week`))).statusCode).toBe(400);
   });
 
+  it("writes its sentences in English on request, French by default", async () => {
+    const q = `from=${from}&to=${from + 7 * 86400}&kind=week&tz=Europe/Paris`;
+    const en = (await admin("GET", url(`${q}&lang=en`))).json();
+    expect(en.verdict.head).toMatch(/week/);
+    expect(en.takeaways.join(" ")).not.toMatch(/semaine/);
+    const fr = (await admin("GET", url(q))).json();
+    expect(fr.verdict.head).toMatch(/semaine/i);
+    expect((await admin("GET", url(`${q}&lang=de`))).statusCode).toBe(400);
+  });
+
   it("répond 404 pour une carte inconnue et 401 sans session", async () => {
     expect((await admin("GET", `/api/v1/devices/aqa-000000000000/report?from=${from}&to=${from + 86400}`)).statusCode).toBe(404);
     expect((await built.app.inject({ method: "GET", url: url(`from=${from}&to=${from + 86400}`) })).statusCode).toBe(401);

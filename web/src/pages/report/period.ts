@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { dateFmt } from "../../i18n/format";
+import { t } from "../../i18n/dict";
 
 // The period of the Bilan tab: a calendar week (Monday → Monday) or a calendar
 // month, in local time, with the one just before it for the comparison.
@@ -16,9 +18,9 @@ export interface Period {
 }
 
 const sec = (d: Date) => d.getTime() / 1000;
-const shortMonth = new Intl.DateTimeFormat("fr-FR", { month: "short" });
-const longMonth = new Intl.DateTimeFormat("fr-FR", { month: "long" });
-const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+const shortMonth = { format: (d: Date) => dateFmt({ month: "short" }).format(d) };
+const longMonth = { format: (d: Date) => dateFmt({ month: "long" }).format(d) };
+const monthYear = { format: (d: Date) => dateFmt({ month: "long", year: "numeric" }).format(d) };
 
 function weekLabels(first: Date, last: Date): { label: string; long: string } {
   const sameYear = first.getFullYear() === last.getFullYear();
@@ -27,9 +29,10 @@ function weekLabels(first: Date, last: Date): { label: string; long: string } {
   const m1 = shortMonth.format(first), m2 = shortMonth.format(last);
   const M1 = longMonth.format(first), M2 = longMonth.format(last);
   const y1 = first.getFullYear(), y2 = last.getFullYear();
-  if (sameMonth) return { label: `${d1} – ${d2} ${m2}`, long: `semaine du ${d1} au ${d2} ${M2} ${y2}` };
-  if (sameYear) return { label: `${d1} ${m1} – ${d2} ${m2}`, long: `semaine du ${d1} ${M1} au ${d2} ${M2} ${y2}` };
-  return { label: `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`, long: `semaine du ${d1} ${M1} ${y1} au ${d2} ${M2} ${y2}` };
+  const weekOf = t().report.weekOf;
+  if (sameMonth) return { label: `${d1} – ${d2} ${m2}`, long: weekOf(`${d1}`, `${d2} ${M2} ${y2}`) };
+  if (sameYear) return { label: `${d1} ${m1} – ${d2} ${m2}`, long: weekOf(`${d1} ${M1}`, `${d2} ${M2} ${y2}`) };
+  return { label: `${d1} ${m1} ${y1} – ${d2} ${m2} ${y2}`, long: weekOf(`${d1} ${M1} ${y1}`, `${d2} ${M2} ${y2}`) };
 }
 
 export function periodAt(kind: PeriodKind, offset: number, now: Date): Period {
@@ -47,7 +50,7 @@ export function periodAt(kind: PeriodKind, offset: number, now: Date): Period {
   const first = new Date(y, m + offset, 1);
   const label = monthYear.format(first);
   return {
-    kind, offset, current: offset === 0, label, long: `mois de ${label}`,
+    kind, offset, current: offset === 0, label, long: t().report.monthOf(label),
     from: sec(first), to: sec(new Date(y, m + offset + 1, 1)), prevFrom: sec(new Date(y, m + offset - 1, 1)),
   };
 }

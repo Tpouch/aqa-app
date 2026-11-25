@@ -2,6 +2,7 @@ import { bandOf, metricDef, toDisplay } from "../metrics";
 import type { DeviceSummary, Metric } from "../../../server/src/types";
 import { fmt } from "../util";
 import { gaugeAngle, gaugeScale, gaugeSegments } from "./gaugeGeometry";
+import { t } from "../i18n/dict";
 
 const R = 34;
 const CX = 50;
@@ -46,7 +47,7 @@ export function Gauge({ metric, device, stale, editing, lifted, first, last, onO
   const segments = gaugeSegments(def, scale);
   const dot = v === null ? null : point(gaugeAngle(scale, v));
   const value = v === null ? "—" : fmt(v, def.decimals);
-  const label = `${def.label} ${v === null ? "pas de mesure" : `${value} ${def.unit}`}${band ? `, ${band.word}` : ""}${stale ? ", valeur ancienne" : ""}`;
+  const label = `${def.label} ${v === null ? t().mobile.noReading : `${value} ${def.unit}`}${band ? `, ${band.word}` : ""}${stale ? t().mobile.stale : ""}`;
 
   const body = (
     <>
@@ -69,7 +70,7 @@ export function Gauge({ metric, device, stale, editing, lifted, first, last, onO
   const cls = `mb-gauge${tone === "bad" ? " bad" : ""}${stale ? " stale" : ""}${lifted ? " lifted" : ""}`;
   if (!editing) {
     return (
-      <button type="button" className={cls} data-metric={metric} onClick={onOpen} {...pointer} aria-label={`${label}. Ouvrir le graphe`}>
+      <button type="button" className={cls} data-metric={metric} onClick={onOpen} {...pointer} aria-label={t().mobile.openGraph(label)}>
         {body}
       </button>
     );
@@ -79,8 +80,8 @@ export function Gauge({ metric, device, stale, editing, lifted, first, last, onO
       <span className="mb-g-handle" aria-hidden {...pointer}>⋮⋮</span>
       {body}
       <span className="mb-g-move">
-        <button type="button" disabled={first} onClick={() => onMove(-1)} aria-label={`Monter ${def.label}`}><span aria-hidden>↑</span></button>
-        <button type="button" disabled={last} onClick={() => onMove(1)} aria-label={`Descendre ${def.label}`}><span aria-hidden>↓</span></button>
+        <button type="button" disabled={first} onClick={() => onMove(-1)} aria-label={t().mobile.moveUp(def.label)}><span aria-hidden>↑</span></button>
+        <button type="button" disabled={last} onClick={() => onMove(1)} aria-label={t().mobile.moveDown(def.label)}><span aria-hidden>↓</span></button>
       </span>
     </div>
   );

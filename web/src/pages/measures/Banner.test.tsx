@@ -53,3 +53,20 @@ describe("ComparePanel", () => {
     expect(out).not.toContain("Chambre");
   });
 });
+
+describe("Banner in English", () => {
+  it("reads in English", async () => {
+    const { setLang } = await import("../../i18n/lang");
+    const mem = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    setLang("en", mem);
+    try {
+      const out = banner(control());
+      for (const s of ["compare with…", "Data processing", "smoothed", "raw", "1 chart", "grid", "Previous day", "24 h rolling", "range…"]) {
+        expect(out).toContain(s);
+      }
+      expect(out).not.toMatch(/lissé|grille|comparer|Jour précédent/); // the subtitle prop is the fixture's own text
+    } finally {
+      setLang("fr", mem);
+    }
+  });
+});

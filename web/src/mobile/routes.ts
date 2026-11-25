@@ -1,4 +1,5 @@
 import { METRICS, type Metric } from "../../../server/src/types";
+import { t } from "../i18n/dict";
 
 // Phone view: five tabs at the bottom. Any other hash (the web tabs, legacy
 // links, nothing at all) lands on the dashboard; #/graph/<metric> is the
@@ -6,6 +7,10 @@ import { METRICS, type Metric } from "../../../server/src/types";
 export type MobileTab = "dashboard" | "bilan" | "alertes" | "infos" | "graph";
 
 export const MOBILE_TABS: MobileTab[] = ["dashboard", "bilan", "alertes", "infos", "graph"];
+/** Tab name in the active language. */
+export const mobileLabel = (tab: MobileTab): string =>
+  tab === "bilan" || tab === "alertes" || tab === "infos" ? t().tabs[tab] : MOBILE_LABEL[tab];
+
 export const MOBILE_LABEL: Record<MobileTab, string> = {
   dashboard: "Dashboard", bilan: "Bilan", alertes: "Alertes", infos: "Infos", graph: "Graph",
 };

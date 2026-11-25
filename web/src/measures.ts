@@ -1,5 +1,6 @@
 import type { Metric, SoundCalibration } from "../../server/src/types";
 import type { MetricDef } from "./metrics";
+import { t } from "./i18n/dict";
 
 // Grid of the Mesures page: one or two charts get the full width (taller), more go in two columns.
 export function gridColumns(n: number): 1 | 2 {
@@ -20,10 +21,11 @@ export function formatDuration(seconds: number): string {
   return rest ? `${h} h ${String(rest).padStart(2, "0")}` : `${h} h`;
 }
 
-// Summary line name: "CO₂ en zone mauvaise", "Température hors confort", "Son fort".
+// Summary line name: "CO₂ en zone mauvaise", "Température hors confort", "Son fort"
+// ("Loud sound" in English: the alert already names the metric, wherever the word sits).
 export function alertPhrase(def: MetricDef): string {
   const alert = (def.alertLabel ?? "").toLowerCase();
-  return alert.startsWith(def.label.toLowerCase())
+  return alert.split(" ").includes(def.label.toLowerCase())
     ? alert.charAt(0).toUpperCase() + alert.slice(1)
     : `${def.label} ${alert}`;
 }
@@ -38,6 +40,6 @@ export function csvFileName(room: string, id: string, what: string, day: string)
 
 // Banner subtitle: "Chambre · 24 h glissantes · moyennes sur 1 min" (room only with several boards).
 export function bannerSubtitle(room: string | null, period: string, step: string | null): string {
-  const text = period.charAt(0).toUpperCase() + period.slice(1) + (step ? ` · moyennes sur ${step}` : "");
+  const text = period.charAt(0).toUpperCase() + period.slice(1) + (step ? t().measures.averagesOver(step) : "");
   return room ? `${room} · ${text}` : text;
 }

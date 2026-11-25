@@ -2,7 +2,7 @@
 import { all, get, now, type Db } from "./db.js";
 import { buildReport, REPORT_STEP } from "./report.js";
 import type {
-  AggregateRow, AlertKind, DeviceReport, DeviceSummary, FrameRow, ReportKind, SoundCalibration,
+  AggregateRow, AlertKind, DeviceReport, DeviceSummary, FrameRow, ReportKind, ReportLang, SoundCalibration,
 } from "./types.js";
 
 export const ONLINE_WINDOW_S = 180;
@@ -69,7 +69,7 @@ export function aggregateRows(db: Db, id: string, from: number, to: number, step
 
 export function deviceReport(
   db: Db, d: DeviceDbRow,
-  q: { from: number; to: number; prevFrom: number; kind: ReportKind; tz: string; now: number },
+  q: { from: number; to: number; prevFrom: number; kind: ReportKind; tz: string; now: number; lang?: ReportLang },
 ): DeviceReport {
   const { from, to, prevFrom, kind, tz } = q;
   const alertKinds = (lo: number, hi: number) => all<{ kind: AlertKind }>(db,
@@ -82,5 +82,6 @@ export function deviceReport(
     current: aggregateRows(db, d.id, from, to - 1, REPORT_STEP),
     previous: aggregateRows(db, d.id, prevFrom, from - 1, REPORT_STEP),
     alerts: { current: alertKinds(from, to), previous: alertKinds(prevFrom, from) },
+    lang: q.lang,
   });
 }

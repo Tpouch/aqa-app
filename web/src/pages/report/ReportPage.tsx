@@ -5,6 +5,7 @@ import type { DeviceSummary } from "../../../../server/src/types";
 import { useNow, usePoll } from "../../util";
 import { periodAt, useReportKind } from "./period";
 import { ReportView } from "./ReportView";
+import { t } from "../../i18n/dict";
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -39,24 +40,25 @@ export function ReportPage({ id, device, compact = false }: {
     setOffset(0);
   };
 
+  const w = t().report;
   return (
     <div className={`rp${compact ? " compact" : ""}`}>
       <header className="rp-head">
         <div className="rp-title">
-          <h2>Bilan{device && !compact && <> · {device.name}</>}</h2>
-          <p className="muted">{period.long}{period.current && " · en cours"}</p>
+          <h2>{w.title}{device && !compact && <> · {device.name}</>}</h2>
+          <p className="muted">{period.long}{period.current && w.inProgress}</p>
         </div>
         <div className="rp-tools">
-          <div className="seg" role="group" aria-label="Durée du bilan">
-            <button type="button" aria-pressed={kind === "week"} onClick={() => pickKind("week")}>semaine</button>
-            <button type="button" aria-pressed={kind === "month"} onClick={() => pickKind("month")}>mois</button>
+          <div className="seg" role="group" aria-label={w.length}>
+            <button type="button" aria-pressed={kind === "week"} onClick={() => pickKind("week")}>{w.week}</button>
+            <button type="button" aria-pressed={kind === "month"} onClick={() => pickKind("month")}>{w.month}</button>
           </div>
-          <div className="seg rp-nav" role="group" aria-label="Période">
+          <div className="seg rp-nav" role="group" aria-label={w.period}>
             <button type="button" disabled={first} onClick={() => setOffset(offset - 1)}
-                    aria-label={kind === "week" ? "Semaine précédente" : "Mois précédent"}>‹</button>
+                    aria-label={kind === "week" ? w.prevWeek : w.prevMonth}>‹</button>
             <span className="rp-period" aria-live="polite">{period.label}</span>
             <button type="button" disabled={period.current} onClick={() => setOffset(offset + 1)}
-                    aria-label={kind === "week" ? "Semaine suivante" : "Mois suivant"}>›</button>
+                    aria-label={kind === "week" ? w.nextWeek : w.nextMonth}>›</button>
           </div>
         </div>
       </header>

@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { dateFmt } from "./i18n/format";
+import { t } from "./i18n/dict";
 
 // The period shown on the Mesures page: a sliding preset, one calendar day, or a free range.
 export type Range =
@@ -6,13 +8,13 @@ export type Range =
   | { kind: "day"; date: string } // YYYY-MM-DD, local time
   | { kind: "custom"; from: number; to: number };
 
-export const PRESETS = [
-  { label: "1 h", short: "1h", seconds: 3600 },
-  { label: "6 h", short: "6h", seconds: 6 * 3600 },
-  { label: "24 h", short: "24h", seconds: 86400 },
-  { label: "7 j", short: "7j", seconds: 7 * 86400 },
-  { label: "30 j", short: "30j", seconds: 30 * 86400 },
-] as const;
+// "24 h", "7 j" / "7 d"; short: "24h", "7j" / "7d". Read at render time.
+const presetLabel = (s: number) => (s > 86400 ? `${s / 86400} ${t().time.d}` : `${s / 3600} h`);
+export const PRESETS = [3600, 6 * 3600, 86400, 7 * 86400, 30 * 86400].map((seconds) => ({
+  seconds,
+  get label() { return presetLabel(seconds); },
+  get short() { return presetLabel(seconds).replace(" ", ""); },
+}));
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -28,8 +30,8 @@ export const shiftDay = (date: string, delta: number) => {
   const [y, m, d] = date.split("-").map(Number);
   return isoDay(new Date(y!, m! - 1, d! + delta));
 };
-const longDay = new Intl.DateTimeFormat("fr", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-const shortDT = new Intl.DateTimeFormat("fr", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const longDay = () => dateFmt({ weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const shortDT = () => dateFmt({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export interface Resolved { from: number; to: number; live: boolean; refresh: boolean; title: string }
 
@@ -38,19 +40,20 @@ export interface Resolved { from: number; to: number; live: boolean; refresh: bo
 export function resolveRange(r: Range, today: string): Resolved {
   if (r.kind === "preset") {
     const label = PRESETS.find((p) => p.seconds === r.seconds)?.label ?? "";
-    return { from: 0, to: r.seconds, live: true, refresh: true, title: `${label} glissante${r.seconds > 3600 ? "s" : ""}` };
+    return { from: 0, to: r.seconds, live: true, refresh: true, title: t().measures.rolling(label, r.seconds > 3600) };
   }
   if (r.kind === "day") {
     const start = dayStart(r.date);
-    return { from: start, to: start + 86400 - 1, live: false, refresh: r.date === today, title: longDay.format(new Date(start * 1000)) };
+    return { from: start, to: start + 86400 - 1, live: false, refresh: r.date === today, title: longDay().format(new Date(start * 1000)) };
   }
-  return { from: r.from, to: r.to, live: false, refresh: false, title: `${shortDT.format(r.from * 1000)} → ${shortDT.format(r.to * 1000)}` };
+  return { from: r.from, to: r.to, live: false, refresh: false, title: `${shortDT().format(r.from * 1000)} → ${shortDT().format(r.to * 1000)}` };
 }
 
 // "Sur 24 h", "sur la journée": the period in a sentence.
 export function periodLabel(r: Range): string {
-  if (r.kind === "preset") return PRESETS.find((p) => p.seconds === r.seconds)?.label ?? "la période";
-  return r.kind === "day" ? "la journée" : "la plage";
+  const m = t().measures;
+  if (r.kind === "preset") return PRESETS.find((p) => p.seconds === r.seconds)?.label ?? m.thePeriod;
+  return r.kind === "day" ? m.theDay : m.theRange;
 }
 
 const KEY = "aqa-sensor-range";

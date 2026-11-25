@@ -4,6 +4,8 @@ import { Button, Field, Skeleton, useToast } from "../../components/ui";
 import { usePoll } from "../../util";
 import type { NotifySettings } from "../../../../server/src/types";
 import { lastSendText, randomTopic } from "./notify";
+import { t } from "../../i18n/dict";
+import { getLang } from "../../i18n/lang";
 
 const TOPIC_RE = /^[-_A-Za-z0-9]{1,64}$/;
 
@@ -50,10 +52,10 @@ export function NotifySection({ now }: { now: number }) {
 
   function validate(f: Form): boolean {
     const next: Errors = {};
-    if (!/^https?:\/\/\S+$/.test(f.server.trim())) next.server = "Adresse complète attendue, par exemple https://ntfy.sh.";
+    if (!/^https?:\/\/\S+$/.test(f.server.trim())) next.server = t().alerts.ntfyServerFull;
     const topic = f.topic.trim();
-    if (topic && !TOPIC_RE.test(topic)) next.topic = "Lettres, chiffres, - et _ seulement (64 au plus).";
-    else if (!topic && f.enabled) next.topic = "Choisis un sujet pour activer les notifications.";
+    if (topic && !TOPIC_RE.test(topic)) next.topic = t().alerts.topicChars;
+    else if (!topic && f.enabled) next.topic = t().alerts.topicToEnable;
     setErrors(next);
     return !next.server && !next.topic;
   }
@@ -73,7 +75,7 @@ export function NotifySection({ now }: { now: number }) {
     e.preventDefault();
     setBusy("save");
     try {
-      if (await save()) toast("good", "Notifications enregistrées.");
+      if (await save()) toast("good", t().alerts.notifySaved);
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -84,7 +86,7 @@ export function NotifySection({ now }: { now: number }) {
   // The test uses what is on screen: pending changes are saved first.
   async function onTest() {
     if (form && !form.topic.trim()) {
-      setErrors({ topic: "Choisis un sujet pour envoyer un test." });
+      setErrors({ topic: t().alerts.topicToTest });
       return;
     }
     setBusy("test");
@@ -92,8 +94,8 @@ export function NotifySection({ now }: { now: number }) {
       if (!await save()) return;
       const s = await api.testNotify();
       setSaved(s);
-      if (s.last?.ok) toast("good", "Notification de test envoyée.");
-      else toast("bad", `Échec de l'envoi${s.last?.error ? ` : ${s.last.error}` : "."}`);
+      if (s.last?.ok) toast("good", t().alerts.testSent);
+      else toast("bad", t().alerts.sendFailed(s.last?.error ?? null));
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -107,7 +109,7 @@ export function NotifySection({ now }: { now: number }) {
       const s = await api.updateNotify({ token: null });
       setSaved(s);
       setForm((f) => f && { ...f, token: "" });
-      toast("good", "Jeton retiré.");
+      toast("good", t().alerts.tokenRemoved);
     } catch (err) {
       toast("bad", (err as Error).message);
     } finally {
@@ -120,51 +122,59 @@ export function NotifySection({ now }: { now: number }) {
 
   return (
     <section className="al-notify" aria-labelledby="al-notify-title">
-      <h3 id="al-notify-title" className="label-caps">Notifications</h3>
+      <h3 id="al-notify-title" className="label-caps">{t().alerts.notifications}</h3>
       {!saved && loadError ? (
-        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {loadError}</p>
+        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> {t().alerts.loadFailed(loadError)}</p>
       ) : !saved || !form ? <Skeleton height={260} /> : (
         <form className="al-notify-form" onSubmit={onSubmit} noValidate>
-          <p className="muted small">
-            Reçois les alertes de toutes les cartes sur ton téléphone avec l'app <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy</a> :
-            abonne-toi au même sujet. Sur ntfy.sh, quiconque connaît le sujet peut le lire : choisis un nom difficile à deviner.
-          </p>
+          {getLang() === "en" ? (
+            <p className="muted small">
+              Get the alerts of every board on your phone with the <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy</a> app:
+              subscribe to the same topic. On ntfy.sh, anyone who knows the topic can read it: pick a name that's hard to guess.
+              {" "}{t().alerts.frenchNote}
+            </p>
+          ) : (
+            <p className="muted small">
+              Reçois les alertes de toutes les cartes sur ton téléphone avec l'app <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy</a> :
+              abonne-toi au même sujet. Sur ntfy.sh, quiconque connaît le sujet peut le lire : choisis un nom difficile à deviner.
+            </p>
+          )}
           <label className="al-check">
             <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
-            Envoyer les alertes sur ntfy
+            {t().alerts.sendToNtfy}
           </label>
-          <Field label="Serveur" error={errors.server}>
+          <Field label={t().alerts.server} error={errors.server}>
             <input className="input mono" type="url" value={form.server} autoComplete="off" spellCheck={false}
                    aria-invalid={errors.server ? true : undefined} onChange={(e) => set("server", e.target.value)} />
           </Field>
           <div className="al-notify-inline">
-            <Field label="Sujet" error={errors.topic}>
+            <Field label={t().alerts.topic} error={errors.topic}>
               <input className="input mono" value={form.topic} autoComplete="off" spellCheck={false} maxLength={64}
                      placeholder="aqa-…" aria-invalid={errors.topic ? true : undefined}
                      onChange={(e) => set("topic", e.target.value)} />
             </Field>
-            <Button type="button" variant="ghost" size="sm" onClick={() => set("topic", randomTopic())}>au hasard</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => set("topic", randomTopic())}>{t().alerts.random}</Button>
           </div>
           <div className="al-notify-inline">
-            <Field label="Jeton d'accès (facultatif)"
-                   hint={saved.token_set ? "Un jeton est enregistré. Saisis-en un autre pour le remplacer." : "Pour un sujet protégé ou ton propre serveur ntfy."}>
+            <Field label={t().alerts.accessToken}
+                   hint={saved.token_set ? t().alerts.tokenSetHint : t().alerts.tokenHint}>
               <input className="input mono" type="password" value={form.token} autoComplete="new-password"
-                     placeholder={saved.token_set ? "jeton enregistré" : "tk_…"} onChange={(e) => set("token", e.target.value)} />
+                     placeholder={saved.token_set ? t().alerts.tokenSaved : "tk_…"} onChange={(e) => set("token", e.target.value)} />
             </Field>
             {saved.token_set && (
-              <Button type="button" variant="ghost" size="sm" onClick={removeToken} loading={busy === "token"}>retirer</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={removeToken} loading={busy === "token"}>{t().alerts.remove}</Button>
             )}
           </div>
           <label className="al-check">
             <input type="checkbox" checked={form.notify_close} onChange={(e) => set("notify_close", e.target.checked)} />
-            Prévenir aussi quand l'alerte se termine
+            {t().alerts.alsoOnClose}
           </label>
           <div className="al-notify-actions">
-            <Button type="submit" variant="primary" size="sm" loading={busy === "save"} disabled={!dirty || busy !== null}>enregistrer</Button>
-            <Button type="button" size="sm" onClick={onTest} loading={busy === "test"} disabled={busy !== null}>envoyer un test</Button>
+            <Button type="submit" variant="primary" size="sm" loading={busy === "save"} disabled={!dirty || busy !== null}>{t().alerts.save}</Button>
+            <Button type="button" size="sm" onClick={onTest} loading={busy === "test"} disabled={busy !== null}>{t().alerts.sendTest}</Button>
           </div>
           <p className="al-notify-status small" aria-live="polite">
-            <span className="muted">dernier envoi : </span>
+            <span className="muted">{t().alerts.lastSend}</span>
             {status?.tone && <span className={`tone-${status.tone}`} aria-hidden>{status.tone === "good" ? "● " : "▲ "}</span>}
             <span className={status?.tone === "bad" ? "tone-bad" : status?.tone ? undefined : "muted"}>{status?.text}</span>
           </p>

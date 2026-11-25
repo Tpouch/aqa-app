@@ -1,6 +1,8 @@
 import type { AlertRow, AlertRule, Metric } from "../../../../server/src/types";
+import { numFmt } from "../../i18n/format";
 import { metricDef } from "../../metrics";
 import { duration, fmt } from "../../util";
+import { t } from "../../i18n/dict";
 
 // Sound is already in dB on alerts: the uncalibrated def still gives 0 decimals.
 const decimals = (metric: Metric | null) => (metric ? metricDef(metric, null).decimals : 0);
@@ -13,17 +15,18 @@ export function alertValue(a: Pick<AlertRow, "metric" | "unit">, v: number | nul
 
 export function alertEnding(a: AlertRow): string | null {
   if (a.ended_at === null) return null;
-  if (a.end_reason === "disabled") return "règle désactivée";
-  if (a.kind === "offline") return "reconnectée";
-  return a.end_value === null ? "retour à la normale" : `retour à ${alertValue(a, a.end_value)}`;
+  const w = t().alerts;
+  if (a.end_reason === "disabled") return w.ruleDisabled;
+  if (a.kind === "offline") return w.reconnected;
+  return a.end_value === null ? w.backToNormal : w.backTo(alertValue(a, a.end_value));
 }
 
 // Thresholds are round numbers: no forced trailing zeros ("19 °C", not "19,0 °C").
 const threshold = (r: AlertRule) => r.threshold === null ? "—"
-  : r.threshold.toLocaleString("fr-FR", { maximumFractionDigits: decimals(r.metric) });
+  : numFmt({ maximumFractionDigits: decimals(r.metric) }).format(r.threshold);
 
 export function ruleSummary(r: AlertRule): string {
-  if (r.metric === null) return `plus de ${duration(r.duration_s)} sans contact`;
+  if (r.metric === null) return t().alerts.offlineFor(duration(r.duration_s));
   const sign = r.kind.endsWith("_low") ? "<" : ">";
   return `${sign} ${threshold(r)} ${r.unit} · ${duration(r.duration_s)}`;
 }
@@ -38,7 +41,7 @@ export function alertDate(epoch: number, nowSec: number): string {
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (d >= today) return `auj. ${time}`;
-  if (d >= yesterday) return `hier ${time}`;
+  if (d >= today) return t().alerts.today(time);
+  if (d >= yesterday) return t().alerts.yesterday(time);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}`;
 }

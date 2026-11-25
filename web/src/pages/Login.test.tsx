@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLang } from "../i18n/lang";
 import { Login } from "./Login";
 
 describe("Login, bouton afficher/masquer", () => {
@@ -18,5 +19,21 @@ describe("Login, bouton afficher/masquer", () => {
     expect(button).toContain('aria-label="Afficher le mot de passe"');
     expect(button).toContain('aria-controls="login-password"');
     expect(button).not.toContain("aria-pressed");
+  });
+});
+
+describe("Login, language", () => {
+  afterEach(() => setLang("fr", { getItem: () => null, setItem: () => {}, removeItem: () => {} }));
+
+  it("offers the language switch before logging in", () => {
+    expect(renderToStaticMarkup(<Login onLogin={() => {}} />)).toContain('aria-label="Switch to English"');
+  });
+
+  it("reads in English", () => {
+    setLang("en", { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+    const out = renderToStaticMarkup(<Login onLogin={() => {}} />);
+    expect(out).toContain("Admin password");
+    expect(out).toContain("Log in");
+    expect(out).not.toContain("Mot de passe");
   });
 });

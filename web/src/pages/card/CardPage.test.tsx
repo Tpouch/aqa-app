@@ -24,3 +24,22 @@ describe("CardPage, carte jamais connectée", () => {
     expect(out).toMatch(/Aucun rapport d(&#x27;|')état reçu/);
   });
 });
+
+describe("CardPage in English", () => {
+  it("reads in English", async () => {
+    const { setLang } = await import("../../i18n/lang");
+    const mem = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    setLang("en", mem);
+    try {
+      const fresh = html(board({}));
+      for (const s of ["waiting for first contact", "New token", "refresh status", "Restart", "Roll back to the previous firmware", "No pending command"]) {
+        expect(fresh).toContain(s);
+      }
+      const seen = html(board({ last_seen: 900 }));
+      expect(seen).toContain("No status report received");
+      expect(seen).not.toMatch(/Redémarrer|Aucun|actualiser|Journal/);
+    } finally {
+      setLang("fr", mem);
+    }
+  });
+});

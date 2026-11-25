@@ -789,6 +789,7 @@ div.cp-empty { display: grid; gap: 6px; }
 
 .login { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
 .login-panel { display: grid; gap: 14px; width: min(380px, 100%); padding: 24px 0; border-top: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+.login-lang { justify-self: end; }
 .login-brand { font-weight: 600; letter-spacing: 0.14em; color: var(--text); }
 .password { display: flex; align-items: center; gap: 8px; }
 .password .input { flex: 1; min-width: 0; }

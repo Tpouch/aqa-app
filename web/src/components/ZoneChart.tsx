@@ -3,9 +3,11 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { bandOptions, chartData, hoverDot, spreadAt, withSpread } from "../chartBand";
 import { labelSides, valueNear, type Cell } from "../compare";
+import { dateFmt } from "../i18n/format";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
 import { chartColumns, type Smoothing } from "../smooth";
 import { fmt } from "../util";
+import { t } from "../i18n/dict";
 
 interface Props {
   def: MetricDef;
@@ -35,9 +37,9 @@ function cssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-const hm = new Intl.DateTimeFormat("fr", { hour: "2-digit", minute: "2-digit" });
-const dm = new Intl.DateTimeFormat("fr", { day: "2-digit", month: "2-digit" });
-const wd = new Intl.DateTimeFormat("fr", { weekday: "short" });
+const hm = { format: (d: Date) => dateFmt({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d) };
+const dm = { format: (d: Date) => dateFmt({ day: "2-digit", month: "2-digit" }).format(d) };
+const wd = { format: (d: Date) => dateFmt({ weekday: "short" }).format(d) };
 
 // 24 h French tick labels; the date goes under midnight ticks and on day steps.
 function timeTicks(_u: uPlot, splits: number[], _axis: number, _space: number, incr: number) {
@@ -90,10 +92,11 @@ export function axisSplits(limits: (number | null)[], min: number, max: number, 
  *  compared room's. `past`: the window ended a while ago, so it's not "current". */
 export function currentLabel(def: MetricDef, past: boolean, last: number | null, other: { name: string; value: number | null } | null): string {
   const reading = (v: number) => `${fmt(v, def.decimals)} ${def.unit}`;
-  let own = "aucune mesure sur cette période";
-  if (last !== null) own = `${past ? "dernière valeur" : "valeur actuelle"} ${reading(last)}`;
+  const w = t().chart;
+  let own = w.noReadingPeriod;
+  if (last !== null) own = `${past ? w.lastValue : w.currentValue} ${reading(last)}`;
   if (!other) return own;
-  const theirs = other.value === null ? "aucune mesure" : reading(other.value);
+  const theirs = other.value === null ? w.noReading : reading(other.value);
   return `${own}, ${other.name} ${theirs}`;
 }
 
@@ -362,7 +365,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
     <span className="zc-plot">
       <span ref={box} className="zc-canvas" role="img"
             aria-label={`${def.label}, ${currentText}`} />
-      {empty && <span className="zc-empty">Aucune mesure{compare ? ` pour ${compare.here}` : ""} sur cette période</span>}
+      {empty && <span className="zc-empty">{t().chart.empty(compare ? compare.here : null)}</span>}
       {!compact && hovering && (
         <ZoneTip left={hover.left} flip={hover.flip} time={stamp(xs[hover.idx]!, range[1] - range[0])}
                  own={{ room: compare?.here, text: valueText, tone }}
@@ -374,7 +377,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   if (!compact) return <div className="zc">{canvas}</div>;
 
   return (
-    <button type="button" className="zc compact" onClick={onOpen} aria-label={`Ouvrir ${def.label} en grand, ${currentText}`}>
+    <button type="button" className="zc compact" onClick={onOpen} aria-label={t().chart.open(def.label, currentText)}>
       <span className="zc-head">
         <span className="zc-label">{def.label} <span className="muted">{def.unit}</span></span>
         <span className="zc-read" aria-hidden>

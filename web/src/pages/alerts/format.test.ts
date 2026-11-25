@@ -55,3 +55,26 @@ describe("alertDate", () => {
     expect(alertDate(at(12, 8, 15), now)).toBe("12/11 08:15");
   });
 });
+
+describe("alert texts in English", () => {
+  it("read in English", async () => {
+    const { setLang } = await import("../../i18n/lang");
+    const { lastSendText } = await import("./notify");
+    const mem = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    setLang("en", mem);
+    try {
+      const base = { kind: "co2_high", metric: "co2", unit: "ppm", ended_at: 10, end_value: null, end_reason: null } as never;
+      expect(alertEnding(base)).toBe("back to normal");
+      expect(alertEnding({ ...(base as object), end_value: 700 } as never)).toBe("back to 700 ppm");
+      expect(alertEnding({ ...(base as object), end_reason: "disabled" } as never)).toBe("rule disabled");
+      expect(alertEnding({ ...(base as object), kind: "offline" } as never)).toBe("reconnected");
+      expect(ruleSummary({ metric: null, kind: "offline", duration_s: 300 } as never)).toBe("over 5 min without contact");
+      const now = new Date(2026, 10, 24, 15, 0).getTime() / 1000;
+      expect(alertDate(new Date(2026, 10, 24, 14, 2).getTime() / 1000, now)).toBe("today 14:02");
+      expect(alertDate(new Date(2026, 10, 23, 22, 40).getTime() / 1000, now)).toBe("yesterday 22:40");
+      expect(lastSendText(null, now).text).toBe("nothing sent yet");
+    } finally {
+      setLang("fr", mem);
+    }
+  });
+});

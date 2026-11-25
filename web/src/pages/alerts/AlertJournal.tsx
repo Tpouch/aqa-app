@@ -3,6 +3,7 @@ import { toDisplay } from "../../metrics";
 import type { AlertRow, DeviceSummary } from "../../../../server/src/types";
 import { dateTime, duration } from "../../util";
 import { alertDate, alertEnding, alertValue } from "./format";
+import { t } from "../../i18n/dict";
 
 interface Props {
   open: AlertRow[] | undefined;
@@ -18,20 +19,20 @@ interface Props {
 export function AlertJournal({ open, history, error, device, now, hasMore, loadingMore, onMore }: Props) {
   return (
     <section className="al-journal" aria-labelledby="al-journal-title">
-      <h3 id="al-journal-title" className="label-caps">Journal</h3>
+      <h3 id="al-journal-title" className="label-caps">{t().alerts.journal}</h3>
       {!open && error ? (
-        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> Chargement impossible : {error}</p>
+        <p className="small tone-warn" role="alert"><span aria-hidden>▲</span> {t().alerts.loadFailed(error)}</p>
       ) : !open || !history ? <Skeleton height={200} /> : open.length === 0 && history.length === 0 ? (
-        <p className="muted small al-empty">Aucune alerte pour l'instant.</p>
+        <p className="muted small al-empty">{t().alerts.noAlertsYet}</p>
       ) : (
         <>
           {open.length > 0 && (
-            <ul className="al-now-list" aria-label="En cours">
+            <ul className="al-now-list" aria-label={t().alerts.open}>
               {open.map((a) => <NowItem key={a.id} alert={a} device={device} now={now} />)}
             </ul>
           )}
           {history.length > 0 && (
-            <ul className="al-log" aria-label="Historique">
+            <ul className="al-log" aria-label={t().alerts.history}>
               {history.map((a) => {
                 const ending = alertEnding(a);
                 return (
@@ -51,7 +52,7 @@ export function AlertJournal({ open, history, error, device, now, hasMore, loadi
             </ul>
           )}
           {hasMore && (
-            <Button variant="ghost" size="sm" className="al-more" onClick={onMore} loading={loadingMore}>plus ancien</Button>
+            <Button variant="ghost" size="sm" className="al-more" onClick={onMore} loading={loadingMore}>{t().alerts.older}</Button>
           )}
         </>
       )}
@@ -66,7 +67,7 @@ function NowItem({ alert: a, device, now }: { alert: AlertRow; device: DeviceSum
     <li className={`al-now ${a.tone}`}>
       <div className="al-now-top">
         <span className={`tone-${a.tone}`}>{a.label}{current !== null && <> · {alertValue(a, current)}</>}</span>
-        <span className="muted">depuis {duration(Math.max(0, now - a.started_at))}</span>
+        <span className="muted">{t().alerts.since(duration(Math.max(0, now - a.started_at)))}</span>
       </div>
       <p className="al-now-tip"><span className="muted" aria-hidden>→ </span>{a.advice}</p>
     </li>

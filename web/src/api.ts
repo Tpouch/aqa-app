@@ -1,10 +1,14 @@
 import type {
   AggregateRow, AlertKind, AlertRow, AlertRule, AlertRuleValues, ApiKey, CommandRow, CommandType, DeviceReport, DeviceSummary, EventRow, FirmwareRow, FrameRow, NotifySettings, SoundCalibration, UnknownDevice, WebhookSettings,
 } from "../../server/src/types";
+import { eventText } from "./i18n/events";
+import { sendError, serverError } from "./i18n/serverErrors";
+import { getLang, type Lang } from "./i18n/lang";
+import { localizeAlert, localizeReport } from "./i18n/vocab";
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
-    super(message);
+    super(serverError(message));
   }
 }
 
@@ -32,6 +36,11 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return data as T;
 }
 
+// The last send's failure reason is written in French by the server.
+function withSendError<T extends { last: { error: string | null } | null }>(s: T): T {
+  return s.last?.error ? { ...s, last: { ...s.last, error: sendError(s.last.error) } } : s;
+}
+
 export const api = {
   session: () => request<{ authenticated: boolean }>("GET", "/api/v1/session"),
   login: (password: string) => request<{ authenticated: boolean }>("POST", "/api/v1/session", { password }),
@@ -53,34 +62,39 @@ export const api = {
     request<{ step: number; buckets: AggregateRow[] }>(
       "GET", `/api/v1/devices/${id}/frames/aggregate?from=${from}&to=${to}&step=${step}`),
 
-  report: (id: string, p: { from: number; to: number; prevFrom: number; kind: "week" | "month" }, tz: string) =>
+  // Sentences come in the asked language; zone words and alert names are mapped here.
+  report: (id: string, p: { from: number; to: number; prevFrom: number; kind: "week" | "month" }, tz: string, lang: Lang = getLang()) =>
     request<DeviceReport>("GET", `/api/v1/devices/${id}/report?from=${p.from}&to=${p.to}&prev_from=${p.prevFrom}` +
-      `&kind=${p.kind}&tz=${encodeURIComponent(tz)}`),
+      `&kind=${p.kind}&tz=${encodeURIComponent(tz)}&lang=${lang}`).then(localizeReport),
 
-  events: (id: string, limit = 200) => request<{ events: EventRow[] }>("GET", `/api/v1/devices/${id}/events?limit=${limit}`),
+  // Journal lines are stored in French: rebuilt in the active language.
+  events: (id: string, limit = 200) => request<{ events: EventRow[] }>("GET", `/api/v1/devices/${id}/events?limit=${limit}`)
+    .then((r) => ({ events: r.events.map((e) => ({ ...e, message: eventText(e) })) })),
 
   commands: (id: string) => request<{ commands: CommandRow[] }>("GET", `/api/v1/devices/${id}/commands`),
   sendCommand: (id: string, type: CommandType, params?: Record<string, unknown>) =>
     request<CommandRow>("POST", `/api/v1/devices/${id}/commands`, params ? { type, params } : { type }),
   cancelCommand: (id: string, cid: string) => request<void>("DELETE", `/api/v1/devices/${id}/commands/${cid}`),
 
-  alertRules: () => request<{ rules: AlertRule[] }>("GET", "/api/v1/alert-rules"),
+  // Alert names and advice come in French from the server: shown in the active language.
+  alertRules: () => request<{ rules: AlertRule[] }>("GET", "/api/v1/alert-rules").then((r) => ({ rules: r.rules.map(localizeAlert) })),
   updateAlertRule: (kind: AlertKind, patch: Partial<AlertRuleValues>) =>
-    request<AlertRule>("PATCH", `/api/v1/alert-rules/${kind}`, patch),
-  resetAlertRules: () => request<{ rules: AlertRule[] }>("POST", "/api/v1/alert-rules/reset"),
+    request<AlertRule>("PATCH", `/api/v1/alert-rules/${kind}`, patch).then(localizeAlert),
+  resetAlertRules: () => request<{ rules: AlertRule[] }>("POST", "/api/v1/alert-rules/reset").then((r) => ({ rules: r.rules.map(localizeAlert) })),
   alerts: (id: string, before?: number, beforeId?: number) =>
     request<{ open: AlertRow[]; history: AlertRow[] }>(
-      "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}${beforeId === undefined ? "" : `&before_id=${beforeId}`}`}`),
+      "GET", `/api/v1/devices/${id}/alerts${before === undefined ? "" : `?before=${before}${beforeId === undefined ? "" : `&before_id=${beforeId}`}`}`)
+      .then((r) => ({ open: r.open.map(localizeAlert), history: r.history.map(localizeAlert) })),
 
-  notify: () => request<NotifySettings>("GET", "/api/v1/notify"),
+  notify: () => request<NotifySettings>("GET", "/api/v1/notify").then(withSendError),
   // token: a string replaces it, null removes it, absent keeps it.
   updateNotify: (patch: Partial<Pick<NotifySettings, "enabled" | "server" | "topic" | "notify_close">> & { token?: string | null }) =>
-    request<NotifySettings>("PATCH", "/api/v1/notify", patch),
-  testNotify: () => request<NotifySettings>("POST", "/api/v1/notify/test"),
-  webhook: () => request<WebhookSettings>("GET", "/api/v1/webhook"),
+    request<NotifySettings>("PATCH", "/api/v1/notify", patch).then(withSendError),
+  testNotify: () => request<NotifySettings>("POST", "/api/v1/notify/test").then(withSendError),
+  webhook: () => request<WebhookSettings>("GET", "/api/v1/webhook").then(withSendError),
   updateWebhook: (patch: Partial<Pick<WebhookSettings, "enabled" | "url" | "notify_close">> & { secret?: string | null }) =>
-    request<WebhookSettings>("PATCH", "/api/v1/webhook", patch),
-  testWebhook: () => request<WebhookSettings>("POST", "/api/v1/webhook/test"),
+    request<WebhookSettings>("PATCH", "/api/v1/webhook", patch).then(withSendError),
+  testWebhook: () => request<WebhookSettings>("POST", "/api/v1/webhook/test").then(withSendError),
 
   firmware: () => request<{ firmware: FirmwareRow[] }>("GET", "/api/v1/firmware"),
   uploadFirmware: (form: FormData) => request<{ version: string; size: number }>("POST", "/api/v1/firmware", form),

@@ -4,6 +4,7 @@ import { alertPhrase, formatDuration, gridColumns } from "../../measures";
 import type { MetricDef } from "../../metrics";
 import type { Smoothing } from "../../smooth";
 import type { Metric } from "../../../../server/src/types";
+import { t } from "../../i18n/dict";
 
 const GAP = 10;          // .ms-grid gap
 const BOTTOM = 16;       // .shell-main bottom padding
@@ -49,7 +50,7 @@ export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: 
     };
   }, [rows, headRef]);
 
-  if (!n) return <p className="muted ms-empty">Coche au moins une mesure dans la colonne</p>;
+  if (!n) return <p className="muted ms-empty">{t().measures.tickAtLeastOne}</p>;
 
   const zoned = items.filter((i) => i.def.alertLabel && i.alertSeconds !== null);
   const summary = cols === 2 && n % 2 === 1;
@@ -62,15 +63,15 @@ export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: 
       ))}
       {summary && (
         <div className="ms-summary">
-          {zoned.length === 0 ? <p className="ms-summary-title">Aucune mesure sur {period}</p> : (
+          {zoned.length === 0 ? <p className="ms-summary-title">{t().measures.noReadingOver(period)}</p> : (
             <>
-              <p className="ms-summary-title">Sur {period}</p>
+              <p className="ms-summary-title">{t().measures.over(period)}</p>
               <ul>
                 {zoned.map((i) => (
                   <li key={i.metric}>{alertPhrase(i.def)} <b>{formatDuration(i.alertSeconds!)}</b></li>
                 ))}
               </ul>
-              {zoned.every((i) => i.alertSeconds === 0) && <p>Tout le reste dans le confort</p>}
+              {zoned.every((i) => i.alertSeconds === 0) && <p>{t().measures.restComfortable}</p>}
             </>
           )}
         </div>

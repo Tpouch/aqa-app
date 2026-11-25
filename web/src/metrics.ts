@@ -1,6 +1,9 @@
 import { soundDb } from "../../server/src/sound";
 import { bandOf as bandIn, ZONES, type Band } from "../../server/src/zones";
 import type { Metric, SoundCalibration, Tone } from "../../server/src/types";
+import { t } from "./i18n/dict";
+import { numFmt } from "./i18n/format";
+import { zoneWord } from "./i18n/vocab";
 
 export type { Band, Tone };
 export interface MetricDef {
@@ -13,42 +16,47 @@ export interface MetricDef {
   nonNegative: boolean;
 }
 
-const BAD_ZONE = "EN ZONE MAUVAISE";
-const OUT_OF_COMFORT = "HORS CONFORT";
 
 /** Zones du son une fois calibré en dB estimés (définies dans server/src/zones.ts). */
 export const SOUND_DB_BANDS = ZONES.snd_db;
 
+// Zone words in the active language (the server's words are French).
+const words = (bands: readonly Band[]): readonly Band[] => bands.map((b) => ({ ...b, word: zoneWord(b.word) }));
+
 export function metricDef(metric: Metric, cal: SoundCalibration | null): MetricDef {
+  const m = t().metrics;
+  const BAD_ZONE = m.badZone;
+  const OUT_OF_COMFORT = m.outOfComfort;
   switch (metric) {
     case "co2":
-      return { metric, label: "CO₂", unit: "ppm", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: ZONES.co2 };
+      return { metric, label: m.co2, unit: "ppm", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: words(ZONES.co2) };
     case "pm25":
-      return { metric, label: "PM2.5", unit: "µg/m³", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: ZONES.pm25 };
+      return { metric, label: m.pm25, unit: "µg/m³", decimals: 0, alertLabel: BAD_ZONE, nonNegative: true, bands: words(ZONES.pm25) };
     case "temp":
-      return { metric, label: "Température", unit: "°C", decimals: 1, alertLabel: OUT_OF_COMFORT, nonNegative: false, bands: ZONES.temp };
+      return { metric, label: m.temp, unit: "°C", decimals: 1, alertLabel: OUT_OF_COMFORT, nonNegative: false, bands: words(ZONES.temp) };
     case "hum":
-      return { metric, label: "Humidité", unit: "%", decimals: 0, alertLabel: OUT_OF_COMFORT, nonNegative: true, bands: ZONES.hum };
+      return { metric, label: m.hum, unit: "%", decimals: 0, alertLabel: OUT_OF_COMFORT, nonNegative: true, bands: words(ZONES.hum) };
     case "snd":
       return cal
-        ? { metric, label: "Son", unit: "dB (estimé)", decimals: 0, alertLabel: "SON FORT", nonNegative: true, bands: ZONES.snd_db }
-        : { metric, label: "Son", unit: "amplitude", decimals: 0, alertLabel: null, nonNegative: true, bands: null };
+        ? { metric, label: m.snd, unit: m.dbEstimated, decimals: 0, alertLabel: m.loudSound, nonNegative: true, bands: words(ZONES.snd_db) }
+        : { metric, label: m.snd, unit: m.amplitude, decimals: 0, alertLabel: null, nonNegative: true, bands: null };
   }
 }
 
-const frNum = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+const frNum = (n: number) => numFmt({ maximumFractionDigits: 1 }).format(n);
 
 /** Plage lisible de chaque bande, dans l'ordre : « moins de 800 ppm », « 800 à 1 200 ppm », « 1 200 ppm et plus ». */
 export function bandRanges(bands: readonly Band[], unit: string): string[] {
+  const w = t().bands;
   return bands.map((b, i) => {
     const prev = bands[i - 1];
     if (b.to === null) {
       const lo = frNum(prev?.to ?? 0);
-      return prev?.inclusive ? `plus de ${lo} ${unit}` : `${lo} ${unit} et plus`;
+      return prev?.inclusive ? w.over(lo, unit) : w.andOver(lo, unit);
     }
     const to = `${frNum(b.to)} ${unit}`;
-    if (!prev || prev.to === null) return b.inclusive ? `jusqu'à ${to}` : `moins de ${to}`;
-    return `${frNum(prev.to)} à ${to}`;
+    if (!prev || prev.to === null) return b.inclusive ? w.upTo(to) : w.lessThan(to);
+    return w.between(frNum(prev.to), to);
   });
 }
 

@@ -1,5 +1,6 @@
 import type { DeviceSummary } from "../../../server/src/types";
 import { roomState } from "../rooms";
+import { t } from "../i18n/dict";
 
 // Every board, one line each: name, worst zone now, open alerts. Picking one shows it.
 export function RoomList({ devices, current, onPick }: {
@@ -8,7 +9,7 @@ export function RoomList({ devices, current, onPick }: {
   onPick: (id: string) => void;
 }) {
   return (
-    <ul className="rooms" aria-label="Pièces">
+    <ul className="rooms" aria-label={t().shell.rooms}>
       {devices.map((d) => {
         const st = roomState(d);
         const shown = d.id === current;
@@ -24,7 +25,7 @@ export function RoomList({ devices, current, onPick }: {
                 {d.open_alerts > 0 && (
                   <span className="tone-bad room-alerts">
                     <span aria-hidden> ▲ {d.open_alerts}</span>
-                    <span className="sr-only">, {d.open_alerts} alerte{d.open_alerts > 1 ? "s" : ""} en cours</span>
+                    <span className="sr-only">{t().shell.roomAlerts(d.open_alerts)}</span>
                   </span>
                 )}
               </span>

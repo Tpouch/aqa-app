@@ -153,3 +153,60 @@ describe("takeaways", () => {
     expect(takeaways(input({ measured_s: 0 }))).toEqual([]);
   });
 });
+
+// English: no space before ":" and "%", a no-break space between a number and its unit.
+const e = (s: string) => s.replace(/(\d) (ppm|°C|µg|d\b|h\b|min\b)/g, "$1 $2");
+
+describe("report in English", () => {
+  it("verdicts", () => {
+    expect(verdict("week", false, air(86, 14, 0), 100, "en"))
+      .toEqual({ tone: "good", head: "Good week", rest: ": the air was good 86% of the time." });
+    expect(verdict("week", true, air(72, 24, 4), 100, "en"))
+      .toEqual({ tone: "warn", head: "Average week so far", rest: ": the air was good 72% of the time, and bad 4%." });
+    expect(verdict("month", false, air(60, 18, 22), 100, "en"))
+      .toEqual({ tone: "bad", head: "Bad month", rest: ": the air was bad 22% of the time." });
+    expect(verdict("week", false, air(41, 55, 4), 100, "en").rest).toBe(": the air was only good 41% of the time.");
+    expect(verdict("week", false, air(0, 0, 0), 0, "en"))
+      .toEqual({ tone: null, head: "No readings", rest: " this week: the board may have been offline." });
+    expect(verdict("week", false, air(0, 0, 0), 3600, "en"))
+      .toEqual({ tone: null, head: "No air readings", rest: " this week: no CO₂ or fine particles, only comfort." });
+  });
+
+  it("comparisons", () => {
+    expect(comparison("co2", "week", period("co2", [70, 24, 6]), period("co2", [60, 29, 11]), 100, "en"))
+      .toEqual({ trend: "better", text: "Better than last week: 6% of the time in the bad zone, against 11%." });
+    expect(comparison("temp", "week", period("temp", [4, 81, 15]), period("temp", [2, 88, 10]), 100, "en"))
+      .toEqual({ trend: "worse", text: "Worse than last week: 19% of the time out of comfort, against 12%." });
+    expect(comparison("co2", "week", period("co2", [90, 10, 0]), period("co2", [80, 20, 0]), 100, "en"))
+      .toEqual({ trend: "same", text: "Same as last week: never in the bad zone." });
+    expect(comparison("co2", "custom", period("co2", [70, 24, 6]), period("co2", [100, 0, 0], 5), 100, "en"))
+      .toEqual({ trend: null, text: "Not enough readings in the previous period to compare." });
+  });
+
+  it("takeaways", () => {
+    const en = (over: Partial<TakeawayInput> = {}) => input({ lang: "en", ...over });
+    expect(takeaways(en())).toEqual(["No alerts this week.", "Nothing else to report: keep it up."]);
+    expect(takeaways(en({ dayHourCo2: withHour(6, 22, 1300) }))[0])
+      .toBe(e("CO₂ goes over 1,200 ppm almost every evening around 22:00: ventilate before going to bed."));
+    expect(takeaways(en({ dayHourCo2: withHour(4, 15, 1300) }))[0])
+      .toBe(e("CO₂ often goes over 1,200 ppm in the afternoon around 15:00: ventilate a little before."));
+    expect(takeaways(en({ dayHourCo2: withHour(7, 8, 900) }))[0])
+      .toBe(e("CO₂ rises above 800 ppm almost every morning around 8:00: ventilate as soon as you wake up."));
+    const dry = en();
+    dry.metrics[4]!.current = period("hum", [40, 60, 0], 7 * 86400);
+    expect(takeaways(dry)[0]).toBe("The air was too dry 40% of the time (below 40%): ventilate for shorter periods or use a humidifier.");
+    const peak = en();
+    peak.metrics[0]!.current = period("co2", [80, 10, 10], 7 * 86400, { max: { v: 1850, ts: Date.UTC(2026, 10, 19, 21, 10) / 1000 } });
+    expect(takeaways(peak)).toContain(e("Worst moment: 1,850 ppm of CO₂ on Thursday 19 November around 22:00."));
+    expect(takeaways(en({ measured_s: 5 * 86400 + 20 * 3600 }))[0])
+      .toBe(e("No readings for 1 d 4 h: check that the board stays plugged in and connected."));
+    const alerts = { current: 3, previous: 5, by_kind: [
+      { kind: "co2_high" as const, label: "CO₂ élevé", count: 2 }, { kind: "hum_low" as const, label: "Air trop sec", count: 1 }] };
+    expect(takeaways(en({ alerts, tone: "warn" })))
+      .toEqual(["3 alerts this week (High CO₂ ×2, Air too dry), against 5 last week."]);
+    expect(takeaways(en({ alerts: { current: 1, previous: 0, by_kind: [{ kind: "offline", label: "Carte hors ligne", count: 1 }] }, tone: "warn" })))
+      .toEqual(["1 alert this week (Board offline), against none last week."]);
+    expect(takeaways(en({ alerts: { current: 0, previous: 2, by_kind: [] }, kind: "month" }))[0])
+      .toBe("No alerts this month, against 2 last month.");
+  });
+});
