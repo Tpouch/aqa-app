@@ -89,10 +89,12 @@ export function axisSplits(limits: (number | null)[], min: number, max: number, 
 /** What the screen reader hears: the last value (null = none in the window), and the
  *  compared room's. `past`: the window ended a while ago, so it's not "current". */
 export function currentLabel(def: MetricDef, past: boolean, last: number | null, other: { name: string; value: number | null } | null): string {
-  const own = last === null ? "aucune mesure sur cette période"
-    : `${past ? "dernière valeur" : "valeur actuelle"} ${fmt(last, def.decimals)} ${def.unit}`;
+  const reading = (v: number) => `${fmt(v, def.decimals)} ${def.unit}`;
+  let own = "aucune mesure sur cette période";
+  if (last !== null) own = `${past ? "dernière valeur" : "valeur actuelle"} ${reading(last)}`;
   if (!other) return own;
-  return `${own}, ${other.name} ${other.value === null ? "aucune mesure" : `${fmt(other.value, def.decimals)} ${def.unit}`}`;
+  const theirs = other.value === null ? "aucune mesure" : reading(other.value);
+  return `${own}, ${other.name} ${theirs}`;
 }
 
 export const toneClass = (tone: Tone | undefined) => (tone ? `tone-${tone}` : "");
@@ -362,7 +364,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
             aria-label={`${def.label}, ${currentText}`} />
       {empty && <span className="zc-empty">Aucune mesure{compare ? ` pour ${compare.here}` : ""} sur cette période</span>}
       {!compact && hovering && (
-        <ZoneTip left={hover!.left} flip={hover!.flip} time={stamp(xs[hover!.idx]!, range[1] - range[0])}
+        <ZoneTip left={hover.left} flip={hover.flip} time={stamp(xs[hover.idx]!, range[1] - range[0])}
                  own={{ room: compare?.here, text: valueText, tone }}
                  other={compare && { room: compare.name, text: `${fmt(otherValue, def.decimals)} ${def.unit}`, tone: otherTone }} />
       )}

@@ -78,12 +78,12 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
           <div className="seg">
             <button type="button" disabled={csvDisabled} onClick={onCsv}>csv <span aria-hidden>↓</span></button>
           </div>
-          <div className="seg" role="group" aria-label="Traitement des données">
+          <fieldset className="seg" aria-label="Traitement des données">
             {SMOOTH_MODES.map((m) => (
               <button key={m} type="button" title={SMOOTH_TITLE[m]} aria-pressed={smoothing === m}
                       onClick={() => onSmoothing(m)}>{SMOOTH_LABEL[m]}</button>
             ))}
-          </div>
+          </fieldset>
           <div className="seg" role="group" aria-label="Affichage">
             <button type="button" aria-pressed={view === "single"} onClick={() => onView("single")}>1 graphe</button>
             <button type="button" aria-pressed={view === "grid"} onClick={() => onView("grid")}>grille</button>

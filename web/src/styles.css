@@ -144,6 +144,7 @@ table { border-collapse: collapse; }
 /* ---------------------------------------------------------------- segmented group */
 
 .seg { display: inline-flex; border: 1px solid var(--rule-strong); }
+fieldset.seg { margin: 0; padding: 0; min-inline-size: 0; }
 .seg > button {
   min-height: 30px;
   padding: 4px 10px;
