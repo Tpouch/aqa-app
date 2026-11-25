@@ -18,6 +18,8 @@
   --good-band: rgb(127 191 138 / 0.10);
   --warn-band: rgb(227 179 65 / 0.10);
   --bad-band: rgb(255 106 61 / 0.12);
+  --margin: #8d887d;        /* band edges: neutral, colour is for zones */
+  --margin-band: rgb(233 229 220 / 0.10);
   --scrim: rgb(0 0 0 / 0.6);
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -36,6 +38,8 @@
   --good-band: rgb(46 112 64 / 0.09);
   --warn-band: rgb(127 93 0 / 0.09);
   --bad-band: rgb(181 54 26 / 0.08);
+  --margin: #6b665c;
+  --margin-band: rgb(28 27 25 / 0.08);
   --scrim: rgb(28 27 25 / 0.35);
   color-scheme: light;
 }

@@ -3,6 +3,7 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { labelSides, mergeSeries, valueNear, type Cell } from "../compare";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
+import { displaySeries, type Smoothing } from "../smooth";
 import { fmt } from "../util";
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onOpen?: () => void;
   // Another room on the same chart (single view): dashed curve, its name at the end.
   compare?: Compare;
+  // Smoothed curve, or smoothed with its ± 2σ band; absent = raw values.
+  smoothing?: Smoothing;
 }
 
 export interface Compare {
@@ -71,7 +74,7 @@ function useThemeKey() {
   return key;
 }
 
-export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare }: Props) {
+export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare, smoothing }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const theme = useThemeKey();
@@ -84,14 +87,22 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   // left: px from the chart's left edge; flip: tooltip goes left of the line.
   const [hover, setHover] = useState<{ idx: number; left: number; flip: boolean } | null>(null);
 
-  // With another room, both series share one time axis (see mergeSeries).
-  const merged = useMemo(
-    () => compare ? mergeSeries(ownXs, ownYs, compare.xs, compare.ys) : { xs: ownXs, a: ownYs as Cell[], b: null },
+  // Smoothed (or raw) curves; with another room, both share one time axis (see
+  // mergeSeries) and the band is laid on that axis too. The other room gets no band.
+  const merged = useMemo(() => {
+    const own = displaySeries(ownXs, ownYs, smoothing);
+    if (!compare) return { xs: ownXs, a: own.ys as Cell[], b: null, lo: own.lo as Cell[] | null, hi: own.hi as Cell[] | null, sd: own.sd as Cell[] | null };
+    const otherYs = displaySeries(compare.xs, compare.ys, smoothing).ys;
+    const m = mergeSeries(ownXs, own.ys, compare.xs, otherYs);
+    const align = (v: (number | null)[] | null) => v && mergeSeries(ownXs, v, compare.xs, otherYs).a;
+    return { ...m, lo: align(own.lo), hi: align(own.hi), sd: align(own.sd) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ownXs, ownYs, compare?.xs, compare?.ys],
-  );
-  const { xs, a: ys, b: others } = merged;
-  const data: uPlot.AlignedData = others ? [xs, ys, others] : [xs, ys];
+  }, [ownXs, ownYs, compare?.xs, compare?.ys, smoothing?.mode, smoothing?.window]);
+  const { xs, a: ys, b: others, lo, hi, sd } = merged;
+  const data: uPlot.AlignedData = [xs, ys, ...(others ? [others] : []), ...(lo && hi ? [lo, hi] : [])];
+  // Index of the band's lower edge (upper = +1): after the curves.
+  const bandFrom = others ? 3 : 2;
+  const banded = smoothing?.mode === "band";
   const last = useMemo(() => lastIndex(ys), [ys]);
   const lastOther = useMemo(() => (others ? lastIndex(others) : -1), [others]);
   const empty = last < 0;
@@ -105,6 +116,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       text: cssVar("--text"), muted: cssVar("--muted"), rule: cssVar("--rule"), bg: cssVar("--bg"),
       tone: { good: cssVar("--good"), warn: cssVar("--warn"), bad: cssVar("--bad") } as Record<Tone, string>,
       band: { good: cssVar("--good-band"), warn: cssVar("--warn-band"), bad: cssVar("--bad-band") } as Record<Tone, string>,
+      margin: cssVar("--margin"), marginBand: cssVar("--margin-band"),
       mono: cssVar("--mono"),
     };
     const font = (size: number, weight = 400) => `${weight} ${Math.round(size * px)}px ${c.mono}`;
@@ -218,8 +230,9 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         drag: { x: false, y: false },
         y: false,
         points: {
-          size: 8,
-          width: 2,
+          // No hover dot on the band's edges.
+          size: (_u, si) => (si >= bandFrom ? 0 : 8),
+          width: (_u, si) => (si >= bandFrom ? 0 : 2),
           stroke: c.bg,
           fill: (u, si) => toneOf((u.data[si] as Cell[])[u.cursor.idxs?.[si] ?? u.cursor.idx ?? -1]),
         },
@@ -247,7 +260,9 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         {},
         { stroke: c.text, width: 2, spanGaps: false, points: { show: false } },
         ...(compare ? [{ stroke: c.muted, width: 1.5, dash: [6 * px, 4 * px], spanGaps: false, points: { show: false } }] : []),
+        ...(banded ? [0, 1].map(() => ({ stroke: c.margin, width: 1, spanGaps: false, points: { show: false } })) : []),
       ],
+      ...(banded ? { bands: [{ series: [bandFrom + 1, bandFrom] as [number, number], fill: c.marginBand }] } : {}),
       axes: [
         { ...axis, space: compact ? 60 : 70, values: timeTicks },
         {
@@ -284,10 +299,11 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       plot.current?.destroy();
       plot.current = null;
     };
-    // Re-create only when the metric, its bands, mode, theme or compared room changes;
+    // Re-create only when the metric, its bands, mode, theme, compared room or smoothing
+    // mode (it adds or removes the band's series) changes;
     // data, window and height are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare]);
+  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare, smoothing?.mode]);
 
   useEffect(() => {
     plot.current?.setData(data, false);
@@ -305,7 +321,8 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   const tolerance = compare?.tolerance ?? 0;
   const value = idx >= 0 ? valueNear(xs, ys, idx, tolerance) : null;
   const tone = bandOf(def, value)?.tone;
-  const valueText = `${fmt(value, def.decimals)} ${def.unit}`;
+  const spread = sd && hovering ? valueNear(xs, sd, hover!.idx, tolerance) : null;
+  const valueText = `${fmt(value, def.decimals)} ${def.unit}${spread === null ? "" : ` ± ${fmt(2 * spread, def.decimals)}`}`;
   const otherValue = others && hovering ? valueNear(xs, others, hover!.idx, tolerance) : null;
   const otherTone = bandOf(def, otherValue)?.tone;
 

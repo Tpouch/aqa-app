@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ZoneChart } from "../../components/ZoneChart";
 import { alertPhrase, formatDuration, gridColumns } from "../../measures";
 import type { MetricDef } from "../../metrics";
+import type { Smoothing } from "../../smooth";
 import type { Metric } from "../../../../server/src/types";
 
 const GAP = 10;          // .ms-grid gap
@@ -12,11 +13,12 @@ const NARROW = "(max-width: 720px)";
 export interface GridItem { metric: Metric; def: MetricDef; ys: (number | null)[]; alertSeconds: number | null }
 
 // Checked metrics, sized so that every row fits in the visible height (within 140–260 px a chart).
-export function Grid({ items, xs, xRange, period, onOpen, headRef }: {
+export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: {
   items: GridItem[];
   xs: number[];
   xRange: [number, number];
   period: string;
+  smoothing: Smoothing;
   onOpen: (m: Metric) => void;
   headRef: RefObject<HTMLElement | null>;
 }) {
@@ -55,7 +57,7 @@ export function Grid({ items, xs, xRange, period, onOpen, headRef }: {
   return (
     <div ref={box} className="ms-grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {items.map((i) => (
-        <ZoneChart key={i.metric} compact def={i.def} xs={xs} ys={i.ys} range={xRange} height={height}
+        <ZoneChart key={i.metric} compact def={i.def} xs={xs} ys={i.ys} range={xRange} height={height} smoothing={smoothing}
                    onOpen={() => onOpen(i.metric)} />
       ))}
       {summary && (
