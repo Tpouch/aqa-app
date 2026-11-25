@@ -22,7 +22,7 @@ const SMOOTH_TITLE: Record<SmoothMode, string> = {
 
 // Top of the Mesures page: what is shown, over which period, and the controls.
 // Same controls in both views; "plage…" and "comparer avec…" open their panel underneath.
-export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled, smoothing, onSmoothing, compare }: {
+export function Banner({ headRef, title, subtitle, range, onRange, today, view, onView, onCsv, csvDisabled, smoothing, onSmoothing, compare }: Readonly<{
   headRef: RefObject<HTMLElement | null>;
   title: ReactNode;
   subtitle: string;
@@ -36,7 +36,7 @@ export function Banner({ headRef, title, subtitle, range, onRange, today, view, 
   smoothing: SmoothMode;
   onSmoothing: (m: SmoothMode) => void;
   compare?: CompareControl;
-}) {
+}>) {
   const [panel, setPanel] = useState<null | "range" | "compare">(null);
   const toggle = (p: "range" | "compare") => setPanel(panel === p ? null : p);
   const day = range.kind === "day" ? range.date : today;

@@ -13,7 +13,7 @@ const NARROW = "(max-width: 720px)";
 export interface GridItem { metric: Metric; def: MetricDef; ys: (number | null)[]; alertSeconds: number | null }
 
 // Checked metrics, sized so that every row fits in the visible height (within 140–260 px a chart).
-export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: {
+export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: Readonly<{
   items: GridItem[];
   xs: number[];
   xRange: [number, number];
@@ -21,7 +21,7 @@ export function Grid({ items, xs, xRange, period, smoothing, onOpen, headRef }: 
   smoothing: Smoothing;
   onOpen: (m: Metric) => void;
   headRef: RefObject<HTMLElement | null>;
-}) {
+}>) {
   const box = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(() => matches(NARROW));
   const [height, setHeight] = useState(180);

@@ -74,7 +74,13 @@ function useThemeKey() {
   return key;
 }
 
-export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare, smoothing }: Props) {
+// "612 ppm", or "612 ppm ± 40" with the band's half-width (2 sd) in band mode.
+function withSpread(def: MetricDef, value: number | null, spread: number | null) {
+  const text = `${fmt(value, def.decimals)} ${def.unit}`;
+  return spread === null ? text : `${text} ± ${fmt(2 * spread, def.decimals)}`;
+}
+
+export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare, smoothing }: Readonly<Props>) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const theme = useThemeKey();
@@ -317,8 +323,8 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   const tolerance = compare?.tolerance ?? 0;
   const value = idx >= 0 ? valueNear(xs, ys, idx, tolerance) : null;
   const tone = bandOf(def, value)?.tone;
-  const spread = sd && hovering ? valueNear(xs, sd, hover!.idx, tolerance) : null;
-  const valueText = `${fmt(value, def.decimals)} ${def.unit}${spread === null ? "" : ` ± ${fmt(2 * spread, def.decimals)}`}`;
+  const spread = sd && hover && hovering ? valueNear(xs, sd, hover.idx, tolerance) : null;
+  const valueText = withSpread(def, value, spread);
   const otherValue = others && hovering ? valueNear(xs, others, hover!.idx, tolerance) : null;
   const otherTone = bandOf(def, otherValue)?.tone;
 
