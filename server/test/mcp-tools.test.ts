@@ -149,7 +149,7 @@ describe("listAlerts", () => {
     alert(db, CHAMBRE, "co2_high", NOW - 7200, NOW - 3600);
     alert(db, CHAMBRE, "temp_high", NOW - 2 * 86400 - 600, NOW - 2 * 86400);
     const rows = (c: typeof ctx, q = {}) => ((listAlerts(c, q) as any).data.alerts as any[]);
-    expect(rows(ctx).map((a) => a.room).sort()).toEqual(["Chambre", "Salon"]);
+    expect(rows(ctx).map((a) => a.room).sort((a, b) => a.localeCompare(b))).toEqual(["Chambre", "Salon"]);
     expect(rows(ctx, { since: NOW - 3 * 86400 }).length).toBe(3);
     expect(rows(ctx, { room: "Salon" }).length).toBe(1);
     expect(rows(ctx)[0].duration_s).toBeGreaterThan(0);

@@ -1,14 +1,17 @@
 import { useCallback, useState } from "react";
 import { METRICS, type Metric } from "../../server/src/types";
+import { SMOOTH_MODES, type SmoothMode } from "./smooth";
 
 // What the Mesures page shows: one metric, or a grid of the checked ones, and the
-// room put next to the shown one on the single chart (board id, null = none).
+// room put next to the shown one on the single chart (board id, null = none),
+// and how the curves are drawn (smoothed, smoothed with a band, raw).
 // Kept for the browser tab's lifetime, like the other view settings.
-export interface Selection { view: "single" | "grid"; metric: Metric; grid: Metric[]; compare: string | null }
+export interface Selection { view: "single" | "grid"; metric: Metric; grid: Metric[]; compare: string | null; smoothing: SmoothMode }
 
-const KEYS = { view: "aqa-view", metric: "aqa-sensor-metric", grid: "aqa-grid-metrics", compare: "aqa-compare" } as const;
+const KEYS = { view: "aqa-view", metric: "aqa-sensor-metric", grid: "aqa-grid-metrics", compare: "aqa-compare", smoothing: "aqa-smoothing" } as const;
 
 const isMetric = (v: unknown): v is Metric => (METRICS as readonly unknown[]).includes(v);
+const isSmoothMode = (v: unknown): v is SmoothMode => (SMOOTH_MODES as readonly unknown[]).includes(v);
 
 function load(key: string): unknown {
   try {
@@ -23,12 +26,14 @@ export function readSelection(): Selection {
   const metric = load(KEYS.metric);
   const grid = load(KEYS.grid);
   const compare = load(KEYS.compare);
+  const smoothing = load(KEYS.smoothing);
   const checked = Array.isArray(grid) ? METRICS.filter((m) => grid.includes(m)) : [];
   return {
     view: view === "grid" ? "grid" : "single",
     metric: isMetric(metric) ? metric : "co2",
     grid: checked.length ? checked : [...METRICS],
     compare: typeof compare === "string" ? compare : null,
+    smoothing: isSmoothMode(smoothing) ? smoothing : "smooth",
   };
 }
 
@@ -38,6 +43,7 @@ function save(s: Selection) {
     sessionStorage.setItem(KEYS.metric, JSON.stringify(s.metric));
     sessionStorage.setItem(KEYS.grid, JSON.stringify(s.grid));
     sessionStorage.setItem(KEYS.compare, JSON.stringify(s.compare));
+    sessionStorage.setItem(KEYS.smoothing, JSON.stringify(s.smoothing));
   } catch {
     // Blocked storage: the selection still holds for this page view.
   }

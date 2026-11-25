@@ -6,6 +6,7 @@ import { bannerSubtitle, csvColumns, csvFileName } from "../../measures";
 import { metricDef, periodStats, soundDb, toDisplay } from "../../metrics";
 import { isoDay, periodLabel, resolveRange, useRange } from "../../range";
 import type { Selection } from "../../selection";
+import { smoothWindow, type Smoothing } from "../../smooth";
 import { METRICS, type DeviceSummary, type Metric, type SoundCalibration } from "../../../../server/src/types";
 import { downloadCsv } from "../../util";
 import { stepLabel, useSeries } from "../device/shared";
@@ -55,6 +56,9 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
     [series.columns, calibration],
   );
   const period = series.step || 15;
+  // Same width on every chart; rounded so the 30 s poll, which nudges the window, keeps it.
+  const smoothWin = Math.round(smoothWindow(series.window[1] - series.window[0], period));
+  const smoothing = useMemo<Smoothing>(() => ({ mode: selection.smoothing, window: smoothWin }), [selection.smoothing, smoothWin]);
   const items = useMemo(() => METRICS.map((m) => {
     const def = metricDef(m, calibration);
     const ys = display[m];
@@ -105,7 +109,9 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
     <div className="ms">
       <Banner headRef={head} title={title} subtitle={subtitle} range={range} onRange={setRange} today={today}
               view={selection.view} onView={(view) => onSelection({ ...selection, view })}
-              onCsv={exportCsv} csvDisabled={!rows.length || !shown.length} compare={compareControl} />
+              onCsv={exportCsv} csvDisabled={!rows.length || !shown.length}
+              smoothing={selection.smoothing} onSmoothing={(smoothing) => onSelection({ ...selection, smoothing })}
+              compare={compareControl} />
 
       {failed && (
         <p className="callout warn" role="alert"><span aria-hidden>▲</span> {series.error}</p>
@@ -116,14 +122,14 @@ export function MeasuresPage({ id, device, others, selection, onSelection }: {
           <StatsRow def={single.def} stats={series.loading ? undefined : single.stats} span={series.window[1] - series.window[0]} period={periodText} />
           {series.loading
             ? <Skeleton height={310} />
-            : <ZoneChart def={single.def} xs={series.columns.xs} ys={single.ys} range={series.window} height={310} compare={compare} />}
+            : <ZoneChart def={single.def} xs={series.columns.xs} ys={single.ys} range={series.window} height={310} compare={compare} smoothing={smoothing} />}
         </>
       )}
 
       {!failed && grid && (series.loading
         ? <Skeleton height={400} />
         : (
-          <Grid headRef={head} xs={series.columns.xs} xRange={series.window} period={periodText}
+          <Grid headRef={head} xs={series.columns.xs} xRange={series.window} period={periodText} smoothing={smoothing}
                 items={items.filter((i) => shown.includes(i.metric)).map((i) => ({ ...i, alertSeconds: i.stats?.alertSeconds ?? null }))}
                 onOpen={(metric) => onSelection({ ...selection, view: "single", metric })} />
         ))}

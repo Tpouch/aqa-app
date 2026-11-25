@@ -22,6 +22,10 @@ services:
       RETENTION_DAYS: ${RETENTION_DAYS:-0}
       TRUST_PROXY: ${TRUST_PROXY:-true}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Hosts the alert webhook may post to (comma-separated). Empty = webhook off.
+      WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+      # Time zone agents use for "today" (MCP tools).
+      AQA_TZ: ${AQA_TZ:-Europe/Paris}
       DATA_DIR: /data
       PORT: "3000"
     volumes:

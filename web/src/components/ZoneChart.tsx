@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { labelSides, mergeSeries, valueNear, type Cell } from "../compare";
+import { bandOptions, chartData, hoverDot, spreadAt, withSpread } from "../chartBand";
+import { labelSides, valueNear, type Cell } from "../compare";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
+import { chartColumns, type Smoothing } from "../smooth";
 import { fmt } from "../util";
 
 interface Props {
@@ -17,6 +19,8 @@ interface Props {
   onOpen?: () => void;
   // Another room on the same chart (single view): dashed curve, its name at the end.
   compare?: Compare;
+  // Smoothed curve, or smoothed with its ± 2σ band; absent = raw values.
+  smoothing?: Smoothing;
 }
 
 export interface Compare {
@@ -71,7 +75,49 @@ function useThemeKey() {
   return key;
 }
 
-export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare }: Props) {
+/** Y ticks: every zone limit in view, plus the regular ticks not crowding one. */
+export function axisSplits(limits: (number | null)[], min: number, max: number, incr: number): number[] {
+  const regular: number[] = [];
+  for (let v = Math.ceil(min / incr) * incr; v <= max; v += incr) regular.push(+v.toFixed(6));
+  const shown = limits.filter((v): v is number => v !== null && v >= min && v <= max);
+  if (!shown.length) return regular;
+  const gap = incr * 0.6;
+  const clear = (v: number) => shown.every((l) => Math.abs(v - l) > gap);
+  return [...shown, ...regular.filter(clear)].sort((a, b) => a - b);
+}
+
+/** What the screen reader hears: the last value (null = none in the window), and the
+ *  compared room's. `past`: the window ended a while ago, so it's not "current". */
+export function currentLabel(def: MetricDef, past: boolean, last: number | null, other: { name: string; value: number | null } | null): string {
+  const reading = (v: number) => `${fmt(v, def.decimals)} ${def.unit}`;
+  let own = "aucune mesure sur cette période";
+  if (last !== null) own = `${past ? "dernière valeur" : "valeur actuelle"} ${reading(last)}`;
+  if (!other) return own;
+  const theirs = other.value === null ? "aucune mesure" : reading(other.value);
+  return `${own}, ${other.name} ${theirs}`;
+}
+
+export const toneClass = (tone: Tone | undefined) => (tone ? `tone-${tone}` : "");
+
+interface TipRow { room?: string; text: string; tone: Tone | undefined }
+
+/** Hover tooltip: time, then the value (one row per room when comparing). */
+export function ZoneTip({ left, flip, time, own, other }: Readonly<{ left: number; flip: boolean; time: string; own: TipRow; other: TipRow | undefined }>) {
+  const value = (r: TipRow) => <span className={`zc-tip-value ${toneClass(r.tone)}`.trim()}>{r.text}</span>;
+  return (
+    <span className={flip ? "zc-tip flip" : "zc-tip"} style={{ left }}>
+      <span className="zc-tip-time">{time}</span>
+      {other ? (
+        <>
+          <span className="zc-tip-row"><span className="zc-tip-room"><span aria-hidden>━ </span>{own.room}</span>{value(own)}</span>
+          <span className="zc-tip-row"><span className="zc-tip-room"><span aria-hidden>╍ </span>{other.room}</span>{value(other)}</span>
+        </>
+      ) : value(own)}
+    </span>
+  );
+}
+
+export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = false, onOpen, compare, smoothing }: Readonly<Props>) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const theme = useThemeKey();
@@ -84,14 +130,16 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   // left: px from the chart's left edge; flip: tooltip goes left of the line.
   const [hover, setHover] = useState<{ idx: number; left: number; flip: boolean } | null>(null);
 
-  // With another room, both series share one time axis (see mergeSeries).
+  // Smoothed (or raw) curves; with another room, both share one time axis (see
+  // mergeSeries) and the band is laid on that axis too. The other room gets no band.
+  // `smoothing` is memoised by the page: a new object means a new mode or window.
   const merged = useMemo(
-    () => compare ? mergeSeries(ownXs, ownYs, compare.xs, compare.ys) : { xs: ownXs, a: ownYs as Cell[], b: null },
+    () => chartColumns(ownXs, ownYs, compare, smoothing),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ownXs, ownYs, compare?.xs, compare?.ys],
+    [ownXs, ownYs, compare?.xs, compare?.ys, smoothing],
   );
-  const { xs, a: ys, b: others } = merged;
-  const data: uPlot.AlignedData = others ? [xs, ys, others] : [xs, ys];
+  const { xs, a: ys, b: others, sd } = merged;
+  const { data, bandFrom, banded } = chartData(merged);
   const last = useMemo(() => lastIndex(ys), [ys]);
   const lastOther = useMemo(() => (others ? lastIndex(others) : -1), [others]);
   const empty = last < 0;
@@ -113,6 +161,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       return b ? c.tone[b.tone] : c.text;
     };
     const bounds = def.bands ? bandBounds(def.bands) : [];
+    const band = bandOptions(banded, bandFrom, cssVar("--margin"), cssVar("--margin-band"));
 
     // Each band filled between its bounds, clipped to the plot area.
     const drawBands = (u: uPlot) => {
@@ -218,8 +267,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         drag: { x: false, y: false },
         y: false,
         points: {
-          size: 8,
-          width: 2,
+          ...hoverDot(bandFrom),
           stroke: c.bg,
           fill: (u, si) => toneOf((u.data[si] as Cell[])[u.cursor.idxs?.[si] ?? u.cursor.idx ?? -1]),
         },
@@ -247,7 +295,9 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         {},
         { stroke: c.text, width: 2, spanGaps: false, points: { show: false } },
         ...(compare ? [{ stroke: c.muted, width: 1.5, dash: [6 * px, 4 * px], spanGaps: false, points: { show: false } }] : []),
+        ...band.series,
       ],
+      bands: band.bands,
       axes: [
         { ...axis, space: compact ? 60 : 70, values: timeTicks },
         {
@@ -255,14 +305,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
           side: 3,
           size: 48,
           // Zone limits are always labelled; regular ticks too when not crowding them.
-          splits: (_u, _ax, min, max, incr) => {
-            const regular: number[] = [];
-            for (let v = Math.ceil(min / incr) * incr; v <= max; v += incr) regular.push(+v.toFixed(6));
-            const limits = bounds.map((b) => b.hi).filter((v): v is number => v !== null && v >= min && v <= max);
-            if (!limits.length) return regular;
-            const gap = incr * 0.6;
-            return [...limits, ...regular.filter((v) => limits.every((l) => Math.abs(v - l) > gap))].sort((a, b) => a - b);
-          },
+          splits: (_u, _ax, min, max, incr) => axisSplits(bounds.map((b) => b.hi), min, max, incr),
           values: (_u, vals) => vals.map((v) => fmt(v, Number.isInteger(v) ? 0 : def.decimals)),
         },
       ],
@@ -284,10 +327,11 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
       plot.current?.destroy();
       plot.current = null;
     };
-    // Re-create only when the metric, its bands, mode, theme or compared room changes;
+    // Re-create only when the metric, its bands, mode, theme, compared room or smoothing
+    // mode (it adds or removes the band's series) changes;
     // data, window and height are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare]);
+  }, [def.metric, def.unit, bandsKey, compact, theme, compare?.name, compare?.tolerance, !!compare, banded]);
 
   useEffect(() => {
     plot.current?.setData(data, false);
@@ -305,36 +349,24 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
   const tolerance = compare?.tolerance ?? 0;
   const value = idx >= 0 ? valueNear(xs, ys, idx, tolerance) : null;
   const tone = bandOf(def, value)?.tone;
-  const valueText = `${fmt(value, def.decimals)} ${def.unit}`;
+  const spread = spreadAt(xs, sd, hover, tolerance);
+  const valueText = withSpread(def, value, spread);
   const otherValue = others && hovering ? valueNear(xs, others, hover!.idx, tolerance) : null;
   const otherTone = bandOf(def, otherValue)?.tone;
 
   // The hover tooltip is visual only (no live region): it would chatter on every mouse move.
   // A window that ended more than ~2 min ago (past day, closed range) has no "current" value.
   const past = range[1] < Date.now() / 1000 - 120;
-  const currentText = (empty ? "aucune mesure sur cette période" : `${past ? "dernière valeur" : "valeur actuelle"} ${fmt(ys[last], def.decimals)} ${def.unit}`)
-    + (compare ? `, ${compare.name} ${lastOther < 0 ? "aucune mesure" : `${fmt(others![lastOther], def.decimals)} ${def.unit}`}` : "");
+  const currentText = currentLabel(def, past, ys[last] ?? null, compare ? { name: compare.name, value: others?.[lastOther] ?? null } : null);
   const canvas = (
     <span className="zc-plot">
       <span ref={box} className="zc-canvas" role="img"
             aria-label={`${def.label}, ${currentText}`} />
       {empty && <span className="zc-empty">Aucune mesure{compare ? ` pour ${compare.here}` : ""} sur cette période</span>}
       {!compact && hovering && (
-        <span className={`zc-tip${hover!.flip ? " flip" : ""}`} style={{ left: hover!.left }}>
-          <span className="zc-tip-time">{stamp(xs[hover!.idx]!, range[1] - range[0])}</span>
-          {compare ? (
-            <>
-              <span className="zc-tip-row">
-                <span className="zc-tip-room"><span aria-hidden>━ </span>{compare.here}</span>
-                <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>
-              </span>
-              <span className="zc-tip-row">
-                <span className="zc-tip-room"><span aria-hidden>╍ </span>{compare.name}</span>
-                <span className={`zc-tip-value${otherTone ? ` tone-${otherTone}` : ""}`}>{fmt(otherValue, def.decimals)} {def.unit}</span>
-              </span>
-            </>
-          ) : <span className={`zc-tip-value${tone ? ` tone-${tone}` : ""}`}>{valueText}</span>}
-        </span>
+        <ZoneTip left={hover.left} flip={hover.flip} time={stamp(xs[hover.idx]!, range[1] - range[0])}
+                 own={{ room: compare?.here, text: valueText, tone }}
+                 other={compare && { room: compare.name, text: `${fmt(otherValue, def.decimals)} ${def.unit}`, tone: otherTone }} />
       )}
     </span>
   );
@@ -347,7 +379,7 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
         <span className="zc-label">{def.label} <span className="muted">{def.unit}</span></span>
         <span className="zc-read" aria-hidden>
           {idx >= 0 && <span className="muted">{hm.format(new Date(xs[idx]! * 1000))} → </span>}
-          <b className={tone ? `tone-${tone}` : undefined}>{fmt(value, def.decimals)}</b>
+          <b className={toneClass(tone) || undefined}>{fmt(value, def.decimals)}</b>
         </span>
       </span>
       {canvas}

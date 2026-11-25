@@ -13,7 +13,7 @@ describe("Sidebar, une seule carte jamais connectée", () => {
   it("affiche « en attente du premier contact » plutôt que « hors ligne »", () => {
     const out = renderToStaticMarkup(
       <Sidebar devices={[fresh]} device={fresh} onDevice={() => {}} tab="mesures"
-               selection={{ view: "single", metric: "co2", grid: ["co2"], compare: null }} onSelection={() => {}}
+               selection={{ view: "single", metric: "co2", grid: ["co2"], compare: null, smoothing: "smooth" }} onSelection={() => {}}
                pending={0} alerts={0} unknown={0} onLogout={() => {}} now={0} />);
     expect(out).toContain("en attente du premier contact");
     expect(out).not.toContain("hors ligne");

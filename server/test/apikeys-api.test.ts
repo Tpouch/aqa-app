@@ -114,7 +114,7 @@ describe("clés d'API", () => {
       appRoutes(app, db, cfg, built.firmware, new Notifier(db, { publicUrl: cfg.PUBLIC_URL, log: app.log }),
         new Webhook(db, { publicUrl: cfg.PUBLIC_URL, allowedHosts: [], log: app.log }));
       await app.ready();
-      expect(flagged.sort()).toEqual([
+      expect(flagged.sort((a, b) => a.localeCompare(b))).toEqual([
         "GET /api/v1/alert-rules",
         "GET /api/v1/devices",
         "GET /api/v1/devices/:id",
