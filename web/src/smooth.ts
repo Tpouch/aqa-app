@@ -1,6 +1,7 @@
 // Display-only processing of a chart series: a centred moving average ("lissé"), and
 // the same average ± 2 local standard deviations ("marge"). The stats and the CSV
 // keep the raw values; only the curve changes.
+import { mergeSeries, type Cell } from "./compare";
 
 export type SmoothMode = "smooth" | "band" | "raw";
 export const SMOOTH_MODES: readonly SmoothMode[] = ["smooth", "band", "raw"];
@@ -64,4 +65,19 @@ export function displaySeries(xs: number[], ys: Ys, s: Smoothing | undefined): {
   if (s.mode === "smooth") return { ys: mid, lo: null, hi: null, sd: null };
   const shift = (sign: number) => mid.map((m, i) => (m === null ? null : m + sign * 2 * sd[i]!));
   return { ys: mid, lo: shift(-1), hi: shift(1), sd };
+}
+
+/** Columns of a chart: this room's curve (`a`), the compared room's (`b`, smoothed the
+ *  same way, never banded) and this room's band, all on one time axis. With another
+ *  room the axes are merged (see mergeSeries): the band gets `undefined` exactly
+ *  where this room's curve does. */
+export function chartColumns(
+  xs: number[], ys: Ys, other: { xs: number[]; ys: Ys } | null, s: Smoothing | undefined,
+): { xs: number[]; a: Cell[]; b: Cell[] | null; lo: Cell[] | null; hi: Cell[] | null; sd: Cell[] | null } {
+  const own = displaySeries(xs, ys, s);
+  if (!other) return { xs, a: own.ys, b: null, lo: own.lo, hi: own.hi, sd: own.sd };
+  const otherYs = displaySeries(other.xs, other.ys, s).ys;
+  const m = mergeSeries(xs, own.ys, other.xs, otherYs);
+  const align = (v: Ys | null) => v && mergeSeries(xs, v, other.xs, otherYs).a;
+  return { ...m, lo: align(own.lo), hi: align(own.hi), sd: align(own.sd) };
 }

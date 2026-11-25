@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSeries } from "./compare";
-import { displaySeries, smooth, smoothWindow } from "./smooth";
+import { chartColumns, displaySeries, smooth, smoothWindow } from "./smooth";
 
 const xs = (n: number, step = 15) => Array.from({ length: n }, (_, i) => i * step);
 
@@ -63,9 +62,27 @@ describe("lissage", () => {
     expect(smoothWindow(86400, 60)).toBe(1728);
     expect(smoothWindow(600, 15)).toBe(45);
   });
-  it("bande alignable avec mergeSeries (comparaison)", () => {
-    const r = displaySeries(xs(4), [1, 2, 3, 4], { mode: "band", window: 30 });
-    const m = mergeSeries(xs(4), r.lo!, [7, 22], [5, 6]);
-    expect(m.a.length).toBe(m.xs.length);
+  it("colonnes du graphe sans comparaison : celles de displaySeries", () => {
+    const s = { mode: "band", window: 30 } as const;
+    const r = displaySeries(xs(4), [1, 2, 3, 4], s);
+    expect(chartColumns(xs(4), [1, 2, 3, 4], null, s)).toEqual({ xs: xs(4), a: r.ys, b: null, lo: r.lo, hi: r.hi, sd: r.sd });
+  });
+  it("comparaison + marge : bande alignée sur l'axe fusionné, pièce comparée lissée sans bande", () => {
+    const s = { mode: "band", window: 30 } as const;
+    const own = displaySeries(xs(4), [1, 2, 3, 4], s); // instants 0, 15, 30, 45
+    const c = chartColumns(xs(4), [1, 2, 3, 4], { xs: [7, 22, 37], ys: [5, 6, 10] }, s);
+    expect(c.xs).toEqual([0, 7, 15, 22, 30, 37, 45]);
+    // La bande a une valeur exactement là où la courbe propre en a une.
+    for (const k of ["lo", "hi", "sd"] as const) {
+      expect(c[k]!.map((v) => v === undefined)).toEqual(c.a.map((v) => v === undefined));
+      expect(c[k]!.filter((v) => v !== undefined)).toEqual(own[k]);
+    }
+    expect(c.b!.filter((v) => v !== undefined)).toEqual(displaySeries([7, 22, 37], [5, 6, 10], s).ys);
+  });
+  it("comparaison en lissé : pas de bande", () => {
+    const c = chartColumns(xs(2), [1, 2], { xs: [7], ys: [5] }, { mode: "smooth", window: 30 });
+    expect(c.lo).toBeNull();
+    expect(c.hi).toBeNull();
+    expect(c.sd).toBeNull();
   });
 });

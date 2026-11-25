@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { labelSides, mergeSeries, valueNear, type Cell } from "../compare";
+import { labelSides, valueNear, type Cell } from "../compare";
 import { bandOf, yRange, type Band, type MetricDef, type Tone } from "../metrics";
-import { displaySeries, type Smoothing } from "../smooth";
+import { chartColumns, type Smoothing } from "../smooth";
 import { fmt } from "../util";
 
 interface Props {
@@ -89,15 +89,11 @@ export function ZoneChart({ def, xs: ownXs, ys: ownYs, range, height, compact = 
 
   // Smoothed (or raw) curves; with another room, both share one time axis (see
   // mergeSeries) and the band is laid on that axis too. The other room gets no band.
-  const merged = useMemo(() => {
-    const own = displaySeries(ownXs, ownYs, smoothing);
-    if (!compare) return { xs: ownXs, a: own.ys as Cell[], b: null, lo: own.lo as Cell[] | null, hi: own.hi as Cell[] | null, sd: own.sd as Cell[] | null };
-    const otherYs = displaySeries(compare.xs, compare.ys, smoothing).ys;
-    const m = mergeSeries(ownXs, own.ys, compare.xs, otherYs);
-    const align = (v: (number | null)[] | null) => v && mergeSeries(ownXs, v, compare.xs, otherYs).a;
-    return { ...m, lo: align(own.lo), hi: align(own.hi), sd: align(own.sd) };
+  const merged = useMemo(
+    () => chartColumns(ownXs, ownYs, compare ? { xs: compare.xs, ys: compare.ys } : null, smoothing),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ownXs, ownYs, compare?.xs, compare?.ys, smoothing?.mode, smoothing?.window]);
+    [ownXs, ownYs, compare?.xs, compare?.ys, smoothing?.mode, smoothing?.window],
+  );
   const { xs, a: ys, b: others, lo, hi, sd } = merged;
   const data: uPlot.AlignedData = [xs, ys, ...(others ? [others] : []), ...(lo && hi ? [lo, hi] : [])];
   // Index of the band's lower edge (upper = +1): after the curves.
